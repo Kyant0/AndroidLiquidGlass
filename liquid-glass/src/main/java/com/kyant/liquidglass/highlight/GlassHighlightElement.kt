@@ -201,6 +201,15 @@ internal class GlassHighlightNode(
             graphicsContext.releaseGraphicsLayer(layer)
             graphicsLayer = null
         }
+
+        _size = Size.Unspecified
+        _density = Float.NaN
+        _layoutDirection = LayoutDirection.Ltr
+        _color = Color.Unspecified
+        _strokeWidthPx = Float.NaN
+        _topLeft = Offset.Unspecified
+        _outline = null
+        _cornerRadiusPx = Float.NaN
     }
 
     fun update(
