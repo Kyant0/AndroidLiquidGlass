@@ -122,6 +122,11 @@ internal class GlassShapeNode(
     }
 
     private fun updateShape() {
-        observeReads { shape = style().shape }
+        observeReads {
+            val style = style()
+            shape = style.shape
+            shadowELevation = style.shadow.elevation
+            shadowColor = style.shadow.color
+        }
     }
 }
