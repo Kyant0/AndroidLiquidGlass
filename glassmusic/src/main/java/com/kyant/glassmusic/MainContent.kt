@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
@@ -200,7 +201,8 @@ fun MainContent() {
                                             color = accentContainer.toHct().copy(
                                                 chroma = 200.0,
                                                 tone = if (LocalColorScheme.current.isDark) 90.0 else 85.0
-                                            ).toColor()
+                                            ).toColor(),
+                                            blendMode = BlendMode.Overlay
                                         )
                                     )
                                 )
