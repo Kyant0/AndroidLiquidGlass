@@ -16,14 +16,15 @@ import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
-import com.kyant.expressa.m3.shape.CornerShape
-import com.kyant.expressa.prelude.*
-import com.kyant.expressa.ui.Text
+import androidx.compose.ui.unit.sp
 import kotlin.random.Random
 
 @Composable
@@ -40,12 +41,12 @@ fun SongsContent() {
         }
 
         item(span = { GridItemSpan(maxCurrentLineSpan) }) {
-            Text(
+            BasicText(
                 "Songs",
-                headlineLargeEmphasized,
                 Modifier
                     .padding(8.dp, 64.dp, 8.dp, 16.dp)
-                    .fillMaxWidth()
+                    .fillMaxWidth(),
+                style = TextStyle(fontSize = 32.sp)
             )
         }
 
@@ -54,7 +55,7 @@ fun SongsContent() {
 
             Box(
                 Modifier
-                    .background(color, CornerShape.large)
+                    .background(color, RoundedCornerShape(16.dp))
                     .fillMaxSize()
                     .aspectRatio(1f)
             )

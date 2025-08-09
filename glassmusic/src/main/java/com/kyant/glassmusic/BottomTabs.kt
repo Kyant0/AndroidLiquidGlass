@@ -18,8 +18,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -46,10 +46,6 @@ import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
-import com.kyant.expressa.m3.motion.MotionScheme
-import com.kyant.expressa.m3.shape.CornerShape
-import com.kyant.expressa.prelude.*
-import com.kyant.expressa.ui.LocalContentColor
 import com.kyant.liquidglass.GlassStyle
 import com.kyant.liquidglass.LiquidGlassProviderState
 import com.kyant.liquidglass.liquidGlass
@@ -80,7 +76,7 @@ fun <T> BottomTabs(
     val bottomTabsLiquidGlassProviderState = rememberLiquidGlassProviderState(null)
 
     val animationScope = rememberCoroutineScope()
-    val initialContentColor = onSurface
+    val initialContentColor = Color(0xFF000000)
     val contentColor = remember { Animatable(initialContentColor) }
     val luminanceSampler = remember {
         ContinuousLuminanceSampler { animationSpec, luminance ->
@@ -102,7 +98,7 @@ fun <T> BottomTabs(
 
     val padding = 4.dp
     val paddingPx = with(density) { padding.roundToPx() }
-    val itemBackground = primaryContainer
+    val itemBackground = Color(0xFF64B5F6)
 
     BoxWithConstraints(
         modifier
@@ -127,7 +123,7 @@ fun <T> BottomTabs(
                     val luminance = luminanceSampler.luminance.pow(2f)
 
                     GlassStyle(
-                        CornerShape.full,
+                        CircleShape,
                         innerRefraction = InnerRefraction(
                             height = RefractionHeight(12.dp),
                             amount = RefractionAmount.Half
@@ -150,52 +146,49 @@ fun <T> BottomTabs(
                 .padding(padding),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CompositionLocalProvider(
-                LocalContentColor providesComputed { contentColor.value }
-            ) {
-                tabs.forEach { tab ->
-                    key(tab) {
-                        val itemBackgroundAlpha by animateFloatAsState(
-                            if (selectedTabState.value == tab && !isDragging) {
-                                0.8f
-                            } else {
-                                0f
-                            },
-                            MotionScheme.slowEffects()
-                        )
+            tabs.forEach { tab ->
+                key(tab) {
+                    val itemBackgroundAlpha by animateFloatAsState(
+                        if (selectedTabState.value == tab && !isDragging) {
+                            0.8f
+                        } else {
+                            0f
+                        },
+                        spring(0.8f, 200f)
+                    )
 
-                        scope.content(tab).Content(
-                            Modifier
-                                .clip(CornerShape.full)
-                                .drawBehind {
-                                    drawRect(
-                                        itemBackground,
-                                        alpha = itemBackgroundAlpha
-                                    )
-                                }
-                                .pointerInput(Unit) {
-                                    detectTapGestures {
-                                        if (selectedTabState.value != tab) {
-                                            selectedTabState.value = tab
-                                            animationScope.launch {
-                                                launch {
-                                                    offset.animateTo(
-                                                        (tabs.indexOf(tab) * tabWidth).fastCoerceIn(0f, maxWidth),
-                                                        MotionScheme.slowSpatial()
-                                                    )
-                                                }
-                                                launch {
-                                                    isDragging = true
-                                                    delay(200)
-                                                    isDragging = false
-                                                }
+                    scope.content(tab).Content(
+                        { contentColor.value },
+                        Modifier
+                            .clip(CircleShape)
+                            .drawBehind {
+                                drawRect(
+                                    itemBackground,
+                                    alpha = itemBackgroundAlpha
+                                )
+                            }
+                            .pointerInput(Unit) {
+                                detectTapGestures {
+                                    if (selectedTabState.value != tab) {
+                                        selectedTabState.value = tab
+                                        animationScope.launch {
+                                            launch {
+                                                offset.animateTo(
+                                                    (tabs.indexOf(tab) * tabWidth).fastCoerceIn(0f, maxWidth),
+                                                    spring(0.8f, 200f)
+                                                )
+                                            }
+                                            launch {
+                                                isDragging = true
+                                                delay(200)
+                                                isDragging = false
                                             }
                                         }
                                     }
                                 }
-                                .weight(1f)
-                        )
-                    }
+                            }
+                            .weight(1f)
+                    )
                 }
             }
         }
@@ -242,11 +235,11 @@ fun <T> BottomTabs(
                     scaleY = lerp(1f, 0.9f, scaleYFraction)
                     transformOrigin = TransformOrigin(0f, 0f)
                 }
-                .background(background, CornerShape.full)
+                .background(background, CircleShape)
                 .liquidGlass(
                     bottomTabsLiquidGlassProviderState,
                     GlassStyle(
-                        CornerShape.full,
+                        CircleShape,
                         innerRefraction = InnerRefraction(
                             height = RefractionHeight(
                                 animateFloatAsState(
@@ -281,7 +274,7 @@ fun <T> BottomTabs(
                         animationScope.launch {
                             offset.animateTo(
                                 (targetIndex * tabWidth).fastCoerceIn(0f, maxWidth),
-                                MotionScheme.defaultSpatial()
+                                spring(0.8f, 380f)
                             )
                         }
                     }

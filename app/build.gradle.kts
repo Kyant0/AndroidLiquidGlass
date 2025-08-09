@@ -84,7 +84,6 @@ dependencies {
     implementation(files("libs/expressa-core-release.aar"))
     implementation(files("libs/expressa-components-release.aar"))
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.ui)
