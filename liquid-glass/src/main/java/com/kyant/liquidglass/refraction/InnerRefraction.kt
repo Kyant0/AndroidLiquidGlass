@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 data class InnerRefraction(
     override val height: RefractionHeight,
     override val amount: RefractionAmount,
-    @param:FloatRange(from = 0.0, to = 1.0) val depthEffect: Float = 1f
+    @param:FloatRange(from = 0.0, to = 1.0) val depthEffect: Float = 0f
 ) : Refraction {
 
     companion object {

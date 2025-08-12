@@ -178,7 +178,9 @@ private class LiquidGlassNode(
     private var _blurRadiusPx: Float = Float.NaN
     private var _blurRenderEffect: RenderEffect? = null
 
-    private val refractionShader = RuntimeShader(GlassShaders.refractionShaderString)
+    private var _innerRefractionWithDepthEffect = false
+    private var _innerRefractionShader: RuntimeShader? = null
+
     private var _size: Size = Size.Unspecified
     private var _cornerRadiusPx: Float = Float.NaN
     private var _innerRefractionHeight: Float = Float.NaN
@@ -232,6 +234,20 @@ private class LiquidGlassNode(
         }
         val blurRenderEffect = _blurRenderEffect
 
+        val innerRefractionWithDepthEffect = style.innerRefraction.depthEffect > 0f
+        val innerRefractionWithDepthEffectChanged =
+            _innerRefractionWithDepthEffect != innerRefractionWithDepthEffect
+        if (innerRefractionWithDepthEffectChanged || _innerRefractionShader == null) {
+            _innerRefractionWithDepthEffect = innerRefractionWithDepthEffect
+            _innerRefractionShader =
+                if (innerRefractionWithDepthEffect) {
+                    RuntimeShader(GlassShaders.refractionShaderWidthDepthEffectString)
+                } else {
+                    RuntimeShader(GlassShaders.refractionShaderString)
+                }
+        }
+        val innerRefractionShader = _innerRefractionShader!!
+
         val size = size
         val sizeChanged = _size != size
         _size = size
@@ -254,13 +270,15 @@ private class LiquidGlassNode(
             _depthEffect = depthEffect
             _innerRefractionRenderEffect =
                 RenderEffect.createRuntimeShaderEffect(
-                    refractionShader.apply {
+                    innerRefractionShader.apply {
                         setFloatUniform("size", size.width, size.height)
                         setFloatUniform("cornerRadius", cornerRadiusPx)
 
                         setFloatUniform("refractionHeight", innerRefractionHeight)
                         setFloatUniform("refractionAmount", innerRefractionAmount)
-                        setFloatUniform("depthEffect", depthEffect)
+                        if (innerRefractionWithDepthEffect) {
+                            setFloatUniform("depthEffect", depthEffect)
+                        }
                     },
                     "image"
                 )
@@ -278,18 +296,16 @@ private class LiquidGlassNode(
                 } else {
                     innerRefractionRenderEffect
                 }.asComposeRenderEffect()
+
+            graphicsLayer?.renderEffect = _renderEffect
         }
 
-        graphicsLayer?.let { layer ->
-            layer.renderEffect = _renderEffect
-
-            val position = position
-            if (renderEffectChanged || _position != position) {
-                _position = position
-                layer.record {
-                    translate(-position.x, -position.y) {
-                        drawLayer(state.graphicsLayer)
-                    }
+        val position = position
+        if (renderEffectChanged || _position != position) {
+            _position = position
+            graphicsLayer?.record {
+                translate(-position.x, -position.y) {
+                    drawLayer(state.graphicsLayer)
                 }
             }
         }
