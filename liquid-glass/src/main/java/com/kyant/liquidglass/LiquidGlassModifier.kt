@@ -34,6 +34,7 @@ import com.kyant.liquidglass.highlight.GlassHighlightElement
 import com.kyant.liquidglass.material.GlassBrushElement
 import com.kyant.liquidglass.sampler.ExperimentalLuminanceSamplerApi
 import com.kyant.liquidglass.sampler.LuminanceSampler
+import com.kyant.liquidglass.shadow.GlassShadowElement
 import com.kyant.liquidglass.utils.GlassShaders
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -86,6 +87,11 @@ fun Modifier.liquidGlass(
     style: () -> GlassStyle
 ): Modifier =
     this
+        .then(
+            GlassShadowElement(
+                style = style
+            )
+        )
         .then(
             GlassShapeElement(
                 style = style,
@@ -168,7 +174,9 @@ private class LiquidGlassNode(
 
     private var position: Offset by mutableStateOf(Offset.Zero)
     private var graphicsLayer: GraphicsLayer? = null
+
     private var samplerJob: Job? = null
+    private var samplerLayer: GraphicsLayer? = null
 
     private var currentStyle = style()
 
@@ -308,6 +316,13 @@ private class LiquidGlassNode(
                     drawLayer(state.graphicsLayer)
                 }
             }
+            if (samplerJob != null) {
+                samplerLayer?.record {
+                    translate(-position.x, -position.y) {
+                        drawLayer(state.graphicsLayer)
+                    }
+                }
+            }
         }
 
         onDrawBehind {
@@ -336,10 +351,15 @@ private class LiquidGlassNode(
             }
 
         luminanceSampler?.let { sampler ->
+            samplerLayer =
+                graphicsContext.createGraphicsLayer().apply {
+                    compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
+                }
+
             samplerJob =
                 coroutineScope.launch {
                     while (isActive) {
-                        graphicsLayer?.let { layer ->
+                        samplerLayer?.let { layer ->
                             sampler.sample(layer)
                         }
                         delay(sampler.sampleIntervalMillis)
@@ -359,6 +379,11 @@ private class LiquidGlassNode(
 
         samplerJob?.cancel()
         samplerJob = null
+
+        samplerLayer?.let { layer ->
+            graphicsContext.releaseGraphicsLayer(layer)
+            samplerLayer = null
+        }
     }
 
     fun update(

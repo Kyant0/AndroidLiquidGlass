@@ -66,29 +66,10 @@ internal class GlassShapeNode(
             }
         }
 
-    private var shadowELevation = style().shadow.elevation
-        set(value) {
-            if (field != value) {
-                field = value
-                invalidateLayer()
-            }
-        }
-
-    private var shadowColor = style().shadow.color
-        set(value) {
-            if (field != value) {
-                field = value
-                invalidateLayer()
-            }
-        }
-
     private val layerBlock: GraphicsLayerScope.() -> Unit = {
         clip = true
         shape = this@GlassShapeNode.shape
         compositingStrategy = this@GlassShapeNode.compositingStrategy
-        shadowElevation = shadowELevation.toPx()
-        ambientShadowColor = shadowColor
-        spotShadowColor = shadowColor
     }
 
     override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
@@ -125,8 +106,6 @@ internal class GlassShapeNode(
         observeReads {
             val style = style()
             shape = style.shape
-            shadowELevation = style.shadow.elevation
-            shadowColor = style.shadow.color
         }
     }
 }

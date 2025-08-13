@@ -10,6 +10,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -43,7 +44,7 @@ sealed interface GlassHighlight {
 
         override val color: Color = Color.Unspecified
 
-        override val blendMode: BlendMode = BlendMode.SrcOver
+        override val blendMode: BlendMode = DrawScope.DefaultBlendMode
     }
 
     /**
