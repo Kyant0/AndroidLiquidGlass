@@ -1,5 +1,6 @@
 package com.kyant.liquidglass.material
 
+import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ColorMatrixColorFilter
@@ -12,6 +13,7 @@ fun saturationColorFilter(saturation: Float): ColorFilter {
     return ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(saturation) })
 }
 
+@Stable
 fun simpleColorFilter(
     brightness: Float = 1f,
     contrast: Float = 1f,
