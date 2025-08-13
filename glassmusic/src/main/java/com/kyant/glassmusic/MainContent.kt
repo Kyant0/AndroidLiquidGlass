@@ -123,11 +123,6 @@ fun MainContent() {
                             innerRefraction = InnerRefraction(
                                 height = RefractionHeight(8.dp),
                                 amount = RefractionAmount((-28).dp)
-                            ),
-                            material = GlassMaterial(
-                                blurRadius = 8.dp,
-                                brush = SolidColor(Color.White),
-                                alpha = 0.5f
                             )
                         )
                     )

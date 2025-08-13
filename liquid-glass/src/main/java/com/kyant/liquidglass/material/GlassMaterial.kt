@@ -50,6 +50,6 @@ data class GlassMaterial(
             )
 
         @Stable
-        val DefaultColorFilter: ColorFilter = saturationColorFilter(1.5f)
+        val DefaultColorFilter: ColorFilter = simpleColorFilter(contrast = 1.5f, saturation = 1.5f)
     }
 }
