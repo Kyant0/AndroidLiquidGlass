@@ -15,7 +15,7 @@ fun saturationColorFilter(saturation: Float): ColorFilter {
 
 @Stable
 fun simpleColorFilter(
-    brightness: Float = 1f,
+    brightness: Float = 0f,
     contrast: Float = 1f,
     saturation: Float = 1f
 ): ColorFilter {
@@ -25,7 +25,7 @@ fun simpleColorFilter(
     val b = 0.072f * invSat
 
     val c = contrast
-    val t = (0.5f - c * 0.5f + (brightness - 1f)) * 255f
+    val t = (0.5f - c * 0.5f + brightness) * 255f
     val s = saturation
 
     val cr = c * r
