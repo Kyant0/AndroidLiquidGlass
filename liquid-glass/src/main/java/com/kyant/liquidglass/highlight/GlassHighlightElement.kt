@@ -95,6 +95,7 @@ internal class GlassHighlightNode(
     private var _outline: Outline? = null
 
     private var _cornerRadiusPx = Float.NaN
+    private var _highlight: GlassHighlight? = null
 
     private val drawNode = delegate(CacheDrawModifierNode {
         if (highlight == GlassHighlight.None) {
@@ -143,7 +144,9 @@ internal class GlassHighlightNode(
         if (outline != null) {
             graphicsLayer?.let { layer ->
                 val cornerRadiusPx = shape.topStart.toPx(size, this)
-                if (outlineChanged || _cornerRadiusPx != cornerRadiusPx) {
+                val highlightChanged = _highlight != highlight
+                _highlight = highlight
+                if (outlineChanged || highlightChanged || _cornerRadiusPx != cornerRadiusPx) {
                     _cornerRadiusPx = cornerRadiusPx
 
                     val borderRenderEffect = highlight.createRenderEffect(size, this, cornerRadiusPx)
