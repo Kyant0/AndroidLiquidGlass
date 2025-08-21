@@ -9,21 +9,6 @@ import com.kyant.liquidglass.shadow.GlassShadow
 
 /**
  * The style of the liquid glass.
- *
- * @param shape
- * The shape of the glass.
- *
- * @param innerRefraction
- * The inner refraction effect of the liquid glass.
- *
- * @param material
- * The material properties of the liquid glass.
- *
- * @param highlight
- * The highlight effect applied to the liquid glass.
- *
- * @param shadow
- * The shadow effect applied to the liquid glass.
  */
 @Immutable
 data class GlassStyle(

@@ -21,11 +21,17 @@ internal class GlassShapeElement(
 ) : ModifierNodeElement<GlassShapeNode>() {
 
     override fun create(): GlassShapeNode {
-        return GlassShapeNode(style, compositingStrategy)
+        return GlassShapeNode(
+            style = style,
+            compositingStrategy = compositingStrategy
+        )
     }
 
     override fun update(node: GlassShapeNode) {
-        node.update(style, compositingStrategy)
+        node.update(
+            style = style,
+            compositingStrategy = compositingStrategy
+        )
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -72,7 +78,10 @@ internal class GlassShapeNode(
         compositingStrategy = this@GlassShapeNode.compositingStrategy
     }
 
-    override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
+    override fun MeasureScope.measure(
+        measurable: Measurable,
+        constraints: Constraints
+    ): MeasureResult {
         val placeable = measurable.measure(constraints)
 
         return layout(placeable.width, placeable.height) {

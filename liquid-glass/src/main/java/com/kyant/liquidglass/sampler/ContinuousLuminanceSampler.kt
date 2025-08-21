@@ -21,15 +21,7 @@ class ContinuousLuminanceSampler(
     val onAnimateToLuminance: ((animationSpec: FiniteAnimationSpec<Float>, luminance: Float) -> Unit)? = null
 ) : LuminanceSampler {
 
-    private val luminanceAnimation = Animatable(0f)
-
-    private val animationSpec =
-        tween<Float>(durationMillis.toInt(), 0, easing)
-
     override val sampleIntervalMillis: Long = 0L
-
-    override val luminance: Float
-        get() = luminanceAnimation.value.fastCoerceIn(0f, 1f)
 
     private val impulseLuminanceSampler =
         ImpulseLuminanceSampler(
@@ -38,7 +30,15 @@ class ContinuousLuminanceSampler(
             scaledSize = scaledSize
         )
 
+    private val luminanceAnimation = Animatable(0f)
+
+    override val luminance: Float
+        get() = luminanceAnimation.value.fastCoerceIn(0f, 1f)
+
     private var hasValidValue = false
+
+    private val animationSpec =
+        tween<Float>(durationMillis.toInt(), 0, easing)
 
     override suspend fun sample(graphicsLayer: GraphicsLayer) {
         impulseLuminanceSampler.sample(graphicsLayer)

@@ -41,39 +41,40 @@ class ImpulseLuminanceSampler(
         val scaledHeight = scaledSize.height
 
         if (!graphicsLayer.isReleased && graphicsLayer.size.width > 0 && graphicsLayer.size.height > 0) {
-            withContext(Dispatchers.IO) {
-                val bitmap = graphicsLayer.toImageBitmap().asAndroidBitmap()
-                val scaledBitmap =
+            val bitmap =
+                withContext(Dispatchers.IO) {
+                    graphicsLayer.toImageBitmap().asAndroidBitmap()
+                }
+            val scaledBitmap =
+                withContext(Dispatchers.IO) {
                     Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, false)
                         .copy(Bitmap.Config.ARGB_8888, false)
-
-                var sumLuminance = 0f
-                val totalPixels = scaledWidth * scaledHeight
-
-                for (y in 0 until scaledHeight) {
-                    for (x in 0 until scaledWidth) {
-                        val pixel = scaledBitmap.getPixel(x, y)
-                        val red = (pixel shr 16) and 0xFF
-                        val green = (pixel shr 8) and 0xFF
-                        val blue = pixel and 0xFF
-
-                        val pixelLuminance = (0.299f * red + 0.587f * green + 0.114f * blue) / 255f
-                        sumLuminance += pixelLuminance
-                    }
                 }
 
-                val newLuminance =
-                    ((sumLuminance / totalPixels / precision).fastRoundToInt() * precision).fastCoerceIn(0f, 1f)
-                if (!newLuminance.isNaN()) {
-                    withContext(Dispatchers.Main) {
-                        onChangeToLuminance?.invoke(newLuminance)
-                        luminance = newLuminance
-                    }
-                }
+            var sumLuminance = 0f
+            val totalPixels = scaledWidth * scaledHeight
 
-                scaledBitmap.recycle()
-                bitmap.recycle()
+            for (y in 0 until scaledHeight) {
+                for (x in 0 until scaledWidth) {
+                    val pixel = scaledBitmap.getPixel(x, y)
+                    val red = (pixel shr 16) and 0xFF
+                    val green = (pixel shr 8) and 0xFF
+                    val blue = pixel and 0xFF
+
+                    val pixelLuminance = (0.299f * red + 0.587f * green + 0.114f * blue) / 255f
+                    sumLuminance += pixelLuminance
+                }
             }
+
+            val newLuminance =
+                ((sumLuminance / totalPixels / precision).fastRoundToInt() * precision).fastCoerceIn(0f, 1f)
+            if (!newLuminance.isNaN()) {
+                onChangeToLuminance?.invoke(newLuminance)
+                luminance = newLuminance
+            }
+
+            scaledBitmap.recycle()
+            bitmap.recycle()
         }
     }
 }

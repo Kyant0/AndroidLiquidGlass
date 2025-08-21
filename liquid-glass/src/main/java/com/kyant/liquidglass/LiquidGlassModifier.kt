@@ -18,7 +18,9 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.asAndroidColorFilter
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.drawscope.DrawTransform
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -44,24 +46,28 @@ import kotlinx.coroutines.launch
 fun Modifier.liquidGlass(
     state: LiquidGlassProviderState,
     style: GlassStyle,
-    compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen
+    compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
+    transformBlock: (DrawTransform.() -> Unit)? = null
 ): Modifier =
     this.liquidGlass(
         state = state,
         luminanceSampler = null,
         compositingStrategy = compositingStrategy,
+        transformBlock = transformBlock,
         style = { style }
     )
 
 fun Modifier.liquidGlass(
     state: LiquidGlassProviderState,
     compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
+    transformBlock: (DrawTransform.() -> Unit)? = null,
     style: () -> GlassStyle
 ): Modifier =
     this.liquidGlass(
         state = state,
         luminanceSampler = null,
         compositingStrategy = compositingStrategy,
+        transformBlock = transformBlock,
         style = style
     )
 
@@ -70,12 +76,14 @@ fun Modifier.liquidGlass(
     state: LiquidGlassProviderState,
     style: GlassStyle,
     compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
+    transformBlock: (DrawTransform.() -> Unit)? = null,
     luminanceSampler: LuminanceSampler? = null
 ): Modifier =
     this.liquidGlass(
         state = state,
         luminanceSampler = luminanceSampler,
         compositingStrategy = compositingStrategy,
+        transformBlock = transformBlock,
         style = { style }
     )
 
@@ -84,6 +92,7 @@ fun Modifier.liquidGlass(
     state: LiquidGlassProviderState,
     luminanceSampler: LuminanceSampler? = null,
     compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
+    transformBlock: (DrawTransform.() -> Unit)? = null,
     style: () -> GlassStyle
 ): Modifier =
     this
@@ -103,7 +112,8 @@ fun Modifier.liquidGlass(
                 LiquidGlassElement(
                     state = state,
                     style = style,
-                    luminanceSampler = luminanceSampler
+                    luminanceSampler = luminanceSampler,
+                    transformBlock = transformBlock
                 ) then GlassBrushElement(
                     style = style
                 ) then GlassHighlightElement(
@@ -118,14 +128,16 @@ fun Modifier.liquidGlass(
 private class LiquidGlassElement(
     val state: LiquidGlassProviderState,
     val style: () -> GlassStyle,
-    val luminanceSampler: LuminanceSampler?
+    val luminanceSampler: LuminanceSampler?,
+    val transformBlock: (DrawTransform.() -> Unit)?
 ) : ModifierNodeElement<LiquidGlassNode>() {
 
     override fun create(): LiquidGlassNode {
         return LiquidGlassNode(
             state = state,
             style = style,
-            luminanceSampler = luminanceSampler
+            luminanceSampler = luminanceSampler,
+            transformBlock = transformBlock
         )
     }
 
@@ -133,7 +145,8 @@ private class LiquidGlassElement(
         node.update(
             state = state,
             style = style,
-            luminanceSampler = luminanceSampler
+            luminanceSampler = luminanceSampler,
+            transformBlock = transformBlock
         )
     }
 
@@ -142,6 +155,7 @@ private class LiquidGlassElement(
         properties["state"] = state
         properties["style"] = style
         properties["luminanceSampler"] = luminanceSampler
+        properties["transformBlock"] = transformBlock
     }
 
     override fun equals(other: Any?): Boolean {
@@ -151,6 +165,7 @@ private class LiquidGlassElement(
         if (state != other.state) return false
         if (style != other.style) return false
         if (luminanceSampler != other.luminanceSampler) return false
+        if (transformBlock != other.transformBlock) return false
 
         return true
     }
@@ -159,6 +174,7 @@ private class LiquidGlassElement(
         var result = state.hashCode()
         result = 31 * result + style.hashCode()
         result = 31 * result + (luminanceSampler?.hashCode() ?: 0)
+        result = 31 * result + (transformBlock?.hashCode() ?: 0)
         return result
     }
 }
@@ -167,7 +183,8 @@ private class LiquidGlassElement(
 private class LiquidGlassNode(
     var state: LiquidGlassProviderState,
     var style: () -> GlassStyle,
-    var luminanceSampler: LuminanceSampler?
+    var luminanceSampler: LuminanceSampler?,
+    var transformBlock: (DrawTransform.() -> Unit)?
 ) : GlobalPositionAwareModifierNode, ObserverModifierNode, DelegatingNode() {
 
     override val shouldAutoInvalidate: Boolean = false
@@ -177,6 +194,7 @@ private class LiquidGlassNode(
 
     private var samplerJob: Job? = null
     private var samplerLayer: GraphicsLayer? = null
+    private var samplerChanged = true
 
     private var currentStyle = style()
 
@@ -197,7 +215,7 @@ private class LiquidGlassNode(
     private var _innerRefractionRenderEffect: RenderEffect? = null
 
     private var _renderEffect: androidx.compose.ui.graphics.RenderEffect? = null
-
+    private var transformBlockChanged = true
     private var _position: Offset? = null
 
     private val drawNode = delegate(CacheDrawModifierNode {
@@ -309,21 +327,42 @@ private class LiquidGlassNode(
         }
 
         val position = position
-        if (renderEffectChanged || _position != position) {
-            _position = position
+        val positionChanged = _position != position
+        _position = position
+        if (renderEffectChanged || transformBlockChanged || positionChanged) {
+            transformBlockChanged = false
             graphicsLayer?.record {
-                translate(-position.x, -position.y) {
-                    drawLayer(state.graphicsLayer)
-                }
-            }
-            if (samplerJob != null) {
-                samplerLayer?.record {
+                val transformBlock = transformBlock
+                if (transformBlock != null) {
+                    withTransform(transformBlock) {
+                        translate(-position.x, -position.y) {
+                            drawLayer(state.graphicsLayer)
+                        }
+                    }
+                } else {
                     translate(-position.x, -position.y) {
                         drawLayer(state.graphicsLayer)
                     }
                 }
             }
         }
+
+        if (samplerChanged) {
+            if (luminanceSampler != null) {
+                samplerLayer =
+                    requireGraphicsContext().createGraphicsLayer().apply {
+                        compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
+                    }
+            }
+        }
+        if (samplerChanged || positionChanged) {
+            samplerLayer?.record {
+                translate(-position.x, -position.y) {
+                    drawLayer(state.graphicsLayer)
+                }
+            }
+        }
+        samplerChanged = false
 
         onDrawBehind {
             graphicsLayer?.let { layer ->
@@ -350,12 +389,63 @@ private class LiquidGlassNode(
                 compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
             }
 
-        luminanceSampler?.let { sampler ->
-            samplerLayer =
-                graphicsContext.createGraphicsLayer().apply {
-                    compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
-                }
+        updateStyle()
+        updateSampler()
+    }
 
+    override fun onDetach() {
+        samplerJob?.cancel()
+        samplerJob = null
+
+        val graphicsContext = requireGraphicsContext()
+        graphicsLayer?.let { layer ->
+            graphicsContext.releaseGraphicsLayer(layer)
+            graphicsLayer = null
+        }
+        samplerLayer?.let { layer ->
+            graphicsContext.releaseGraphicsLayer(layer)
+            samplerLayer = null
+            samplerChanged = true
+        }
+    }
+
+    fun update(
+        state: LiquidGlassProviderState,
+        style: () -> GlassStyle,
+        luminanceSampler: LuminanceSampler?,
+        transformBlock: (DrawTransform.() -> Unit)?
+    ) {
+        if (this.state != state ||
+            this.style != style
+        ) {
+            this.state = state
+            this.style = style
+            updateStyle()
+        }
+        if (this.luminanceSampler != luminanceSampler) {
+            this.luminanceSampler = luminanceSampler
+            updateSampler()
+        }
+        if (this.transformBlock != transformBlock) {
+            this.transformBlock = transformBlock
+            transformBlockChanged = true
+            drawNode.invalidateDrawCache()
+        }
+    }
+
+    private fun updateStyle() {
+        observeReads { currentStyle = style() }
+        drawNode.invalidateDrawCache()
+    }
+
+    private fun updateSampler() {
+        samplerJob?.cancel()
+        samplerJob = null
+        samplerLayer?.let { layer ->
+            requireGraphicsContext().releaseGraphicsLayer(layer)
+            samplerLayer = null
+        }
+        this.luminanceSampler?.let { sampler ->
             samplerJob =
                 coroutineScope.launch {
                     while (isActive) {
@@ -366,44 +456,7 @@ private class LiquidGlassNode(
                     }
                 }
         }
-
-        updateStyle()
-    }
-
-    override fun onDetach() {
-        val graphicsContext = requireGraphicsContext()
-        graphicsLayer?.let { layer ->
-            graphicsContext.releaseGraphicsLayer(layer)
-            graphicsLayer = null
-        }
-
-        samplerJob?.cancel()
-        samplerJob = null
-
-        samplerLayer?.let { layer ->
-            graphicsContext.releaseGraphicsLayer(layer)
-            samplerLayer = null
-        }
-    }
-
-    fun update(
-        state: LiquidGlassProviderState,
-        style: () -> GlassStyle,
-        luminanceSampler: LuminanceSampler?
-    ) {
-        if (this.state != state ||
-            this.style != style ||
-            this.luminanceSampler != luminanceSampler
-        ) {
-            this.state = state
-            this.style = style
-            this.luminanceSampler = luminanceSampler
-            updateStyle()
-        }
-    }
-
-    private fun updateStyle() {
-        observeReads { currentStyle = style() }
+        samplerChanged = true
         drawNode.invalidateDrawCache()
     }
 }

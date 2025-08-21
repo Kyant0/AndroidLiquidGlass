@@ -90,7 +90,7 @@ See [here](./glassmusic/src/main/java/com/kyant/glassmusic/BottomTabs.kt#L123) f
 
 ### Tips
 
-The following case is not supported:
+- The following case is not supported:
 
 ```kotlin
 LiquidGlassProvider(providerState) {
@@ -105,6 +105,17 @@ Box {
     LiquidGlassProvider(providerState) {}
     LiquidGlass(providerState) {}
 }
+```
+
+- Apply the scale correctly:
+
+```kotlin
+Modifier
+    .scale(scaleX, scaleY)
+    .liquidGlass(
+        // ...
+        transformBlock = { scale(1f / scaleX, 1f / scaleY, Offset.Zero) }
+    )
 ```
 
 ## Comparisons
