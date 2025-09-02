@@ -36,8 +36,7 @@ data class InnerRefraction(
         val Default: InnerRefraction =
             InnerRefraction(
                 height = RefractionHeight(8.dp),
-                amount = RefractionAmount((-16).dp),
-                depthEffect = 1f
+                amount = RefractionAmount((-16).dp)
             )
     }
 }
