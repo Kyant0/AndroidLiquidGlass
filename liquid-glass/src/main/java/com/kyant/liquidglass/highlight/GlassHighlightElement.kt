@@ -71,6 +71,7 @@ internal class GlassHighlightNode(
         set(value) {
             if (field != value) {
                 field = value
+                _size = Size.Unspecified
                 drawNode.invalidateDrawCache()
             }
         }
@@ -79,6 +80,7 @@ internal class GlassHighlightNode(
         set(value) {
             if (field != value) {
                 field = value
+                _size = Size.Unspecified
                 drawNode.invalidateDrawCache()
             }
         }
@@ -99,7 +101,7 @@ internal class GlassHighlightNode(
 
     private val drawNode = delegate(CacheDrawModifierNode {
         if (highlight == GlassHighlight.None) {
-            return@CacheDrawModifierNode onDrawBehind {}
+            return@CacheDrawModifierNode onDrawWithContent { drawContent() }
         }
 
         val size = size
