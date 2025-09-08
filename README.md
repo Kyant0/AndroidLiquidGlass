@@ -68,7 +68,7 @@ Box(
 Use the block modifier variant to improve performance when the style changes frequently:
 
 ```kotlin
-var progress by animateFloatAsState(if (isPressed) 1f else 0f)
+val progress by animateFloatAsState(if (isPressed) 1f else 0f)
 
 Box(
     Modifier.liquidGlass(providerState) {
