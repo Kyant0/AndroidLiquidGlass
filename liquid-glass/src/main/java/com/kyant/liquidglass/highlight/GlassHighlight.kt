@@ -61,7 +61,7 @@ sealed interface GlassHighlight {
      */
     @Immutable
     data class Solid(
-        override val width: Dp = 1.dp,
+        override val width: Dp = 1f.dp,
         override val color: Color = Color.White.copy(alpha = 0.4f),
         override val blendMode: BlendMode = BlendMode.Plus
     ) : GlassHighlight
@@ -86,7 +86,7 @@ sealed interface GlassHighlight {
      */
     @Immutable
     data class Dynamic(
-        override val width: Dp = 1.dp,
+        override val width: Dp = 1f.dp,
         override val color: Color = Color.White.copy(alpha = 0.4f),
         override val blendMode: BlendMode = BlendMode.Plus,
         val angle: Float = 45f,

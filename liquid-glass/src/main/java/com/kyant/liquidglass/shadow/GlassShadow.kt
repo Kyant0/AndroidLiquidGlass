@@ -15,10 +15,10 @@ import androidx.compose.ui.unit.dp
  */
 @Immutable
 data class GlassShadow(
-    val elevation: Dp = 24.dp,
+    val elevation: Dp = 24f.dp,
     val brush: Brush = SolidColor(Color.Black.copy(alpha = 0.15f)),
-    val spread: Dp = 0.dp,
-    val offset: DpOffset = DpOffset(0.dp, 4.dp),
+    val spread: Dp = 0f.dp,
+    val offset: DpOffset = DpOffset(0f.dp, 4f.dp),
     val alpha: Float = 1f,
     val blendMode: BlendMode = DrawScope.DefaultBlendMode
 ) {

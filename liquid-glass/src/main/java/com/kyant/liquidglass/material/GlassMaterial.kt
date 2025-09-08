@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
  */
 @Immutable
 data class GlassMaterial(
-    val blurRadius: Dp = 2.dp,
+    val blurRadius: Dp = 2f.dp,
     val colorFilter: ColorFilter? = DefaultColorFilter,
     val brush: Brush? = null,
     val alpha: Float = 1f,
@@ -49,7 +49,7 @@ data class GlassMaterial(
         @Stable
         val None: GlassMaterial =
             GlassMaterial(
-                blurRadius = 0.dp,
+                blurRadius = 0f.dp,
                 colorFilter = null
             )
     }
