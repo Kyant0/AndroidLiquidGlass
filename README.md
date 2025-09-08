@@ -6,11 +6,11 @@ Apple's Liquid Glass effect for Android Jetpack Compose.
 
 - [Playground app](./app/release/app-release.apk), Android 13 and above is required.
 
-![](./artworks/features.jpg)
+![](artworks/playground_app.jpg)
 
-- [Music player demo](./glassmusic/release/glassmusic-release.apk) that integrates **liquid bottom tabs**.
+- [Music player demo](./glassmusic/release/glassmusic-release.apk)
 
-<img alt="Luminance sampler demo" height="400" src="./artworks/luminance_sampler_demo.png"/>
+<img alt="Screenshots of a music player demo" height="400" src="artworks/music_player_demo.png"/>
 
 ## Library
 
@@ -36,10 +36,12 @@ implementation("com.github.Kyant0:AndroidLiquidGlass:<version>")
 
 ```kotlin
 val providerState = rememberLiquidGlassProviderState(
+    // if the providing content has any transparent area and there is a background behind the content, set the
+    // background color here, or set it to null
     backgroundColor = Color.White
 )
 
-// content behind the glass
+// the content behind the glass
 Box(Modifier.liquidGlassProvider(providerState))
 
 // glass
@@ -47,13 +49,14 @@ Box(
     Modifier.liquidGlass(
         providerState,
         GlassStyle(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(16f.dp),
             innerRefraction = InnerRefraction(
-                height = RefractionHeight(8.dp),
-                amount = RefractionAmount((-16).dp)
+                height = RefractionHeight(8f.dp),
+                amount = RefractionAmount((-16f).dp),
+                depthEffect = 0f // or `1f` to have more 3D effect
             ),
             material = GlassMaterial(
-                blurRadius = 8.dp,
+                blurRadius = 2f.dp,
                 brush = SolidColor(Color.White),
                 alpha = 0.3f
             )
@@ -62,9 +65,32 @@ Box(
 )
 ```
 
+Using the block variant to improve performance when the style changes frequently:
+
+```kotlin
+var progress by animateFloatAsState(if (isPressed) 1f else 0f)
+
+Box(
+    Modifier.liquidGlass(providerState) {
+        GlassStyle(
+            shape = RoundedCornerShape(16f.dp),
+            innerRefraction = InnerRefraction(
+                height = RefractionHeight(8f.dp * progress),
+                amount = RefractionAmount((-16f).dp * progress)
+            ),
+            material = GlassMaterial(
+                blurRadius = 2f.dp * progress,
+                brush = SolidColor(Color.White),
+                alpha = 0.3f
+            )
+        )
+    }
+)
+```
+
 ### Tips
 
-- The following case is not supported:
+- You should not nest `LiquidGlassProvider` and `LiquidGlass`:
 
 ```kotlin
 LiquidGlassProvider(providerState) {
@@ -72,7 +98,7 @@ LiquidGlassProvider(providerState) {
 }
 ```
 
-Instead, you should rewrite it like this:
+Instead, use a parent layout:
 
 ```kotlin
 Box {
@@ -87,18 +113,18 @@ Box {
 Modifier
     .scale(scaleX, scaleY)
     .liquidGlass(
-        // ...
+        // `pivot = Offset.Zero` is required
         transformBlock = { scale(1f / scaleX, 1f / scaleY, Offset.Zero) }
     )
 ```
 
-## Comparisons
+## Comparing with iOS
+
+iOS device: iPhone 16 Pro Max (emulator), using [GlassExplorer](https://github.com/ktiays/GlassExplorer)
 
 Android device: Google Pixel 4 XL (the smallest width is adjusted to 440 dp to match the density of the iOS device)
 
-iOS device: iPhone 16 Pro Max (simulator)
-
-Test glass area size: 300 x 300, corner radius: 30
+Glass size: 300 x 300, corner radius: 30
 
 |                   iOS                    |                   Android                    |
 |:----------------------------------------:|:--------------------------------------------:|
@@ -108,10 +134,6 @@ Complete comparisons:
 
 - [Inner refraction](https://github.com/Kyant0/AndroidLiquidGlass/blob/530bed05f8342bf607463a775dea93a531f73f42/docs/Inner%20refraction%20comparisons.md)
 - [Bleed](https://github.com/Kyant0/AndroidLiquidGlass/blob/530bed05f8342bf607463a775dea93a531f73f42/docs/Bleed%20comparisons.md)
-
-## Special thanks
-
-- [GlassExplorer](https://github.com/ktiays/GlassExplorer)
 
 ## Star history
 

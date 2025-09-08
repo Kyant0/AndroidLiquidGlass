@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
  *
  * @param colorFilter
  * The color filter applied to the content behind the glass.
- * The default is a saturation color filter with a factor of 1.5.
  *
  * @param brush
  * The brush applied to the glass material.
