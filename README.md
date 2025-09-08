@@ -8,8 +8,7 @@ Apple's Liquid Glass effect for Android Jetpack Compose.
 
 ![](./artworks/features.jpg)
 
-- [Music player demo](./glassmusic/release/glassmusic-release.apk) that integrates **liquid bottom tabs** and **adaptive
-  luminance**.
+- [Music player demo](./glassmusic/release/glassmusic-release.apk) that integrates **liquid bottom tabs**.
 
 <img alt="Luminance sampler demo" height="400" src="./artworks/luminance_sampler_demo.png"/>
 
@@ -62,31 +61,6 @@ Box(
     )
 )
 ```
-
-#### [Experimental] Dynamically adjusted tint by luminance behind the glass
-
-⚠️ The API is likely to change in the future.
-
-```kotlin
-val luminanceSampler = remember { ContinuousLuminanceSampler() }
-
-liquidGlass(
-    providerState,
-    luminanceSampler = luminanceSampler
-) {
-    val luminance = luminanceSampler.luminance
-
-    GlassStyle(
-        // ...
-        material = GlassMaterial(
-            brush = SolidColor(Color.White), // or Color.Black
-            alpha = luminance // write down your own logic here
-        )
-    )
-}
-```
-
-See [here](./glassmusic/src/main/java/com/kyant/glassmusic/BottomTabs.kt#L123) for more details.
 
 ### Tips
 

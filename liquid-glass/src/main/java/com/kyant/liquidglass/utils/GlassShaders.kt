@@ -38,42 +38,6 @@ uniform float cornerRadius;
 
 uniform float refractionHeight;
 uniform float refractionAmount;
-
-$sdRectangleShaderUtils
-
-float circleMap(float x) {
-    return 1.0 - sqrt(1.0 - x * x);
-}
-
-half4 main(float2 coord) {
-    float2 halfSize = size * 0.5;
-    float2 centeredCoord = coord - halfSize;
-    float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadius);
-    
-    if (-sd >= refractionHeight) {
-        return image.eval(coord);
-    }
-    
-    sd = min(sd, 0.0);
-    float maxGradRadius = max(min(halfSize.x, halfSize.y), cornerRadius);
-    float gradRadius = min(cornerRadius * 1.5, maxGradRadius);
-    float2 normal = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
-    
-    float refractedDistance = circleMap(1.0 - -sd / refractionHeight) * refractionAmount;
-    float2 refractedCoord = coord + refractedDistance * normal;
-    
-    return image.eval(refractedCoord);
-}"""
-
-    @Language("AGSL")
-    val refractionShaderWidthDepthEffectString = """
-uniform shader image;
-
-uniform float2 size;
-uniform float cornerRadius;
-
-uniform float refractionHeight;
-uniform float refractionAmount;
 uniform float depthEffect;
 
 $sdRectangleShaderUtils

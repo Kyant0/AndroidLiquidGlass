@@ -1,11 +1,8 @@
 package com.kyant.glassmusic
 
-import androidx.compose.animation.Animatable
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -55,15 +52,11 @@ import com.kyant.liquidglass.refraction.InnerRefraction
 import com.kyant.liquidglass.refraction.RefractionAmount
 import com.kyant.liquidglass.refraction.RefractionHeight
 import com.kyant.liquidglass.rememberLiquidGlassProviderState
-import com.kyant.liquidglass.sampler.ContinuousLuminanceSampler
-import com.kyant.liquidglass.sampler.ExperimentalLuminanceSamplerApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
 import kotlin.math.floor
-import kotlin.math.pow
 
-@OptIn(ExperimentalLuminanceSamplerApi::class)
 @Composable
 fun <T> BottomTabs(
     tabs: List<T>,
@@ -76,19 +69,7 @@ fun <T> BottomTabs(
     val bottomTabsLiquidGlassProviderState = rememberLiquidGlassProviderState(null)
 
     val animationScope = rememberCoroutineScope()
-    val initialContentColor = Color(0xFF000000)
-    val contentColor = remember { Animatable(initialContentColor) }
-    val luminanceSampler = remember {
-        ContinuousLuminanceSampler { animationSpec, luminance ->
-            val isLight = luminance.pow(2f) > 0.5f
-            animationScope.launch {
-                contentColor.animateTo(
-                    if (isLight) Color.Black else Color.White,
-                    tween(300, 0, LinearEasing)
-                )
-            }
-        }
-    }
+    val contentColor = Color.Black
 
     val scope = remember { BottomTabsScope() }
 
@@ -118,30 +99,18 @@ fun <T> BottomTabs(
                 .liquidGlassProvider(bottomTabsLiquidGlassProviderState)
                 .liquidGlass(
                     liquidGlassProviderState,
-                    luminanceSampler = luminanceSampler
-                ) {
-                    val luminance = luminanceSampler.luminance.pow(2f)
-
                     GlassStyle(
                         CircleShape,
                         innerRefraction = InnerRefraction(
                             height = RefractionHeight(12.dp),
                             amount = RefractionAmount.Half
                         ),
-                        material =
-                            if (luminance > 0.5f) {
-                                GlassMaterial(
-                                    brush = SolidColor(Color.White),
-                                    alpha = (luminance - 0.5f) * 2f * 0.8f
-                                )
-                            } else {
-                                GlassMaterial(
-                                    brush = SolidColor(Color.Black),
-                                    alpha = (0.5f - luminance) * 2f * 0.3f
-                                )
-                            }
+                        material = GlassMaterial(
+                            brush = SolidColor(Color.White),
+                            alpha = 0.3f
+                        )
                     )
-                }
+                )
                 .fillMaxSize()
                 .padding(padding),
             verticalAlignment = Alignment.CenterVertically
@@ -158,7 +127,7 @@ fun <T> BottomTabs(
                     )
 
                     scope.content(tab).Content(
-                        { contentColor.value },
+                        { contentColor },
                         Modifier
                             .clip(CircleShape)
                             .drawBehind {
