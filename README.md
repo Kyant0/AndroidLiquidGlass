@@ -65,7 +65,7 @@ Box(
 )
 ```
 
-Using the block variant to improve performance when the style changes frequently:
+Use the block modifier variant to improve performance when the style changes frequently:
 
 ```kotlin
 var progress by animateFloatAsState(if (isPressed) 1f else 0f)
@@ -81,7 +81,7 @@ Box(
             material = GlassMaterial(
                 blurRadius = 2f.dp * progress,
                 brush = SolidColor(Color.White),
-                alpha = 0.3f
+                alpha = 0.3f * progress
             )
         )
     }
