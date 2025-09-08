@@ -10,6 +10,37 @@ import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.platform.InspectorInfo
 import com.kyant.liquidglass.GlassStyle
 
+internal class SimpleGlassBrushElement(
+    val style: GlassStyle
+) : ModifierNodeElement<SimpleGlassBrushNode>() {
+
+    override fun create(): SimpleGlassBrushNode {
+        return SimpleGlassBrushNode(style)
+    }
+
+    override fun update(node: SimpleGlassBrushNode) {
+        node.update(style)
+    }
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "glassBrush"
+        properties["style"] = style
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is GlassBrushElement) return false
+
+        if (style != other.style) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return style.hashCode()
+    }
+}
+
 internal class GlassBrushElement(
     val style: () -> GlassStyle
 ) : ModifierNodeElement<GlassBrushNode>() {
@@ -38,6 +69,45 @@ internal class GlassBrushElement(
 
     override fun hashCode(): Int {
         return style.hashCode()
+    }
+}
+
+internal class SimpleGlassBrushNode(
+    var style: GlassStyle
+) : DrawModifierNode, Modifier.Node() {
+
+    override val shouldAutoInvalidate: Boolean = false
+
+    private var material: GlassMaterial = style.material
+        set(value) {
+            if (field.brush != value.brush ||
+                field.alpha != value.alpha ||
+                field.blendMode != value.blendMode
+            ) {
+                field = value
+                invalidateDraw()
+            }
+        }
+
+    override fun ContentDrawScope.draw() {
+        material.brush?.let { brush ->
+            drawRect(
+                brush = brush,
+                alpha = material.alpha,
+                blendMode = material.blendMode
+            )
+        }
+
+        drawContent()
+    }
+
+    fun update(
+        style: GlassStyle
+    ) {
+        if (this.style != style) {
+            this.style = style
+            material = style.material
+        }
     }
 }
 

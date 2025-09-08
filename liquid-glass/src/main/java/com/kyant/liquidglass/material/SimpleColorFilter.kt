@@ -5,14 +5,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ColorMatrixColorFilter
 
-@Deprecated(
-    "Use simpleColorFilter instead. This function will be removed in a future release.",
-    ReplaceWith("simpleColorFilter(saturation = saturation)")
-)
-fun saturationColorFilter(saturation: Float): ColorFilter {
-    return ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(saturation) })
-}
-
 @Stable
 fun simpleColorFilter(
     brightness: Float = 0f,

@@ -13,6 +13,48 @@ import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 
+internal class SimpleGlassShapeElement(
+    val style: GlassStyle,
+    val compositingStrategy: CompositingStrategy
+) : ModifierNodeElement<SimpleGlassShapeNode>() {
+
+    override fun create(): SimpleGlassShapeNode {
+        return SimpleGlassShapeNode(
+            style = style,
+            compositingStrategy = compositingStrategy
+        )
+    }
+
+    override fun update(node: SimpleGlassShapeNode) {
+        node.update(
+            style = style,
+            compositingStrategy = compositingStrategy
+        )
+    }
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "glassShape"
+        properties["style"] = style
+        properties["compositingStrategy"] = compositingStrategy
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is GlassShapeElement) return false
+
+        if (style != other.style) return false
+        if (compositingStrategy != other.compositingStrategy) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = style.hashCode()
+        result = 31 * result + compositingStrategy.hashCode()
+        return result
+    }
+}
+
 internal class GlassShapeElement(
     val style: () -> GlassStyle,
     val compositingStrategy: CompositingStrategy
@@ -52,6 +94,42 @@ internal class GlassShapeElement(
         var result = style.hashCode()
         result = 31 * result + compositingStrategy.hashCode()
         return result
+    }
+}
+
+internal class SimpleGlassShapeNode(
+    var style: GlassStyle,
+    var compositingStrategy: CompositingStrategy
+) : LayoutModifierNode, Modifier.Node() {
+
+    override val shouldAutoInvalidate: Boolean = false
+
+    private val layerBlock: GraphicsLayerScope.() -> Unit = {
+        clip = true
+        shape = style.shape
+        compositingStrategy = this@SimpleGlassShapeNode.compositingStrategy
+    }
+
+    override fun MeasureScope.measure(
+        measurable: Measurable,
+        constraints: Constraints
+    ): MeasureResult {
+        val placeable = measurable.measure(constraints)
+
+        return layout(placeable.width, placeable.height) {
+            placeable.placeWithLayer(IntOffset.Zero, layerBlock = layerBlock)
+        }
+    }
+
+    fun update(
+        style: GlassStyle,
+        compositingStrategy: CompositingStrategy
+    ) {
+        if (this.style != style || this.compositingStrategy != compositingStrategy) {
+            this.style = style
+            this.compositingStrategy = compositingStrategy
+            invalidateLayer()
+        }
     }
 }
 

@@ -14,6 +14,37 @@ import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import com.kyant.liquidglass.GlassStyle
 
+internal class SimpleGlassShadowElement(
+    val style: GlassStyle
+) : ModifierNodeElement<SimpleGlassShadowNode>() {
+
+    override fun create(): SimpleGlassShadowNode {
+        return SimpleGlassShadowNode(style)
+    }
+
+    override fun update(node: SimpleGlassShadowNode) {
+        node.update(style)
+    }
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "glassShadow"
+        properties["style"] = style
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is GlassShadowElement) return false
+
+        if (style != other.style) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return style.hashCode()
+    }
+}
+
 internal class GlassShadowElement(
     val style: () -> GlassStyle
 ) : ModifierNodeElement<GlassShadowNode>() {
@@ -42,6 +73,49 @@ internal class GlassShadowElement(
 
     override fun hashCode(): Int {
         return style.hashCode()
+    }
+}
+
+internal class SimpleGlassShadowNode(
+    var style: GlassStyle
+) : DrawModifierNode, Modifier.Node() {
+
+    override val shouldAutoInvalidate: Boolean = false
+
+    private var _shadowPainter: DropShadowPainter? = null
+
+    override fun ContentDrawScope.draw() {
+        val shadow = style.shadow
+        if (shadow != null && _shadowPainter == null) {
+            _shadowPainter =
+                requireGraphicsContext().shadowContext.createDropShadowPainter(
+                    shape = style.shape,
+                    shadow = Shadow(
+                        radius = shadow.elevation,
+                        brush = shadow.brush,
+                        spread = shadow.spread,
+                        offset = shadow.offset,
+                        alpha = shadow.alpha,
+                        blendMode = shadow.blendMode
+                    )
+                )
+        }
+
+        val shadowPainter = _shadowPainter
+        if (shadowPainter != null) {
+            with(shadowPainter) { draw(size) }
+        }
+
+        drawContent()
+    }
+
+    fun update(
+        style: GlassStyle
+    ) {
+        if (this.style != style) {
+            this.style = style
+            _shadowPainter = null
+        }
     }
 }
 

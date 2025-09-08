@@ -27,6 +27,37 @@ import com.kyant.liquidglass.GlassStyle
 import kotlin.math.ceil
 import kotlin.math.min
 
+internal class SimpleGlassHighlightElement(
+    val style: GlassStyle
+) : ModifierNodeElement<SimpleGlassHighlightNode>() {
+
+    override fun create(): SimpleGlassHighlightNode {
+        return SimpleGlassHighlightNode(style)
+    }
+
+    override fun update(node: SimpleGlassHighlightNode) {
+        node.update(style)
+    }
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "glassHighlight"
+        properties["style"] = style
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is GlassHighlightElement) return false
+
+        if (style != other.style) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return style.hashCode()
+    }
+}
+
 internal class GlassHighlightElement(
     val style: () -> GlassStyle
 ) : ModifierNodeElement<GlassHighlightNode>() {
@@ -55,6 +86,117 @@ internal class GlassHighlightElement(
 
     override fun hashCode(): Int {
         return style.hashCode()
+    }
+}
+
+internal class SimpleGlassHighlightNode(
+    var style: GlassStyle
+) : DelegatingNode() {
+
+    override val shouldAutoInvalidate: Boolean = false
+
+    private var highlight: GlassHighlight = style.highlight
+        set(value) {
+            if (field != value) {
+                field = value
+                drawNode.invalidateDrawCache()
+            }
+        }
+
+    private var shape: CornerBasedShape = style.shape
+        set(value) {
+            if (field != value) {
+                field = value
+                drawNode.invalidateDrawCache()
+            }
+        }
+
+    private var graphicsLayer: GraphicsLayer? = null
+
+    private val drawNode = delegate(CacheDrawModifierNode {
+        if (highlight == GlassHighlight.None) {
+            return@CacheDrawModifierNode onDrawWithContent { drawContent() }
+        }
+
+        val width = highlight.width
+        val color = highlight.color
+
+        val strokeWidthPx =
+            min(
+                if (width == Dp.Hairline) 1f else ceil(width.toPx()),
+                ceil(size.minDimension / 2f),
+            )
+        val halfStroke = strokeWidthPx / 2
+        val borderTopLeft = Offset(halfStroke, halfStroke)
+        val borderSize = Size(size.width - strokeWidthPx, size.height - strokeWidthPx)
+        val outline =
+            if (width.isSpecified && color.isSpecified) {
+                shape.createOutline(borderSize, layoutDirection, this)
+            } else {
+                null
+            }
+
+        if (outline != null) {
+            graphicsLayer?.let { layer ->
+                val cornerRadiusPx = shape.topStart.toPx(size, this)
+                val borderRenderEffect = highlight.createRenderEffect(size, this, cornerRadiusPx)
+
+                layer.renderEffect = borderRenderEffect?.asComposeRenderEffect()
+                layer.blendMode = highlight.blendMode
+
+                layer.record(this, layoutDirection, size.toIntSize()) {
+                    draw(
+                        this@CacheDrawModifierNode,
+                        layoutDirection,
+                        drawContext.canvas,
+                        drawContext.size,
+                        drawContext.graphicsLayer
+                    ) {
+                        translate(borderTopLeft.x, borderTopLeft.y) {
+                            drawOutline(
+                                outline = outline,
+                                brush = SolidColor(color),
+                                style = Stroke(strokeWidthPx)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        onDrawBehind {
+            if (outline != null) {
+                graphicsLayer?.let { layer ->
+                    drawLayer(layer)
+                }
+            }
+        }
+    })
+
+    override fun onAttach() {
+        val graphicsContext = requireGraphicsContext()
+        graphicsLayer =
+            graphicsContext.createGraphicsLayer().apply {
+                compositingStrategy = CompositingStrategy.Offscreen
+            }
+    }
+
+    override fun onDetach() {
+        val graphicsContext = requireGraphicsContext()
+        graphicsLayer?.let { layer ->
+            graphicsContext.releaseGraphicsLayer(layer)
+            graphicsLayer = null
+        }
+    }
+
+    fun update(
+        style: GlassStyle
+    ) {
+        if (this.style != style) {
+            this.style = style
+            highlight = style.highlight
+            shape = style.shape
+        }
     }
 }
 
