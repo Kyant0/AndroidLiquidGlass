@@ -131,7 +131,7 @@ half4 main(float2 coord) {
 uniform shader image;
 
 uniform float2 size;
-uniform float cornerRadius;
+
 uniform float angle;
 uniform float falloff;
 
@@ -141,11 +141,9 @@ half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
     float2 centeredCoord = coord - halfSize;
     
-    float2 grad = gradSdRoundedRectangle(centeredCoord, halfSize, cornerRadius);
-    float2 topLightNormal = float2(-cos(angle), -sin(angle));
-    float topLightFraction = dot(topLightNormal, grad);
-    float bottomLightFraction = -topLightFraction;
-    float fraction = pow(max(topLightFraction, bottomLightFraction), falloff);
+    float2 grad = gradSdRoundedRectangle(centeredCoord, halfSize, min(halfSize.x, halfSize.y));
+    float2 normal = float2(-cos(angle), -sin(angle));
+    float fraction = pow(abs(dot(normal, grad)), falloff);
     
     return image.eval(coord) * fraction;
 }"""

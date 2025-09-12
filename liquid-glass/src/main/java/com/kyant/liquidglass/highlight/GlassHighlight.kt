@@ -67,6 +67,43 @@ sealed interface GlassHighlight {
     ) : GlassHighlight
 
     /**
+     * Soft highlight effect with blur.
+     *
+     * @param width
+     * The width of the highlight.
+     *
+     * @param color
+     * The color of the highlight.
+     *
+     * @param blendMode
+     * The blend mode of the highlight.
+     */
+    @Immutable
+    data class Soft(
+        override val width: Dp = 1f.dp,
+        override val color: Color = Color.White.copy(alpha = 0.4f),
+        override val blendMode: BlendMode = BlendMode.Plus
+    ) : GlassHighlight {
+
+        override fun createRenderEffect(size: Size, density: Density, cornerRadius: Float): RenderEffect? {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val blurRadiusPx = with(density) { (width / 2f).toPx() }
+                if (blurRadiusPx > 0f) {
+                    RenderEffect.createBlurEffect(
+                        blurRadiusPx,
+                        blurRadiusPx,
+                        Shader.TileMode.DECAL
+                    )
+                } else {
+                    null
+                }
+            } else {
+                null
+            }
+        }
+    }
+
+    /**
      * Dynamic highlight effect with shimmering effect.
      *
      * @param width
@@ -90,48 +127,51 @@ sealed interface GlassHighlight {
         override val color: Color = Color.White.copy(alpha = 0.4f),
         override val blendMode: BlendMode = BlendMode.Plus,
         val angle: Float = 45f,
-        @param:FloatRange(from = 0.0) val falloff: Float = 1.5f
+        @param:FloatRange(from = 0.0) val falloff: Float = 1f
     ) : GlassHighlight {
 
-        private var highlightShaderCache: RuntimeShader? = null
+        private var highlightShader: RuntimeShader? = null
 
         override fun createRenderEffect(size: Size, density: Density, cornerRadius: Float): RenderEffect? {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val blurRadiusPx = with(density) { (width / 2f).toPx() }
                 val blurRenderEffect =
-                    cachedBlurRenderEffect
-                        ?: RenderEffect.createBlurEffect(
-                            with(density) { 0.5f.dp.toPx() },
-                            with(density) { 0.5f.dp.toPx() },
+                    if (blurRadiusPx > 0f) {
+                        RenderEffect.createBlurEffect(
+                            blurRadiusPx,
+                            blurRadiusPx,
                             Shader.TileMode.DECAL
-                        ).also { cachedBlurRenderEffect = it }
+                        )
+                    } else {
+                        null
+                    }
 
-                val highlightShader = highlightShaderCache
+                val shader = highlightShader
                     ?: RuntimeShader(GlassShaders.highlightShaderString)
-                        .also { highlightShaderCache = it }
+                        .also { highlightShader = it }
 
                 val highlightRenderEffect =
                     RenderEffect.createRuntimeShaderEffect(
-                        highlightShader.apply {
+                        shader.apply {
                             setFloatUniform("size", size.width, size.height)
-                            setFloatUniform("cornerRadius", cornerRadius)
+
                             setFloatUniform("angle", angle * (PI / 180f).toFloat())
                             setFloatUniform("falloff", falloff)
                         },
                         "image"
                     )
 
-                RenderEffect.createChainEffect(
-                    highlightRenderEffect,
-                    blurRenderEffect
-                )
+                if (blurRenderEffect != null) {
+                    RenderEffect.createChainEffect(
+                        highlightRenderEffect,
+                        blurRenderEffect
+                    )
+                } else {
+                    highlightRenderEffect
+                }
             } else {
                 null
             }
-        }
-
-        private companion object {
-
-            var cachedBlurRenderEffect: RenderEffect? = null
         }
     }
 
@@ -139,5 +179,11 @@ sealed interface GlassHighlight {
 
         @Stable
         val Default: Dynamic = Dynamic()
+
+        @Stable
+        val Solid: Solid = Solid()
+
+        @Stable
+        val Soft: Soft = Soft()
     }
 }
