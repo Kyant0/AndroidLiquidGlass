@@ -28,11 +28,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
@@ -45,6 +43,7 @@ import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
 import com.kyant.liquidglass.GlassStyle
 import com.kyant.liquidglass.LiquidGlassProviderState
+import com.kyant.liquidglass.dispersion.Dispersion
 import com.kyant.liquidglass.liquidGlass
 import com.kyant.liquidglass.liquidGlassProvider
 import com.kyant.liquidglass.material.GlassMaterial
@@ -77,13 +76,14 @@ fun <T> BottomTabs(
     var isDragging by remember { mutableStateOf(false) }
     val offset = remember { Animatable(0f) }
 
+    val height = 64.dp
     val padding = 4.dp
     val paddingPx = with(density) { padding.roundToPx() }
     val itemBackground = Color(0xFF64B5F6)
 
     BoxWithConstraints(
         modifier
-            .height(64.dp)
+            .height(height)
             .fillMaxWidth()
             .pointerInput(Unit) {
                 detectTapGestures {}
@@ -94,9 +94,20 @@ fun <T> BottomTabs(
         val tabWidth = widthWithoutPaddings / tabs.size
         val maxWidth = (widthWithoutPaddings - tabWidth).fastCoerceAtLeast(0f)
 
+        val dragFraction by animateFloatAsState(
+            if (isDragging) 1f else 0f,
+            spring(1f, 300f)
+        )
+
         Row(
             Modifier
                 .liquidGlassProvider(bottomTabsLiquidGlassProviderState)
+                .graphicsLayer {
+                    val maxScale = 1f + 4.dp / height
+                    val scale = lerp(1f, maxScale, dragFraction)
+                    scaleX = scale
+                    scaleY = scale
+                }
                 .liquidGlass(
                     liquidGlassProviderState,
                     GlassStyle(
@@ -110,7 +121,11 @@ fun <T> BottomTabs(
                             alpha = 0.3f
                         )
                     )
-                )
+                ) {
+                    val maxScale = 1f + 4.dp / height
+                    val scale = lerp(1f, maxScale, dragFraction)
+                    scale(1f / scale, 1f / scale, Offset.Zero)
+                }
                 .fillMaxSize()
                 .padding(padding),
             verticalAlignment = Alignment.CenterVertically
@@ -190,19 +205,10 @@ fun <T> BottomTabs(
                         )
                     }
                 }
-                .drawWithContent {
-                    translate(
-                        0f,
-                        lerp(0f, 4f, scaleYFraction).dp.toPx()
-                    ) {
-                        this@drawWithContent.drawContent()
-                    }
-                }
                 .graphicsLayer {
                     translationX = offset.value
                     scaleX = lerp(1f, 0.9f, scaleXFraction)
                     scaleY = lerp(1f, 0.9f, scaleYFraction)
-                    transformOrigin = TransformOrigin(0f, 0f)
                 }
                 .background(background, CircleShape)
                 .liquidGlass(
@@ -212,14 +218,24 @@ fun <T> BottomTabs(
                         innerRefraction = InnerRefraction(
                             height = RefractionHeight(
                                 animateFloatAsState(
-                                    if (!isDragging) 0f else 10f
+                                    if (!isDragging) 0f else 12f
                                 ).value.dp
                             ),
                             amount = RefractionAmount.Half
                         ),
+                        dispersion = Dispersion.Automatic,
                         material = GlassMaterial.None
                     )
-                )
+                ) {
+                    scale(
+                        lerp(1f, 0.8f, scaleXFraction),
+                        lerp(1f, 0.8f, scaleYFraction)
+                    )
+
+                    val scaleX = lerp(1f, 0.9f, scaleXFraction)
+                    val scaleY = lerp(1f, 0.9f, scaleYFraction)
+                    scale(1f / scaleX, 1f / scaleY, Offset.Zero)
+                }
                 .draggable(
                     rememberDraggableState { delta ->
                         animationScope.launch {

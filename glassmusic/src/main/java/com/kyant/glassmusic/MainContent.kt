@@ -114,7 +114,7 @@ fun MainContent() {
                 .align(Alignment.BottomCenter),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
+            Box(
                 Modifier
                     .liquidGlass(
                         liquidGlassProviderState,
@@ -122,19 +122,17 @@ fun MainContent() {
                             CircleShape,
                             innerRefraction = InnerRefraction(
                                 height = RefractionHeight(8.dp),
-                                amount = RefractionAmount((-28).dp)
+                                amount = RefractionAmount.Half
                             )
                         )
                     )
                     .height(56.dp)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {}
+                    .fillMaxWidth()
+            )
 
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val selectedTab = remember { mutableStateOf(MainNavTab.Songs) }
