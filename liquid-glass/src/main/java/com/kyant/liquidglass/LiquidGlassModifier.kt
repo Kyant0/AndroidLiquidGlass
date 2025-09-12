@@ -193,10 +193,162 @@ private class SimpleLiquidGlassNode(
     private var position: Offset by mutableStateOf(Offset.Zero)
     private var graphicsLayer: GraphicsLayer? = null
 
+    private val drawer = object : LiquidGlassDrawer() {
+
+        override val state: LiquidGlassProviderState get() = this@SimpleLiquidGlassNode.state
+
+        override val style: GlassStyle get() = this@SimpleLiquidGlassNode.style
+
+        override val transformBlock: (DrawTransform.() -> Unit)? get() = this@SimpleLiquidGlassNode.transformBlock
+
+        override val position: Offset get() = this@SimpleLiquidGlassNode.position
+
+        override val graphicsLayer: GraphicsLayer? get() = this@SimpleLiquidGlassNode.graphicsLayer
+    }
+
+    private val drawNode = delegate(drawer.drawNode)
+
+    override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
+        if (coordinates.isAttached) {
+            val providerPosition = state.position
+            position = coordinates.positionOnScreen() - providerPosition
+        }
+    }
+
+    override fun onAttach() {
+        val graphicsContext = requireGraphicsContext()
+        graphicsLayer =
+            graphicsContext.createGraphicsLayer().apply {
+                compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
+            }
+    }
+
+    override fun onDetach() {
+        val graphicsContext = requireGraphicsContext()
+        graphicsLayer?.let { layer ->
+            graphicsContext.releaseGraphicsLayer(layer)
+            graphicsLayer = null
+        }
+    }
+
+    fun update(
+        state: LiquidGlassProviderState,
+        style: GlassStyle,
+        transformBlock: (DrawTransform.() -> Unit)?
+    ) {
+        if (this.state != state ||
+            this.style != style ||
+            this.transformBlock != transformBlock
+        ) {
+            this.state = state
+            this.style = style
+            this.transformBlock = transformBlock
+            drawNode.invalidateDrawCache()
+        }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private class LiquidGlassNode(
+    var state: LiquidGlassProviderState,
+    var style: () -> GlassStyle,
+    var transformBlock: (DrawTransform.() -> Unit)?
+) : GlobalPositionAwareModifierNode, ObserverModifierNode, DelegatingNode() {
+
+    override val shouldAutoInvalidate: Boolean = false
+
+    private var position: Offset by mutableStateOf(Offset.Zero)
+    private var graphicsLayer: GraphicsLayer? = null
+
+    private var currentStyle = style()
+
+    private val drawer = object : LiquidGlassDrawer() {
+
+        override val state: LiquidGlassProviderState get() = this@LiquidGlassNode.state
+
+        override val style: GlassStyle get() = currentStyle
+
+        override val transformBlock: (DrawTransform.() -> Unit)? get() = this@LiquidGlassNode.transformBlock
+
+        override val position: Offset get() = this@LiquidGlassNode.position
+
+        override val graphicsLayer: GraphicsLayer? get() = this@LiquidGlassNode.graphicsLayer
+    }
+
+    private val drawNode = delegate(drawer.drawNode)
+
+    override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
+        if (coordinates.isAttached) {
+            val providerPosition = state.position
+            position = coordinates.positionOnScreen() - providerPosition
+        }
+    }
+
+    override fun onObservedReadsChanged() {
+        updateStyle()
+    }
+
+    override fun onAttach() {
+        val graphicsContext = requireGraphicsContext()
+        graphicsLayer =
+            graphicsContext.createGraphicsLayer().apply {
+                compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
+            }
+
+        updateStyle()
+    }
+
+    override fun onDetach() {
+        val graphicsContext = requireGraphicsContext()
+        graphicsLayer?.let { layer ->
+            graphicsContext.releaseGraphicsLayer(layer)
+            graphicsLayer = null
+        }
+    }
+
+    fun update(
+        state: LiquidGlassProviderState,
+        style: () -> GlassStyle,
+        transformBlock: (DrawTransform.() -> Unit)?
+    ) {
+        if (this.state != state ||
+            this.style != style
+        ) {
+            this.state = state
+            this.style = style
+            updateStyle()
+        }
+        if (this.transformBlock != transformBlock) {
+            this.transformBlock = transformBlock
+            drawNode.invalidateDrawCache()
+        }
+    }
+
+    private fun updateStyle() {
+        observeReads { currentStyle = style() }
+        drawNode.invalidateDrawCache()
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private abstract class LiquidGlassDrawer {
+
+    abstract val state: LiquidGlassProviderState
+
+    abstract val style: GlassStyle
+
+    abstract val transformBlock: (DrawTransform.() -> Unit)?
+
+    abstract val position: Offset
+
+    abstract val graphicsLayer: GraphicsLayer?
+
     private val innerRefractionShader = RuntimeShader(GlassShaders.refractionShaderString)
     private var dispersionShader: RuntimeShader? = null
 
-    private val drawNode = delegate(CacheDrawModifierNode {
+    val drawNode = CacheDrawModifierNode {
+        val style = style
+
         val colorFilter = style.material.colorFilter
         val colorFilterEffect =
             if (colorFilter != null) {
@@ -324,197 +476,5 @@ private class SimpleLiquidGlassNode(
                 drawLayer(layer)
             }
         }
-    })
-
-    override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
-        if (coordinates.isAttached) {
-            val providerPosition = state.position
-            position = coordinates.positionOnScreen() - providerPosition
-        }
-    }
-
-    override fun onAttach() {
-        val graphicsContext = requireGraphicsContext()
-        graphicsLayer =
-            graphicsContext.createGraphicsLayer().apply {
-                compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
-            }
-    }
-
-    override fun onDetach() {
-        val graphicsContext = requireGraphicsContext()
-        graphicsLayer?.let { layer ->
-            graphicsContext.releaseGraphicsLayer(layer)
-            graphicsLayer = null
-        }
-    }
-
-    fun update(
-        state: LiquidGlassProviderState,
-        style: GlassStyle,
-        transformBlock: (DrawTransform.() -> Unit)?
-    ) {
-        if (this.state != state ||
-            this.style != style ||
-            this.transformBlock != transformBlock
-        ) {
-            this.state = state
-            this.style = style
-            this.transformBlock = transformBlock
-            drawNode.invalidateDrawCache()
-        }
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-private class LiquidGlassNode(
-    var state: LiquidGlassProviderState,
-    var style: () -> GlassStyle,
-    var transformBlock: (DrawTransform.() -> Unit)?
-) : GlobalPositionAwareModifierNode, ObserverModifierNode, DelegatingNode() {
-
-    override val shouldAutoInvalidate: Boolean = false
-
-    private var position: Offset by mutableStateOf(Offset.Zero)
-    private var graphicsLayer: GraphicsLayer? = null
-
-    private var currentStyle = style()
-
-    private val innerRefractionShader = RuntimeShader(GlassShaders.refractionShaderString)
-
-    private val drawNode = delegate(CacheDrawModifierNode {
-        val style = currentStyle
-
-        val colorFilter = style.material.colorFilter
-        val colorFilterEffect =
-            if (colorFilter != null) {
-                RenderEffect.createColorFilterEffect(colorFilter.asAndroidColorFilter())
-            } else {
-                null
-            }
-
-        val blurRadiusPx = style.material.blurRadius.toPx()
-        val blurRenderEffect =
-            if (blurRadiusPx > 0f) {
-                if (colorFilterEffect != null) {
-                    RenderEffect.createBlurEffect(
-                        blurRadiusPx,
-                        blurRadiusPx,
-                        colorFilterEffect,
-                        Shader.TileMode.CLAMP
-                    )
-                } else {
-                    RenderEffect.createBlurEffect(
-                        blurRadiusPx,
-                        blurRadiusPx,
-                        Shader.TileMode.CLAMP
-                    )
-                }
-            } else {
-                colorFilterEffect
-            }
-
-        val cornerRadiusPx = style.shape.topStart.toPx(size, this)
-
-        val innerRefractionHeight = style.innerRefraction.height.toPx(size, this)
-        val innerRefractionAmount = style.innerRefraction.amount.toPx(size, this)
-        val depthEffect = style.innerRefraction.depthEffect
-        val innerRefractionRenderEffect =
-            RenderEffect.createRuntimeShaderEffect(
-                innerRefractionShader.apply {
-                    setFloatUniform("size", size.width, size.height)
-                    setFloatUniform("cornerRadius", cornerRadiusPx)
-
-                    setFloatUniform("refractionHeight", innerRefractionHeight)
-                    setFloatUniform("refractionAmount", innerRefractionAmount)
-                    setFloatUniform("depthEffect", depthEffect)
-                },
-                "image"
-            )
-
-        val renderEffect =
-            if (blurRenderEffect != null) {
-                RenderEffect.createChainEffect(
-                    innerRefractionRenderEffect,
-                    blurRenderEffect
-                )
-            } else {
-                innerRefractionRenderEffect
-            }.asComposeRenderEffect()
-
-        graphicsLayer?.renderEffect = renderEffect
-        graphicsLayer?.record {
-            val transformBlock = transformBlock
-            val position = position
-            if (transformBlock != null) {
-                withTransform(transformBlock) {
-                    translate(-position.x, -position.y) {
-                        drawLayer(state.graphicsLayer)
-                    }
-                }
-            } else {
-                translate(-position.x, -position.y) {
-                    drawLayer(state.graphicsLayer)
-                }
-            }
-        }
-
-        onDrawBehind {
-            graphicsLayer?.let { layer ->
-                drawLayer(layer)
-            }
-        }
-    })
-
-    override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
-        if (coordinates.isAttached) {
-            val providerPosition = state.position
-            position = coordinates.positionOnScreen() - providerPosition
-        }
-    }
-
-    override fun onObservedReadsChanged() {
-        updateStyle()
-    }
-
-    override fun onAttach() {
-        val graphicsContext = requireGraphicsContext()
-        graphicsLayer =
-            graphicsContext.createGraphicsLayer().apply {
-                compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
-            }
-
-        updateStyle()
-    }
-
-    override fun onDetach() {
-        val graphicsContext = requireGraphicsContext()
-        graphicsLayer?.let { layer ->
-            graphicsContext.releaseGraphicsLayer(layer)
-            graphicsLayer = null
-        }
-    }
-
-    fun update(
-        state: LiquidGlassProviderState,
-        style: () -> GlassStyle,
-        transformBlock: (DrawTransform.() -> Unit)?
-    ) {
-        if (this.state != state ||
-            this.style != style
-        ) {
-            this.state = state
-            this.style = style
-            updateStyle()
-        }
-        if (this.transformBlock != transformBlock) {
-            this.transformBlock = transformBlock
-            drawNode.invalidateDrawCache()
-        }
-    }
-
-    private fun updateStyle() {
-        observeReads { currentStyle = style() }
-        drawNode.invalidateDrawCache()
     }
 }
