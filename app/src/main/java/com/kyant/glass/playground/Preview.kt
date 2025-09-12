@@ -131,11 +131,6 @@ fun Preview() {
             float refractedDistance = circleMap(1.0 - -sd / height) * amount;
             float2 refractedDirection = normalize(normal + eccentricFactor * normalize(centeredCoord));
             float2 refractedCoord = coord + refractedDistance * refractedDirection;
-            if (refractedCoord.x < 0.0 || refractedCoord.x >= size.x ||
-                refractedCoord.y < 0.0 || refractedCoord.y >= size.y) {
-                return half4(0.0, 0.0, 0.0, 1.0);
-            }
-            
             return image.eval(refractedCoord);
         } else {
             return image.eval(coord);
