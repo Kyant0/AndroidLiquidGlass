@@ -11,14 +11,9 @@ import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.platform.InspectorInfo
 
-fun Modifier.liquidGlassProvider(
-    state: LiquidGlassProviderState
-): Modifier =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        this then LiquidGlassProviderElement(state = state)
-    } else {
-        this
-    }
+@Deprecated(message = "[Backdrop API] Use backdrop modifier instead")
+fun Modifier.liquidGlassProvider(state: LiquidGlassProviderState): Modifier =
+    this.backdrop(state.backdrop)
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 private class LiquidGlassProviderElement(
