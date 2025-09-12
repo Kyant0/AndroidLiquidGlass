@@ -50,12 +50,11 @@ half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
     float2 centeredCoord = coord - halfSize;
     float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadius);
-    
     if (-sd >= refractionHeight) {
         return image.eval(coord);
     }
-    
     sd = min(sd, 0.0);
+    
     float maxGradRadius = max(min(halfSize.x, halfSize.y), cornerRadius);
     float gradRadius = min(cornerRadius * 1.5, maxGradRadius);
     float2 normal = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
@@ -91,22 +90,21 @@ half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
     float2 centeredCoord = coord - halfSize;
     float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadius);
-    
     if (-sd >= dispersionHeight) {
         return image.eval(coord);
     }
-    
     sd = min(sd, 0.0);
-    float maxGradRadius = max(min(halfSize.x, halfSize.y), cornerRadius);
-    float gradRadius = min(cornerRadius * 1.5, maxGradRadius);
-    float2 normal = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
-    float2 tangent = normalToTangent(normal);
     
     float dispersionDistance = circleMap(1.0 - -sd / dispersionHeight) * dispersionAmount;
     if (dispersionDistance < 2.0) {
         half4 color = image.eval(coord);
         return color;
     }
+    
+    float maxGradRadius = max(min(halfSize.x, halfSize.y), cornerRadius);
+    float gradRadius = min(cornerRadius * 1.5, maxGradRadius);
+    float2 normal = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
+    float2 tangent = normalToTangent(normal);
     
     half4 dispersedColor = half4(0.0);
     half4 weight = half4(0.0);
@@ -123,6 +121,7 @@ half4 main(float2 coord) {
         weight += mask;
     }
     dispersedColor /= weight;
+    
     dispersedColor.a = image.eval(coord).a;
     return dispersedColor;
 }"""
@@ -134,7 +133,7 @@ uniform shader image;
 uniform float2 size;
 uniform float cornerRadius;
 uniform float angle;
-uniform float decay;
+uniform float falloff;
 
 $sdRectangleShaderUtils
 
@@ -146,7 +145,7 @@ half4 main(float2 coord) {
     float2 topLightNormal = float2(-cos(angle), -sin(angle));
     float topLightFraction = dot(topLightNormal, grad);
     float bottomLightFraction = -topLightFraction;
-    float fraction = pow(max(topLightFraction, bottomLightFraction), decay);
+    float fraction = pow(max(topLightFraction, bottomLightFraction), falloff);
     
     return image.eval(coord) * fraction;
 }"""

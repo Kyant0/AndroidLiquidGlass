@@ -35,7 +35,7 @@ sealed interface GlassHighlight {
     }
 
     /**
-     * A no-op highlight effect.
+     * No highlight effect.
      */
     @Immutable
     data object None : GlassHighlight {
@@ -48,7 +48,7 @@ sealed interface GlassHighlight {
     }
 
     /**
-     * A solid highlight effect.
+     * Solid highlight effect.
      *
      * @param width
      * The width of the highlight.
@@ -67,7 +67,7 @@ sealed interface GlassHighlight {
     ) : GlassHighlight
 
     /**
-     * A dynamic highlight effect that creates a shimmering effect.
+     * Dynamic highlight effect with shimmering effect.
      *
      * @param width
      * The width of the highlight.
@@ -81,8 +81,8 @@ sealed interface GlassHighlight {
      * @param angle
      * The angle of the highlight in degrees.
      *
-     * @param decay
-     * The decay factor for the highlight, controlling how quickly it fades out.
+     * @param falloff
+     * The falloff of the highlight. Higher value results in a sharper highlight.
      */
     @Immutable
     data class Dynamic(
@@ -90,7 +90,7 @@ sealed interface GlassHighlight {
         override val color: Color = Color.White.copy(alpha = 0.4f),
         override val blendMode: BlendMode = BlendMode.Plus,
         val angle: Float = 45f,
-        @param:FloatRange(from = 0.0) val decay: Float = 1.5f
+        @param:FloatRange(from = 0.0) val falloff: Float = 1.5f
     ) : GlassHighlight {
 
         private var highlightShaderCache: RuntimeShader? = null
@@ -114,8 +114,8 @@ sealed interface GlassHighlight {
                         highlightShader.apply {
                             setFloatUniform("size", size.width, size.height)
                             setFloatUniform("cornerRadius", cornerRadius)
-                            setFloatUniform("angle", angle * PI.toFloat() / 180f)
-                            setFloatUniform("decay", decay)
+                            setFloatUniform("angle", angle * (PI / 180f).toFloat())
+                            setFloatUniform("falloff", falloff)
                         },
                         "image"
                     )
