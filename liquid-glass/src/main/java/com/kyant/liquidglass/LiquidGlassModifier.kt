@@ -454,27 +454,31 @@ private abstract class LiquidGlassDrawer {
                 refractionWithDispersionRenderEffect
             }.asComposeRenderEffect()
 
+        val graphicsLayer = graphicsLayer
         graphicsLayer?.renderEffect = renderEffect
-        graphicsLayer?.record {
-            val transformBlock = transformBlock
-            val position = position
-            if (transformBlock != null) {
-                withTransform(transformBlock) {
-                    translate(-position.x, -position.y) {
-                        drawLayer(state.graphicsLayer)
+
+        onDrawWithContent {
+            if (graphicsLayer != null) {
+                graphicsLayer.record {
+                    val transformBlock = transformBlock
+                    val position = position
+                    if (transformBlock != null) {
+                        withTransform(transformBlock) {
+                            translate(-position.x, -position.y) {
+                                drawLayer(state.graphicsLayer)
+                            }
+                        }
+                    } else {
+                        translate(-position.x, -position.y) {
+                            drawLayer(state.graphicsLayer)
+                        }
                     }
                 }
-            } else {
-                translate(-position.x, -position.y) {
-                    drawLayer(state.graphicsLayer)
-                }
-            }
-        }
 
-        onDrawBehind {
-            graphicsLayer?.let { layer ->
-                drawLayer(layer)
+                drawLayer(graphicsLayer)
             }
+
+            drawContent()
         }
     }
 }
