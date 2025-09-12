@@ -64,8 +64,6 @@ interface GlassHighlightStyle {
         @param:FloatRange(from = 0.0) val falloff: Float = 1f
     ) : GlassHighlightStyle {
 
-        private var highlightShader: RuntimeShader? = null
-
         override fun createRenderEffect(size: Size, width: Float): RenderEffect? {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val blurRadiusPx = width / 2f
@@ -80,13 +78,9 @@ interface GlassHighlightStyle {
                         null
                     }
 
-                val shader = highlightShader
-                    ?: RuntimeShader(GlassShaders.dynamicHighlightStyleShaderString)
-                        .also { highlightShader = it }
-
                 val highlightRenderEffect =
                     RenderEffect.createRuntimeShaderEffect(
-                        shader.apply {
+                        RuntimeShader(GlassShaders.dynamicHighlightStyleShaderString).apply {
                             setFloatUniform("size", size.width, size.height)
 
                             setFloatUniform("angle", angle * (PI / 180f).toFloat())
