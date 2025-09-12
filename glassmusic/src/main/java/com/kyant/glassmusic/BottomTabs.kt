@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
@@ -124,7 +125,9 @@ fun <T> BottomTabs(
                 ) {
                     val maxScale = 1f + 4.dp / height
                     val scale = lerp(1f, maxScale, dragFraction)
-                    scale(1f / scale, 1f / scale, Offset.Zero)
+                    scale(1f / scale, 1f / scale, Offset.Zero) {
+                        this@liquidGlass.drawBackdrop()
+                    }
                 }
                 .fillMaxSize()
                 .padding(padding),
@@ -230,11 +233,13 @@ fun <T> BottomTabs(
                     scale(
                         lerp(1f, 0.8f, scaleXFraction),
                         lerp(1f, 0.8f, scaleYFraction)
-                    )
-
-                    val scaleX = lerp(1f, 0.9f, scaleXFraction)
-                    val scaleY = lerp(1f, 0.9f, scaleYFraction)
-                    scale(1f / scaleX, 1f / scaleY, Offset.Zero)
+                    ) {
+                        val scaleX = lerp(1f, 0.9f, scaleXFraction)
+                        val scaleY = lerp(1f, 0.9f, scaleYFraction)
+                        scale(1f / scaleX, 1f / scaleY, Offset.Zero) {
+                            this@liquidGlass.drawBackdrop()
+                        }
+                    }
                 }
                 .draggable(
                     rememberDraggableState { delta ->

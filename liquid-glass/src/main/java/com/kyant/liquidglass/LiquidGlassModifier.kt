@@ -14,9 +14,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.asAndroidColorFilter
 import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.drawscope.DrawTransform
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -37,11 +36,13 @@ import com.kyant.liquidglass.shadow.GlassShadowElement
 import com.kyant.liquidglass.shadow.SimpleGlassShadowElement
 import com.kyant.liquidglass.utils.GlassShaders
 
+private val DefaultOnDrawBackdrop: BackdropDrawScope.() -> Unit = { drawBackdrop() }
+
 fun Modifier.liquidGlass(
     state: LiquidGlassProviderState,
     style: GlassStyle,
     compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
-    transformBlock: (DrawTransform.() -> Unit)? = null
+    onDrawBackdrop: BackdropDrawScope.() -> Unit = DefaultOnDrawBackdrop
 ): Modifier =
     this
         .then(SimpleGlassShadowElement(style))
@@ -51,7 +52,7 @@ fun Modifier.liquidGlass(
                 SimpleLiquidGlassElement(
                     state = state,
                     style = style,
-                    transformBlock = transformBlock
+                    onDrawBackdrop = onDrawBackdrop
                 )
             } else {
                 Modifier
@@ -63,7 +64,7 @@ fun Modifier.liquidGlass(
 fun Modifier.liquidGlass(
     state: LiquidGlassProviderState,
     compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
-    transformBlock: (DrawTransform.() -> Unit)? = null,
+    onDrawBackdrop: BackdropDrawScope.() -> Unit = DefaultOnDrawBackdrop,
     style: () -> GlassStyle
 ): Modifier =
     this
@@ -74,7 +75,7 @@ fun Modifier.liquidGlass(
                 LiquidGlassElement(
                     state = state,
                     style = style,
-                    transformBlock = transformBlock
+                    onDrawBackdrop = onDrawBackdrop
                 )
             } else {
                 Modifier
@@ -87,14 +88,14 @@ fun Modifier.liquidGlass(
 private class SimpleLiquidGlassElement(
     val state: LiquidGlassProviderState,
     val style: GlassStyle,
-    val transformBlock: (DrawTransform.() -> Unit)?
+    val onDrawBackdrop: BackdropDrawScope.() -> Unit
 ) : ModifierNodeElement<SimpleLiquidGlassNode>() {
 
     override fun create(): SimpleLiquidGlassNode {
         return SimpleLiquidGlassNode(
             state = state,
             style = style,
-            transformBlock = transformBlock
+            onDrawBackdrop = onDrawBackdrop
         )
     }
 
@@ -102,7 +103,7 @@ private class SimpleLiquidGlassElement(
         node.update(
             state = state,
             style = style,
-            transformBlock = transformBlock
+            onDrawBackdrop = onDrawBackdrop
         )
     }
 
@@ -110,7 +111,7 @@ private class SimpleLiquidGlassElement(
         name = "liquidGlass"
         properties["state"] = state
         properties["style"] = style
-        properties["transformBlock"] = transformBlock
+        properties["onDrawBackdrop"] = onDrawBackdrop
     }
 
     override fun equals(other: Any?): Boolean {
@@ -119,7 +120,7 @@ private class SimpleLiquidGlassElement(
 
         if (state != other.state) return false
         if (style != other.style) return false
-        if (transformBlock != other.transformBlock) return false
+        if (onDrawBackdrop != other.onDrawBackdrop) return false
 
         return true
     }
@@ -127,7 +128,7 @@ private class SimpleLiquidGlassElement(
     override fun hashCode(): Int {
         var result = state.hashCode()
         result = 31 * result + style.hashCode()
-        result = 31 * result + (transformBlock?.hashCode() ?: 0)
+        result = 31 * result + (onDrawBackdrop?.hashCode() ?: 0)
         return result
     }
 }
@@ -136,14 +137,14 @@ private class SimpleLiquidGlassElement(
 private class LiquidGlassElement(
     val state: LiquidGlassProviderState,
     val style: () -> GlassStyle,
-    val transformBlock: (DrawTransform.() -> Unit)?
+    val onDrawBackdrop: BackdropDrawScope.() -> Unit
 ) : ModifierNodeElement<LiquidGlassNode>() {
 
     override fun create(): LiquidGlassNode {
         return LiquidGlassNode(
             state = state,
             style = style,
-            transformBlock = transformBlock
+            onDrawBackdrop = onDrawBackdrop
         )
     }
 
@@ -151,7 +152,7 @@ private class LiquidGlassElement(
         node.update(
             state = state,
             style = style,
-            transformBlock = transformBlock
+            onDrawBackdrop = onDrawBackdrop
         )
     }
 
@@ -159,7 +160,7 @@ private class LiquidGlassElement(
         name = "liquidGlass"
         properties["state"] = state
         properties["style"] = style
-        properties["transformBlock"] = transformBlock
+        properties["onDrawBackdrop"] = onDrawBackdrop
     }
 
     override fun equals(other: Any?): Boolean {
@@ -168,7 +169,7 @@ private class LiquidGlassElement(
 
         if (state != other.state) return false
         if (style != other.style) return false
-        if (transformBlock != other.transformBlock) return false
+        if (onDrawBackdrop != other.onDrawBackdrop) return false
 
         return true
     }
@@ -176,7 +177,7 @@ private class LiquidGlassElement(
     override fun hashCode(): Int {
         var result = state.hashCode()
         result = 31 * result + style.hashCode()
-        result = 31 * result + (transformBlock?.hashCode() ?: 0)
+        result = 31 * result + (onDrawBackdrop?.hashCode() ?: 0)
         return result
     }
 }
@@ -185,7 +186,7 @@ private class LiquidGlassElement(
 private class SimpleLiquidGlassNode(
     var state: LiquidGlassProviderState,
     var style: GlassStyle,
-    var transformBlock: (DrawTransform.() -> Unit)?
+    var onDrawBackdrop: BackdropDrawScope.() -> Unit
 ) : GlobalPositionAwareModifierNode, DelegatingNode() {
 
     override val shouldAutoInvalidate: Boolean = false
@@ -195,6 +196,13 @@ private class SimpleLiquidGlassNode(
 
     private val innerRefractionShader = RuntimeShader(GlassShaders.refractionShaderString)
     private var dispersionShader: RuntimeShader? = null
+
+    private val drawBackdropBlock: DrawScope.() -> Unit = {
+        val position = position
+        translate(-position.x, -position.y) {
+            drawLayer(state.graphicsLayer)
+        }
+    }
 
     private val drawNode = delegate(CacheDrawModifierNode {
         val style = style
@@ -310,19 +318,8 @@ private class SimpleLiquidGlassNode(
         onDrawWithContent {
             if (graphicsLayer != null) {
                 graphicsLayer.record {
-                    val transformBlock = transformBlock
-                    val position = position
-                    if (transformBlock != null) {
-                        withTransform(transformBlock) {
-                            translate(-position.x, -position.y) {
-                                drawLayer(state.graphicsLayer)
-                            }
-                        }
-                    } else {
-                        translate(-position.x, -position.y) {
-                            drawLayer(state.graphicsLayer)
-                        }
-                    }
+                    val backdropDrawScope = BackdropDrawScopeImpl(this, drawBackdropBlock)
+                    onDrawBackdrop(backdropDrawScope)
                 }
 
                 drawLayer(graphicsLayer)
@@ -358,15 +355,15 @@ private class SimpleLiquidGlassNode(
     fun update(
         state: LiquidGlassProviderState,
         style: GlassStyle,
-        transformBlock: (DrawTransform.() -> Unit)?
+        onDrawBackdrop: BackdropDrawScope.() -> Unit
     ) {
         if (this.state != state ||
             this.style != style ||
-            this.transformBlock != transformBlock
+            this.onDrawBackdrop != onDrawBackdrop
         ) {
             this.state = state
             this.style = style
-            this.transformBlock = transformBlock
+            this.onDrawBackdrop = onDrawBackdrop
             drawNode.invalidateDrawCache()
         }
     }
@@ -376,7 +373,7 @@ private class SimpleLiquidGlassNode(
 private class LiquidGlassNode(
     var state: LiquidGlassProviderState,
     var style: () -> GlassStyle,
-    var transformBlock: (DrawTransform.() -> Unit)?
+    var onDrawBackdrop: BackdropDrawScope.() -> Unit
 ) : GlobalPositionAwareModifierNode, ObserverModifierNode, DelegatingNode() {
 
     override val shouldAutoInvalidate: Boolean = false
@@ -388,7 +385,7 @@ private class LiquidGlassNode(
         SimpleLiquidGlassNode(
             state = state,
             style = style(),
-            transformBlock = transformBlock
+            onDrawBackdrop = onDrawBackdrop
         )
     )
 
@@ -424,15 +421,15 @@ private class LiquidGlassNode(
     fun update(
         state: LiquidGlassProviderState,
         style: () -> GlassStyle,
-        transformBlock: (DrawTransform.() -> Unit)?
+        onDrawBackdrop: BackdropDrawScope.() -> Unit
     ) {
         if (this.state != state ||
             this.style != style ||
-            this.transformBlock != transformBlock
+            this.onDrawBackdrop != onDrawBackdrop
         ) {
             this.state = state
             this.style = style
-            this.transformBlock = transformBlock
+            this.onDrawBackdrop = onDrawBackdrop
             updateStyle()
         }
     }
@@ -442,7 +439,7 @@ private class LiquidGlassNode(
             glassNode.update(
                 state = state,
                 style = style(),
-                transformBlock = transformBlock
+                onDrawBackdrop = onDrawBackdrop
             )
         }
     }
