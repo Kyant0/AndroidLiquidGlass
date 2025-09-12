@@ -61,9 +61,9 @@ sealed interface GlassHighlight {
      */
     @Immutable
     data class Solid(
-        override val width: Dp = 1f.dp,
-        override val color: Color = Color.White.copy(alpha = 0.4f),
-        override val blendMode: BlendMode = BlendMode.Plus
+        override val width: Dp = DefaultHighlightWidth,
+        override val color: Color = DefaultHighlightColor,
+        override val blendMode: BlendMode = DefaultHighlightBlendMode
     ) : GlassHighlight
 
     /**
@@ -80,9 +80,9 @@ sealed interface GlassHighlight {
      */
     @Immutable
     data class Soft(
-        override val width: Dp = 1f.dp,
-        override val color: Color = Color.White.copy(alpha = 0.4f),
-        override val blendMode: BlendMode = BlendMode.Plus
+        override val width: Dp = DefaultHighlightWidth,
+        override val color: Color = DefaultHighlightColor,
+        override val blendMode: BlendMode = DefaultHighlightBlendMode
     ) : GlassHighlight {
 
         override fun createRenderEffect(size: Size, density: Density, cornerRadius: Float): RenderEffect? {
@@ -123,9 +123,9 @@ sealed interface GlassHighlight {
      */
     @Immutable
     data class Dynamic(
-        override val width: Dp = 1f.dp,
-        override val color: Color = Color.White.copy(alpha = 0.4f),
-        override val blendMode: BlendMode = BlendMode.Plus,
+        override val width: Dp = DefaultHighlightWidth,
+        override val color: Color = DefaultHighlightColor,
+        override val blendMode: BlendMode = DefaultHighlightBlendMode,
         val angle: Float = 45f,
         @param:FloatRange(from = 0.0) val falloff: Float = 1f
     ) : GlassHighlight {
@@ -187,3 +187,7 @@ sealed interface GlassHighlight {
         val Soft: Soft = Soft()
     }
 }
+
+private val DefaultHighlightWidth = 1f.dp
+private val DefaultHighlightColor = Color.White.copy(alpha = 0.3f)
+private val DefaultHighlightBlendMode = BlendMode.Plus

@@ -143,8 +143,8 @@ half4 main(float2 coord) {
     
     float2 grad = gradSdRoundedRectangle(centeredCoord, halfSize, min(halfSize.x, halfSize.y));
     float2 normal = float2(-cos(angle), -sin(angle));
-    float fraction = pow(abs(dot(normal, grad)), falloff);
+    float intensity = pow(abs(dot(normal, grad)), falloff);
     
-    return image.eval(coord) * fraction;
+    return image.eval(coord) * intensity;
 }"""
 }

@@ -40,7 +40,7 @@ data class GlassMaterial(
     companion object {
 
         @Stable
-        val DefaultColorFilter: ColorFilter = simpleColorFilter(contrast = 1.5f, saturation = 1.5f)
+        val DefaultColorFilter: ColorFilter = simpleColorFilter(saturation = 1.5f)
 
         @Stable
         val Default: GlassMaterial = GlassMaterial()
