@@ -107,13 +107,7 @@ class PreviewState {
             typeConverter = Float.VectorConverter,
             valueLabel = { "%.2f".format(it) }
         )
-    val dispersionHeight: LiquidGlassParamValue<Dp> =
-        LiquidGlassParamValue(
-            initialValue = 0.dp,
-            valueRange = { 0.dp..cornerRadius.value },
-            typeConverter = Dp.VectorConverter,
-            valueLabel = { "${it.value.fastRoundToInt()} dp" }
-        )
+    var isDispersionEnabled: Boolean by mutableStateOf(false)
 
     val bleedAmount: LiquidGlassParamValue<Dp> =
         LiquidGlassParamValue(
@@ -181,7 +175,7 @@ class PreviewState {
             launch { refractionHeight.reset() }
             launch { refractionAmount.reset() }
             launch { eccentricFactor.reset() }
-            launch { dispersionHeight.reset() }
+            isDispersionEnabled = false
 
             launch { bleedAmount.reset() }
             launch { bleedBlurRadius.reset() }

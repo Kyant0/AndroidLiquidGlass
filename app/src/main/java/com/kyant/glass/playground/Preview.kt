@@ -153,6 +153,7 @@ fun Preview() {
                     shape = RoundedRectangle(state.cornerRadius.value)
                 }
                 .graphicsLayer { // dispersion effect
+                    if (!state.isDispersionEnabled) return@graphicsLayer
                     renderEffect = RenderEffect.createRuntimeShaderEffect(
                         RuntimeShader(
                             """
@@ -160,7 +161,9 @@ fun Preview() {
     
     uniform float2 size;
     uniform float cornerRadius;
+    
     uniform float dispersionHeight;
+    uniform float dispersionAmount;
     
     float lerp(float a, float b, float t) {
         return a + (b - a) * t;
@@ -206,20 +209,19 @@ fun Preview() {
             float2 normal = gradSdRoundedRectangle(centeredCoord, halfSize, cornerRadius);
             float2 tangent = normalToTangent(normal);
             
-            float dispersionFraction = 1.0 - -sd / dispersionHeight;
-            float dispersionWidth = dispersionHeight * circleMap(dispersionFraction);
-            if (dispersionWidth < 2.0) {
+            float dispersionDistance = circleMap(1.0 - -sd / dispersionHeight) * dispersionAmount;
+            if (dispersionDistance < 2.0) {
                 half4 color = image.eval(coord);
                 return color;
             }
             
             half4 dispersedColor = half4(0.0);
             half4 weight = half4(0.0);
-            float maxI = min(dispersionWidth, 20.0);
+            float maxI = min(dispersionDistance, 20.0);
             for (float i = 0.0; i < 20.0; i++) {
                 float t = i / maxI;
                 if (t > 1.0) break;
-                half4 color = image.eval(coord + tangent * float2(t - 0.5) * dispersionWidth);
+                half4 color = image.eval(coord + tangent * float2(t - 0.5) * dispersionDistance);
                 half rMask = step(0.5, t);
                 half gMask = step(0.25, t) * step(t, 0.75);
                 half bMask = step(t, 0.5);
@@ -242,7 +244,9 @@ fun Preview() {
 
                             setFloatUniform("size", size.width, size.height)
                             setFloatUniform("cornerRadius", cornerRadius)
+
                             setFloatUniform("dispersionHeight", state.refractionHeight.value.toPx())
+                            setFloatUniform("dispersionAmount", -state.refractionAmount.value.toPx())
                         },
                         "image"
                     ).asComposeRenderEffect()

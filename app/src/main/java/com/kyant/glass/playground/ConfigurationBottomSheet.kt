@@ -167,13 +167,19 @@ fun ConfigurationBottomSheet(
                             providerState,
                             Modifier.fillMaxWidth()
                         )
-                        SliderChip(
-                            state.dispersionHeight,
-                            stringResource(R.string.dispersion_height),
-                            { Icon(painterResource(R.drawable.star_shine_24px)) },
-                            providerState,
-                            Modifier.fillMaxWidth()
-                        )
+                        Button(
+                            { state.isDispersionEnabled = !state.isDispersionEnabled },
+                            Modifier.liquidGlass(providerState, GlassStyle(CornerShape.full)),
+                            colors = ButtonColors.filled(
+                                containerColor = primary.copy(alpha = 0.85f)
+                            )
+                        ) {
+                            Text(
+                                if (state.isDispersionEnabled) stringResource(R.string.disable_dispersion)
+                                else stringResource(R.string.enable_dispersion),
+                                Modifier.animateContentSize(MotionScheme.fastSpatial())
+                            )
+                        }
                     }
 
                     null -> {}

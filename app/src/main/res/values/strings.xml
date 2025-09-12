@@ -12,9 +12,11 @@
     <string name="colors">Colors</string>
     <string name="contrast">Contrast</string>
     <string name="corner_radius">Corner radius</string>
+    <string name="disable_dispersion">Disable dispersion</string>
     <string name="disable_unsafe_mode">Disable unsafe values</string>
     <string name="dispersion_height">Dispersion height</string>
     <string name="eccentric_factor">Eccentric factor</string>
+    <string name="enable_dispersion">Enable dispersion</string>
     <string name="enable_unsafe_mode">Enable unsafe values</string>
     <string name="height">Height</string>
     <string name="hide_controls">Hide controls</string>
