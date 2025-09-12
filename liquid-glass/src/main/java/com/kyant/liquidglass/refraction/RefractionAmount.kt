@@ -23,7 +23,7 @@ sealed interface RefractionAmount : RefractionValue {
     value class Fixed(val value: Dp) : RefractionAmount {
 
         init {
-            requirePrecondition(value.value <= 0.0f) {
+            requirePrecondition(value.value <= 0f) {
                 "Refraction amount can't be positive!"
             }
         }

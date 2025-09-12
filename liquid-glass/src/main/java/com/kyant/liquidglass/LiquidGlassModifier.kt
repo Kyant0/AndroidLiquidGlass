@@ -28,6 +28,7 @@ import androidx.compose.ui.node.ObserverModifierNode
 import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
+import com.kyant.liquidglass.dispersion.Dispersion
 import com.kyant.liquidglass.highlight.GlassHighlightElement
 import com.kyant.liquidglass.highlight.SimpleGlassHighlightElement
 import com.kyant.liquidglass.material.GlassBrushElement
@@ -193,6 +194,7 @@ private class SimpleLiquidGlassNode(
     private var graphicsLayer: GraphicsLayer? = null
 
     private val innerRefractionShader = RuntimeShader(GlassShaders.refractionShaderString)
+    private var dispersionShader: RuntimeShader? = null
 
     private val drawNode = delegate(CacheDrawModifierNode {
         val colorFilter = style.material.colorFilter
@@ -242,14 +244,62 @@ private class SimpleLiquidGlassNode(
                 "image"
             )
 
-        val renderEffect =
-            if (blurRenderEffect != null) {
+        val dispersion = style.dispersion
+        val dispersionHeight: Float
+        val dispersionAmount: Float
+        when (dispersion) {
+            Dispersion.None -> {
+                dispersionHeight = 0f
+                dispersionAmount = 0f
+            }
+
+            Dispersion.Automatic -> {
+                dispersionHeight = innerRefractionHeight
+                dispersionAmount = -innerRefractionAmount
+            }
+
+            is Dispersion.Fractional -> {
+                dispersionHeight = innerRefractionHeight * dispersion.fraction
+                dispersionAmount = -innerRefractionAmount * dispersion.fraction
+            }
+        }
+        val dispersionEffect =
+            if (dispersionHeight == 0f || dispersionAmount == 0f) {
+                null
+            } else {
+                val shader =
+                    dispersionShader
+                        ?: RuntimeShader(GlassShaders.dispersionShaderString).also { dispersionShader = it }
+                RenderEffect.createRuntimeShaderEffect(
+                    shader.apply {
+                        setFloatUniform("size", size.width, size.height)
+                        setFloatUniform("cornerRadius", cornerRadiusPx)
+
+                        setFloatUniform("dispersionHeight", dispersionHeight)
+                        setFloatUniform("dispersionAmount", dispersionAmount)
+                    },
+                    "image"
+                )
+            }
+
+        val refractionWithDispersionRenderEffect =
+            if (dispersionEffect != null) {
                 RenderEffect.createChainEffect(
-                    innerRefractionRenderEffect,
-                    blurRenderEffect
+                    dispersionEffect,
+                    innerRefractionRenderEffect
                 )
             } else {
                 innerRefractionRenderEffect
+            }
+
+        val renderEffect =
+            if (blurRenderEffect != null) {
+                RenderEffect.createChainEffect(
+                    refractionWithDispersionRenderEffect,
+                    blurRenderEffect
+                )
+            } else {
+                refractionWithDispersionRenderEffect
             }.asComposeRenderEffect()
 
         graphicsLayer?.renderEffect = renderEffect

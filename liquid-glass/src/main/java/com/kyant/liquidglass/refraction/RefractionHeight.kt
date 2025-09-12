@@ -23,7 +23,7 @@ sealed interface RefractionHeight : RefractionValue {
     value class Fixed(val value: Dp) : RefractionHeight {
 
         init {
-            requirePrecondition(value.value >= 0.0f) {
+            requirePrecondition(value.value >= 0f) {
                 "Refraction height can't be negative!"
             }
         }

@@ -50,16 +50,20 @@ Box(
         providerState,
         GlassStyle(
             shape = RoundedCornerShape(16f.dp),
+            // you can customize more properties
             innerRefraction = InnerRefraction(
                 height = RefractionHeight(8f.dp),
                 amount = RefractionAmount((-16f).dp),
                 depthEffect = 0f // or `1f` to have more 3D effect
             ),
+            dispersion = Dispersion.None, // or `Dispersion.Automatic` to enable dispersion effect
             material = GlassMaterial(
                 blurRadius = 2f.dp,
                 brush = SolidColor(Color.White),
                 alpha = 0.3f
-            )
+            ),
+            highlight = GlassHighlight.Default,
+            shadow = GlassShadow.Default // or `null` to disable shadow
         )
     )
 )

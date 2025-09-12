@@ -206,39 +206,30 @@ fun Preview() {
             float2 normal = gradSdRoundedRectangle(centeredCoord, halfSize, cornerRadius);
             float2 tangent = normalToTangent(normal);
             
-            half4 dispersedColor = half4(0.0);
-            half4 weight = half4(0.0);
-            
             float dispersionFraction = 1.0 - -sd / dispersionHeight;
-            float dispersionWidth = dispersionHeight * 2.0 * pow(circleMap(dispersionFraction), 2.0);
+            float dispersionWidth = dispersionHeight * circleMap(dispersionFraction);
             if (dispersionWidth < 2.0) {
                 half4 color = image.eval(coord);
                 return color;
             }
-            float maxI = min(dispersionWidth, 100.0);
-            for (float i = 0.0; i < 100.0; i++) {
+            
+            half4 dispersedColor = half4(0.0);
+            half4 weight = half4(0.0);
+            float maxI = min(dispersionWidth, 20.0);
+            for (float i = 0.0; i < 20.0; i++) {
                 float t = i / maxI;
                 if (t > 1.0) break;
                 half4 color = image.eval(coord + tangent * float2(t - 0.5) * dispersionWidth);
-                if (t >= 0.0 && t < 0.5) {
-                    dispersedColor.b += color.b;
-                    weight.b += 1.0;
-                }
-                if (t > 0.25 && t < 0.75) {
-                    dispersedColor.g += color.g;
-                    weight.g += 1.0;
-                }
-                if (t > 0.5 && t <= 1.0) {
-                    dispersedColor.r += color.r;
-                    weight.r += 1.0;
-                }
+                half rMask = step(0.5, t);
+                half gMask = step(0.25, t) * step(t, 0.75);
+                half bMask = step(t, 0.5);
+                half4 mask = half4(rMask, gMask, bMask, 0.0);
+                dispersedColor += color * mask;
+                weight += mask;
             }
             dispersedColor /= weight;
-            
-            half4 color = image.eval(coord);
-            dispersedColor.a = color.a;
-            half4 blendedColor = dispersedColor;
-            return blendedColor;
+            dispersedColor.a = image.eval(coord).a;
+            return dispersedColor;
         } else {
             half4 color = image.eval(coord);
             return color;
@@ -251,7 +242,7 @@ fun Preview() {
 
                             setFloatUniform("size", size.width, size.height)
                             setFloatUniform("cornerRadius", cornerRadius)
-                            setFloatUniform("dispersionHeight", state.dispersionHeight.value.toPx())
+                            setFloatUniform("dispersionHeight", state.refractionHeight.value.toPx())
                         },
                         "image"
                     ).asComposeRenderEffect()
