@@ -95,7 +95,7 @@ internal class SimpleGlassHighlightNode(
 
     override val shouldAutoInvalidate: Boolean = false
 
-    private var highlight: GlassHighlight = style.highlight
+    private var highlight: GlassHighlight? = style.highlight
         set(value) {
             if (field != value) {
                 field = value
@@ -114,7 +114,8 @@ internal class SimpleGlassHighlightNode(
     private var graphicsLayer: GraphicsLayer? = null
 
     private val drawNode = delegate(CacheDrawModifierNode {
-        if (highlight == GlassHighlight.None) {
+        val highlight = highlight
+        if (highlight == null) {
             return@CacheDrawModifierNode onDrawWithContent { drawContent() }
         }
 
@@ -138,9 +139,7 @@ internal class SimpleGlassHighlightNode(
 
         if (outline != null) {
             graphicsLayer?.let { layer ->
-                val cornerRadiusPx = shape.topStart.toPx(size, this)
-                val borderRenderEffect = highlight.createRenderEffect(size, this, cornerRadiusPx)
-
+                val borderRenderEffect = highlight.style.createRenderEffect(size, strokeWidthPx)
                 layer.renderEffect = borderRenderEffect?.asComposeRenderEffect()
                 layer.blendMode = highlight.blendMode
 
@@ -206,7 +205,7 @@ internal class GlassHighlightNode(
 
     override val shouldAutoInvalidate: Boolean = false
 
-    private var highlight: GlassHighlight = style().highlight
+    private var highlight: GlassHighlight? = style().highlight
         set(value) {
             if (field != value) {
                 field = value
@@ -225,7 +224,8 @@ internal class GlassHighlightNode(
     private var graphicsLayer: GraphicsLayer? = null
 
     private val drawNode = delegate(CacheDrawModifierNode {
-        if (highlight == GlassHighlight.None) {
+        val highlight = highlight
+        if (highlight == null) {
             return@CacheDrawModifierNode onDrawWithContent { drawContent() }
         }
 
@@ -249,9 +249,7 @@ internal class GlassHighlightNode(
 
         if (outline != null) {
             graphicsLayer?.let { layer ->
-                val cornerRadiusPx = shape.topStart.toPx(size, this)
-                val borderRenderEffect = highlight.createRenderEffect(size, this, cornerRadiusPx)
-
+                val borderRenderEffect = highlight.style.createRenderEffect(size, strokeWidthPx)
                 layer.renderEffect = borderRenderEffect?.asComposeRenderEffect()
                 layer.blendMode = highlight.blendMode
 

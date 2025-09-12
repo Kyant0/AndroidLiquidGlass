@@ -17,6 +17,6 @@ data class GlassStyle(
     val innerRefraction: InnerRefraction = InnerRefraction.Default,
     val dispersion: Dispersion = Dispersion.None,
     val material: GlassMaterial = GlassMaterial.Default,
-    val highlight: GlassHighlight = GlassHighlight.Default,
+    val highlight: GlassHighlight? = GlassHighlight.Default,
     val shadow: GlassShadow? = GlassShadow.Default
 )

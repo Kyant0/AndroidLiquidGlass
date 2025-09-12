@@ -2,10 +2,11 @@ package com.kyant.liquidglass.utils
 
 import org.intellij.lang.annotations.Language
 
+@Suppress("ConstPropertyName")
 internal object GlassShaders {
 
     @Language("AGSL")
-    internal val sdRectangleShaderUtils = """
+    private const val sdRectangleShaderUtils = """
 float sdRectangle(float2 coord, float2 halfSize) {
     float2 d = abs(coord) - halfSize;
     float outside = length(max(d, 0.0));
@@ -30,7 +31,7 @@ float2 gradSdRoundedRectangle(float2 coord, float2 halfSize, float cornerRadius)
 }"""
 
     @Language("AGSL")
-    val refractionShaderString = """
+    const val refractionShaderString = """
 uniform shader image;
 
 uniform float2 size;
@@ -67,7 +68,7 @@ half4 main(float2 coord) {
 }"""
 
     @Language("AGSL")
-    val dispersionShaderString = """
+    const val dispersionShaderString = """
 uniform shader image;
 
 uniform float2 size;
@@ -127,7 +128,7 @@ half4 main(float2 coord) {
 }"""
 
     @Language("AGSL")
-    val highlightShaderString = """
+    const val dynamicHighlightStyleShaderString = """
 uniform shader image;
 
 uniform float2 size;
