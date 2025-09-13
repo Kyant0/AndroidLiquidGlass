@@ -169,7 +169,7 @@ private class DrawBackdropNode(
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
-            drawBackdropBlock = { with(backdrop) { drawChild(coordinates) } }
+            drawBackdropBlock = { with(backdrop) { drawBackdrop(coordinates) } }
         }
     }
 

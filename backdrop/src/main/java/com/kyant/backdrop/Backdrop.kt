@@ -17,5 +17,5 @@ interface Backdrop {
 
     val element: Modifier.Element?
 
-    fun DrawScope.drawChild(coordinates: LayoutCoordinates)
+    fun DrawScope.drawBackdrop(coordinates: LayoutCoordinates)
 }

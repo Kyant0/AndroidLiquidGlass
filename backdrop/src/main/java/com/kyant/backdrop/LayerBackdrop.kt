@@ -47,7 +47,7 @@ class LayerBackdrop(
 
     var backdropPosition: Offset by mutableStateOf(Offset.Zero)
 
-    override fun DrawScope.drawChild(coordinates: LayoutCoordinates) {
+    override fun DrawScope.drawBackdrop(coordinates: LayoutCoordinates) {
         val position = coordinates.positionOnScreen() - backdropPosition
         translate(-position.x, -position.y) {
             if (backgroundColor != null && backgroundColor.isSpecified) {
