@@ -11,6 +11,7 @@ import com.kyant.liquidglass.shadow.GlassShadow
 /**
  * The style of the liquid glass.
  */
+@Deprecated(message = "Use the new Backdrop API")
 @Immutable
 data class GlassStyle(
     val shape: CornerBasedShape,

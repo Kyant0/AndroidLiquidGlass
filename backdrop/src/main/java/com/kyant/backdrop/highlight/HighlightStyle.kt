@@ -1,4 +1,4 @@
-package com.kyant.blur
+package com.kyant.backdrop.highlight
 
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
@@ -8,25 +8,19 @@ import androidx.annotation.FloatRange
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.geometry.Size
+import com.kyant.backdrop.DynamicHighlightStyleShaderString
 import kotlin.math.PI
 
 @Immutable
 interface HighlightStyle {
 
-    @Stable
     fun createRenderEffect(size: Size, width: Float): RenderEffect? {
         return null
     }
 
-    /**
-     * Solid highlight effect.
-     */
     @Immutable
     data object Solid : HighlightStyle
 
-    /**
-     * Soft highlight effect with blur.
-     */
     @Immutable
     data object Soft : HighlightStyle {
 
@@ -48,15 +42,6 @@ interface HighlightStyle {
         }
     }
 
-    /**
-     * Dynamic highlight effect with shimmering effect.
-     *
-     * @param angle
-     * The angle of the highlight in degrees.
-     *
-     * @param falloff
-     * The falloff of the highlight. Higher value results in a sharper highlight.
-     */
     @Immutable
     data class Dynamic(
         val angle: Float = 45f,
@@ -79,7 +64,7 @@ interface HighlightStyle {
 
                 val highlightRenderEffect =
                     RenderEffect.createRuntimeShaderEffect(
-                        RuntimeShader(BlurShaders.dynamicHighlightStyleShaderString).apply {
+                        RuntimeShader(DynamicHighlightStyleShaderString).apply {
                             setFloatUniform("size", size.width, size.height)
 
                             setFloatUniform("angle", angle * (PI / 180f).toFloat())

@@ -1,5 +1,6 @@
 package com.kyant.glassmusic
 
+import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,39 +23,22 @@ import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import com.kyant.blur.BlurStyle
-import com.kyant.blur.Highlight
-import com.kyant.blur.blur
-import com.kyant.blur.highlight
-import com.kyant.liquidglass.GlassStyle
-import com.kyant.liquidglass.highlight.GlassHighlight
-import com.kyant.liquidglass.liquidGlass
-import com.kyant.liquidglass.liquidGlassProvider
-import com.kyant.liquidglass.material.GlassMaterial
-import com.kyant.liquidglass.refraction.InnerRefraction
-import com.kyant.liquidglass.refraction.RefractionAmount
-import com.kyant.liquidglass.refraction.RefractionHeight
-import com.kyant.liquidglass.rememberLiquidGlassProviderState
+import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.effects.saturate
+import com.kyant.backdrop.highlight.drawHighlight
+import com.kyant.backdrop.highlight.onDrawSurfaceWithHighlight
+import com.kyant.backdrop.rememberLayerBackdrop
+import com.kyant.backdrop.shadow.backdropShadow
 
 @Composable
 fun MainContent() {
     val background = Color.White
-    val liquidGlassProviderState = rememberLiquidGlassProviderState(background)
-
-    val iconButtonLiquidGlassStyle =
-        GlassStyle(
-            CircleShape,
-            innerRefraction = InnerRefraction(
-                height = RefractionHeight(8.dp),
-                amount = RefractionAmount.Full
-            ),
-            material = GlassMaterial(
-                brush = SolidColor(background.copy(alpha = 0.5f))
-            )
-        )
+    val backdrop = rememberLayerBackdrop(background)
 
     Box(
         Modifier.fillMaxSize()
@@ -62,7 +46,7 @@ fun MainContent() {
         // content
         Box(
             Modifier
-                .liquidGlassProvider(liquidGlassProviderState)
+                .backdrop(backdrop)
                 .fillMaxSize()
         ) {
             SongsContent()
@@ -80,7 +64,16 @@ fun MainContent() {
         ) {
             Box(
                 Modifier
-                    .liquidGlass(liquidGlassProviderState, iconButtonLiquidGlassStyle)
+                    .backdropShadow(CircleShape)
+                    .drawBackdrop(backdrop) {
+                        shape = CircleShape
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            saturate()
+                            blur(2f.dp)
+                            refraction(height = 8f.dp.toPx(), amount = size.minDimension)
+                        }
+                        onDrawSurfaceWithHighlight { drawRect(background.copy(alpha = 0.5f)) }
+                    }
                     .clickable {}
                     .size(48.dp),
                 contentAlignment = Alignment.Center
@@ -95,7 +88,16 @@ fun MainContent() {
 
             Box(
                 Modifier
-                    .liquidGlass(liquidGlassProviderState, iconButtonLiquidGlassStyle)
+                    .backdropShadow(CircleShape)
+                    .drawBackdrop(backdrop) {
+                        shape = CircleShape
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            saturate()
+                            blur(2f.dp)
+                            refraction(height = 8f.dp.toPx(), amount = size.minDimension)
+                        }
+                        onDrawSurfaceWithHighlight { drawRect(background.copy(alpha = 0.5f)) }
+                    }
                     .clickable {}
                     .size(48.dp),
                 contentAlignment = Alignment.Center
@@ -120,30 +122,16 @@ fun MainContent() {
         ) {
             Box(
                 Modifier
-                    .highlight(Highlight(CircleShape))
-                    .blur(
-                        liquidGlassProviderState.backdrop,
-                        BlurStyle(
-                            CircleShape,
-                            24.dp
-                        )
-                    )
-                    .height(56.dp)
-                    .fillMaxWidth()
-            )
-
-            Box(
-                Modifier
-                    .liquidGlass(
-                        liquidGlassProviderState,
-                        GlassStyle(
-                            CircleShape,
-                            innerRefraction = InnerRefraction(
-                                height = RefractionHeight(8.dp),
-                                amount = RefractionAmount.Half
-                            )
-                        )
-                    )
+                    .backdropShadow(CircleShape)
+                    .drawBackdrop(backdrop) {
+                        shape = CircleShape
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            saturate()
+                            blur(2f.dp)
+                            refraction(height = size.minDimension / 4f, amount = size.minDimension / 2f)
+                        }
+                        drawHighlight()
+                    }
                     .height(56.dp)
                     .fillMaxWidth()
             )
@@ -157,7 +145,7 @@ fun MainContent() {
                 BottomTabs(
                     tabs = MainNavTab.entries,
                     selectedTabState = selectedTab,
-                    liquidGlassProviderState = liquidGlassProviderState,
+                    backdrop = backdrop,
                     background = background,
                     modifier = Modifier.weight(1f)
                 ) { tab ->
@@ -208,24 +196,20 @@ fun MainContent() {
 
                 Box(
                     Modifier
-                        .liquidGlass(
-                            liquidGlassProviderState,
-                            GlassStyle(
-                                CircleShape,
-                                innerRefraction = InnerRefraction(
-                                    height = RefractionHeight(8.dp),
-                                    amount = RefractionAmount.Full
-                                ),
-                                material = GlassMaterial(
-                                    brush = SolidColor(Color(0xFFFDD835).copy(alpha = 0.8f))
-                                ),
-                                highlight = GlassHighlight.Default.copy(
-                                    width = 2.dp,
-                                    color = Color(0xFFFFF59D),
-                                    blendMode = BlendMode.Overlay
-                                )
-                            )
-                        )
+                        .backdropShadow(CircleShape)
+                        .drawBackdrop(backdrop) {
+                            shape = CircleShape
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                saturate()
+                                blur(2f.dp)
+                                refraction(height = 8f.dp.toPx(), amount = size.minDimension)
+                            }
+                            onDrawSurfaceWithHighlight(
+                                width = 2f.dp.toPx(),
+                                color = Color(0xFFFFF59D),
+                                blendMode = BlendMode.Overlay
+                            ) { drawRect(Color(0xFFFDD835).copy(alpha = 0.8f)) }
+                        }
                         .clickable {}
                         .size(64.dp),
                     contentAlignment = Alignment.Center

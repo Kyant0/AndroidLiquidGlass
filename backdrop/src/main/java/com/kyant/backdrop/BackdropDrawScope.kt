@@ -1,18 +1,28 @@
 package com.kyant.backdrop
 
+import android.graphics.RenderEffect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 
-sealed interface BackdropDrawScope : DrawScope {
+interface BackdropDrawScope : Density {
 
-    fun drawBackdrop()
-}
+    val size: Size
 
-class SimpleBackdropDrawScope(
-    val drawScope: DrawScope,
-    val onDrawBackdrop: DrawScope.() -> Unit
-) : BackdropDrawScope, DrawScope by drawScope {
+    val layoutDirection: LayoutDirection
 
-    override fun drawBackdrop() {
-        onDrawBackdrop()
-    }
+    var shape: Shape?
+
+    var clip: Boolean
+
+    var renderEffect: RenderEffect?
+
+    fun obtainGraphicsLayer(key: String): GraphicsLayer
+
+    fun onDrawBackdrop(block: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit)
+
+    fun onDrawSurface(block: DrawScope.() -> Unit)
 }

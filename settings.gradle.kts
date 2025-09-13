@@ -21,7 +21,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "Glass"
 include(":backdrop")
-include(":blur")
 include(":liquid-glass")
 include(":app")
 include(":glassmusic")

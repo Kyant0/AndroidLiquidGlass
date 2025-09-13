@@ -80,7 +80,6 @@ android {
 }
 
 dependencies {
-    implementation(project(":blur"))
     implementation(project(":liquid-glass"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

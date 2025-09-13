@@ -1,5 +1,6 @@
 package com.kyant.glassmusic
 
+import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -30,7 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
@@ -41,16 +42,17 @@ import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
-import com.kyant.liquidglass.GlassStyle
-import com.kyant.liquidglass.LiquidGlassProviderState
-import com.kyant.liquidglass.dispersion.Dispersion
-import com.kyant.liquidglass.liquidGlass
-import com.kyant.liquidglass.liquidGlassProvider
-import com.kyant.liquidglass.material.GlassMaterial
-import com.kyant.liquidglass.refraction.InnerRefraction
-import com.kyant.liquidglass.refraction.RefractionAmount
-import com.kyant.liquidglass.refraction.RefractionHeight
-import com.kyant.liquidglass.rememberLiquidGlassProviderState
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.effects.refractionWithDispersion
+import com.kyant.backdrop.effects.saturate
+import com.kyant.backdrop.highlight.drawHighlight
+import com.kyant.backdrop.highlight.onDrawSurfaceWithHighlight
+import com.kyant.backdrop.rememberLayerBackdrop
+import com.kyant.backdrop.shadow.backdropShadow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
@@ -60,26 +62,24 @@ import kotlin.math.floor
 fun <T> BottomTabs(
     tabs: List<T>,
     selectedTabState: MutableState<T>,
-    liquidGlassProviderState: LiquidGlassProviderState,
+    backdrop: Backdrop,
     background: Color,
     modifier: Modifier = Modifier,
     content: BottomTabsScope.(tab: T) -> BottomTabsScope.BottomTab
 ) {
-    val bottomTabsLiquidGlassProviderState = rememberLiquidGlassProviderState(null)
-
-    val animationScope = rememberCoroutineScope()
-    val contentColor = Color.Black
-
-    val scope = remember { BottomTabsScope() }
+    val bottomTabsBackdrop = rememberLayerBackdrop(null)
 
     val density = LocalDensity.current
-    var isDragging by remember { mutableStateOf(false) }
-    val offset = remember { Animatable(0f) }
-
     val height = 64.dp
     val padding = 4.dp
     val paddingPx = with(density) { padding.roundToPx() }
+    val contentColor = Color.Black
     val itemBackground = Color(0xFF64B5F6)
+
+    val scope = remember { BottomTabsScope() }
+    val animationScope = rememberCoroutineScope()
+    var isDragging by remember { mutableStateOf(false) }
+    val offset = remember { Animatable(0f) }
 
     BoxWithConstraints(
         modifier
@@ -101,30 +101,29 @@ fun <T> BottomTabs(
 
         Row(
             Modifier
-                .liquidGlassProvider(bottomTabsLiquidGlassProviderState)
+                .backdrop(bottomTabsBackdrop)
                 .graphicsLayer {
                     val maxScale = 1f + 4.dp / height
                     val scale = lerp(1f, maxScale, dragFraction)
                     scaleX = scale
                     scaleY = scale
                 }
-                .liquidGlass(
-                    liquidGlassProviderState,
-                    GlassStyle(
-                        CircleShape,
-                        innerRefraction = InnerRefraction(
-                            height = RefractionHeight(12.dp),
-                            amount = RefractionAmount.Half
-                        ),
-                        material = GlassMaterial(
-                            brush = SolidColor(Color.White),
-                            alpha = 0.3f
-                        )
-                    )
-                ) {
-                    val maxScale = 1f + 4.dp / height
-                    val scale = lerp(1f, maxScale, dragFraction)
-                    scale(1f / scale, 1f / scale, Offset.Zero)
+                .backdropShadow(CircleShape)
+                .drawBackdrop(backdrop) {
+                    shape = CircleShape
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        saturate()
+                        blur(2f.dp)
+                        refraction(height = 12f.dp.toPx(), amount = size.minDimension / 2f)
+                    }
+                    onDrawBackdrop { drawBackdrop ->
+                        val maxScale = 1f + 4.dp / height
+                        val scale = lerp(1f, maxScale, dragFraction)
+                        scale(1f / scale, 1f / scale, Offset.Zero) {
+                            drawBackdrop()
+                        }
+                    }
+                    onDrawSurfaceWithHighlight { drawRect(Color.White.copy(alpha = 0.3f)) }
                 }
                 .fillMaxSize()
                 .padding(padding),
@@ -211,30 +210,28 @@ fun <T> BottomTabs(
                     scaleY = lerp(1f, 0.9f, scaleYFraction)
                 }
                 .background(background, CircleShape)
-                .liquidGlass(
-                    bottomTabsLiquidGlassProviderState,
-                    GlassStyle(
-                        CircleShape,
-                        innerRefraction = InnerRefraction(
-                            height = RefractionHeight(
-                                animateFloatAsState(
-                                    if (!isDragging) 0f else 12f
-                                ).value.dp
-                            ),
-                            amount = RefractionAmount.Half
-                        ),
-                        dispersion = Dispersion.Automatic,
-                        material = GlassMaterial.None
-                    )
-                ) {
-                    scale(
-                        lerp(1f, 0.8f, scaleXFraction),
-                        lerp(1f, 0.8f, scaleYFraction)
-                    )
-
-                    val scaleX = lerp(1f, 0.9f, scaleXFraction)
-                    val scaleY = lerp(1f, 0.9f, scaleYFraction)
-                    scale(1f / scaleX, 1f / scaleY, Offset.Zero)
+                .backdropShadow(CircleShape)
+                .drawBackdrop(bottomTabsBackdrop) {
+                    shape = CircleShape
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        refractionWithDispersion(
+                            height = 12f.dp.toPx() * dragFraction,
+                            amount = size.minDimension / 2f * dragFraction
+                        )
+                    }
+                    onDrawBackdrop { drawBackdrop ->
+                        scale(
+                            lerp(1f, 0.8f, scaleXFraction),
+                            lerp(1f, 0.8f, scaleYFraction)
+                        ) {
+                            val scaleX = lerp(1f, 0.9f, scaleXFraction)
+                            val scaleY = lerp(1f, 0.9f, scaleYFraction)
+                            scale(1f / scaleX, 1f / scaleY, Offset.Zero) {
+                                drawBackdrop()
+                            }
+                        }
+                    }
+                    drawHighlight()
                 }
                 .draggable(
                     rememberDraggableState { delta ->

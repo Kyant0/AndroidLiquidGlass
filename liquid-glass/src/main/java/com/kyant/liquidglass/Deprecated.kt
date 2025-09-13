@@ -10,6 +10,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.DrawTransform
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.layer.GraphicsLayer
@@ -20,10 +21,134 @@ import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.platform.InspectorInfo
+import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.LayerBackdrop
 import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorFilter
+import com.kyant.backdrop.effects.dispersion
+import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.highlight.HighlightStyle
+import com.kyant.backdrop.highlight.highlight
+import com.kyant.backdrop.shadow.Shadow
+import com.kyant.backdrop.shadow.backdropShadow
+import com.kyant.liquidglass.dispersion.Dispersion
+import com.kyant.liquidglass.highlight.GlassHighlightStyle
 
-@Deprecated(message = "[Backdrop API] Use backdrop instead of state, use onDrawBackdrop instead of transformBlock")
+private val DefaultOnDrawBackdrop: DrawScope.(DrawScope.() -> Unit) -> Unit = { it() }
+
+@Deprecated(message = "Use the new Backdrop API")
+fun Modifier.liquidGlass(
+    backdrop: Backdrop,
+    style: GlassStyle,
+    compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
+    onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdrop
+): Modifier =
+    this.liquidGlass(
+        backdrop = backdrop,
+        compositingStrategy = compositingStrategy,
+        onDrawBackdrop = onDrawBackdrop,
+        style = { style }
+    )
+
+@Deprecated(message = "Use the new Backdrop API")
+fun Modifier.liquidGlass(
+    backdrop: Backdrop,
+    compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
+    onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdrop,
+    style: () -> GlassStyle
+): Modifier =
+    this
+        .backdropShadow {
+            val style = style()
+
+            style.shadow?.run {
+                Shadow(
+                    shape = style.shape,
+                    elevation = elevation,
+                    color = color,
+                    offset = offset,
+                    blendMode = blendMode
+                )
+            }
+        }
+        .drawBackdrop(backdrop, compositingStrategy) {
+            val style = style()
+
+            shape = style.shape
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                style.material.colorFilter?.let { colorFilter(it) }
+                blur(style.material.blurRadius)
+
+                val refractionHeight = style.innerRefraction.height.toPx(size, this)
+                val refractionAmount = style.innerRefraction.amount.toPx(size, this)
+
+                refraction(
+                    height = refractionHeight,
+                    amount = -refractionAmount,
+                    hasDepthEffect = style.innerRefraction.depthEffect > 0f
+                )
+
+                val dispersion = style.dispersion
+                val dispersionHeight: Float
+                val dispersionAmount: Float
+                when (dispersion) {
+                    Dispersion.None -> {
+                        dispersionHeight = 0f
+                        dispersionAmount = 0f
+                    }
+
+                    Dispersion.Automatic -> {
+                        dispersionHeight = refractionHeight
+                        dispersionAmount = -refractionAmount
+                    }
+
+                    is Dispersion.Fractional -> {
+                        dispersionHeight = refractionHeight * dispersion.fraction
+                        dispersionAmount = -refractionAmount * dispersion.fraction
+                    }
+                }
+                dispersion(
+                    height = dispersionHeight,
+                    amount = dispersionAmount
+                )
+            }
+
+            onDrawBackdrop(onDrawBackdrop)
+
+            val highlight = style.highlight?.let {
+                highlight(
+                    width = it.width.toPx(),
+                    color = it.color,
+                    blendMode = it.blendMode,
+                    style = when (it.style) {
+                        is GlassHighlightStyle.Solid -> HighlightStyle.Solid
+                        is GlassHighlightStyle.Soft -> HighlightStyle.Soft
+                        is GlassHighlightStyle.Dynamic -> HighlightStyle.Dynamic(
+                            angle = it.style.angle,
+                            falloff = it.style.falloff
+                        )
+
+                        else -> HighlightStyle.Default
+                    }
+                )
+            }
+
+            onDrawSurface {
+                style.material.brush?.let {
+                    drawRect(
+                        it,
+                        alpha = style.material.alpha,
+                        blendMode = style.material.blendMode
+                    )
+                }
+                highlight?.run { draw() }
+            }
+        }
+
+@Deprecated(message = "Use the new Backdrop API")
 fun Modifier.liquidGlass(
     state: LiquidGlassProviderState,
     style: GlassStyle,
@@ -34,10 +159,10 @@ fun Modifier.liquidGlass(
         backdrop = state.backdrop,
         style = style,
         compositingStrategy = compositingStrategy,
-        onDrawBackdrop = draw@{
+        onDrawBackdrop = { drawBackdrop ->
             if (transformBlock != null) {
                 withTransform(transformBlock) {
-                    this@draw.drawBackdrop()
+                    drawBackdrop()
                 }
             } else {
                 drawBackdrop()
@@ -45,7 +170,7 @@ fun Modifier.liquidGlass(
         }
     )
 
-@Deprecated(message = "[Backdrop API] Use backdrop instead of state, use onDrawBackdrop instead of transformBlock")
+@Deprecated(message = "Use the new Backdrop API")
 fun Modifier.liquidGlass(
     state: LiquidGlassProviderState,
     compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
@@ -55,10 +180,10 @@ fun Modifier.liquidGlass(
     this.liquidGlass(
         backdrop = state.backdrop,
         compositingStrategy = compositingStrategy,
-        onDrawBackdrop = draw@{
+        onDrawBackdrop = { drawBackdrop ->
             if (transformBlock != null) {
                 withTransform(transformBlock) {
-                    this@draw.drawBackdrop()
+                    drawBackdrop()
                 }
             } else {
                 drawBackdrop()
@@ -67,7 +192,7 @@ fun Modifier.liquidGlass(
         style = style
     )
 
-@Deprecated(message = "[Backdrop API] Use backdrop modifier instead")
+@Deprecated(message = "Use the new Backdrop API")
 fun Modifier.liquidGlassProvider(state: LiquidGlassProviderState): Modifier =
     this.backdrop(state.backdrop)
 
