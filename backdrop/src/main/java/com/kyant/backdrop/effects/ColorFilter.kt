@@ -38,7 +38,7 @@ fun BackdropDrawScope.colorFilter(
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
-fun BackdropDrawScope.saturate() {
+fun BackdropDrawScope.saturation() {
     colorFilter(DefaultSaturationColorFilter)
 }
 

@@ -29,7 +29,7 @@ import com.kyant.backdrop.backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
-import com.kyant.backdrop.effects.saturate
+import com.kyant.backdrop.effects.saturation
 import com.kyant.backdrop.highlight.drawHighlight
 import com.kyant.backdrop.highlight.onDrawSurfaceWithHighlight
 import com.kyant.backdrop.rememberLayerBackdrop
@@ -68,7 +68,7 @@ fun MainContent() {
                     .drawBackdrop(backdrop) {
                         shape = CircleShape
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            saturate()
+                            saturation()
                             blur(2f.dp)
                             refraction(height = 8f.dp.toPx(), amount = size.minDimension)
                         }
@@ -92,7 +92,7 @@ fun MainContent() {
                     .drawBackdrop(backdrop) {
                         shape = CircleShape
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            saturate()
+                            saturation()
                             blur(2f.dp)
                             refraction(height = 8f.dp.toPx(), amount = size.minDimension)
                         }
@@ -126,7 +126,7 @@ fun MainContent() {
                     .drawBackdrop(backdrop) {
                         shape = CircleShape
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            saturate()
+                            saturation()
                             blur(2f.dp)
                             refraction(height = size.minDimension / 4f, amount = size.minDimension / 2f)
                         }
@@ -200,7 +200,7 @@ fun MainContent() {
                         .drawBackdrop(backdrop) {
                             shape = CircleShape
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                saturate()
+                                saturation()
                                 blur(2f.dp)
                                 refraction(height = 8f.dp.toPx(), amount = size.minDimension)
                             }

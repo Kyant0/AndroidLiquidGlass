@@ -60,7 +60,7 @@ Box {
 
                 // apply visual effects
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    saturate()
+                    saturation()
                     blur(2f.dp)
                     // here is the glass effect
                     refraction(height = 8f.dp.toPx(), amount = size.minDimension)
@@ -105,7 +105,7 @@ Box {
 
                 // apply visual effects
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    saturate()
+                    saturation()
                     blur(2f.dp)
                     // here is the glass effect with dispersion
                     refractionWithDispersion(height = 8f.dp.toPx(), amount = size.minDimension)
