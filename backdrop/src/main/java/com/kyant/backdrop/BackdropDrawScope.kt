@@ -1,4 +1,4 @@
-package com.kyant.liquidglass
+package com.kyant.backdrop
 
 import androidx.compose.ui.graphics.drawscope.DrawScope
 
@@ -7,7 +7,7 @@ sealed interface BackdropDrawScope : DrawScope {
     fun drawBackdrop()
 }
 
-internal class BackdropDrawScopeImpl internal constructor(
+class SimpleBackdropDrawScope(
     val drawScope: DrawScope,
     val onDrawBackdrop: DrawScope.() -> Unit
 ) : BackdropDrawScope, DrawScope by drawScope {

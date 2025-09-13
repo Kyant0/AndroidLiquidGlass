@@ -22,6 +22,9 @@ import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.BackdropDrawScope
+import com.kyant.backdrop.SimpleBackdropDrawScope
 import com.kyant.liquidglass.dispersion.Dispersion
 import com.kyant.liquidglass.highlight.GlassHighlightElement
 import com.kyant.liquidglass.highlight.SimpleGlassHighlightElement
@@ -78,34 +81,6 @@ fun Modifier.liquidGlass(
         )
         .then(GlassBrushElement(style))
         .then(GlassHighlightElement(style))
-
-@Deprecated(message = "[Backdrop API] Use backdrop instead of state")
-fun Modifier.liquidGlass(
-    state: LiquidGlassProviderState,
-    style: GlassStyle,
-    compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
-    onDrawBackdrop: BackdropDrawScope.() -> Unit = DefaultOnDrawBackdrop
-): Modifier =
-    this.liquidGlass(
-        backdrop = state.backdrop,
-        style = style,
-        compositingStrategy = compositingStrategy,
-        onDrawBackdrop = onDrawBackdrop
-    )
-
-@Deprecated(message = "[Backdrop API] Use backdrop instead of state")
-fun Modifier.liquidGlass(
-    state: LiquidGlassProviderState,
-    compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
-    onDrawBackdrop: BackdropDrawScope.() -> Unit = DefaultOnDrawBackdrop,
-    style: () -> GlassStyle
-): Modifier =
-    this.liquidGlass(
-        backdrop = state.backdrop,
-        compositingStrategy = compositingStrategy,
-        onDrawBackdrop = onDrawBackdrop,
-        style = style
-    )
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 private class SimpleLiquidGlassElement(
@@ -335,7 +310,7 @@ private class SimpleLiquidGlassNode(
         onDrawWithContent {
             if (graphicsLayer != null) {
                 graphicsLayer.record {
-                    val backdropDrawScope = BackdropDrawScopeImpl(this, drawBackdropBlock)
+                    val backdropDrawScope = SimpleBackdropDrawScope(this, drawBackdropBlock)
                     onDrawBackdrop(backdropDrawScope)
                 }
 

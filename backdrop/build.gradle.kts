@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.kyant.liquidglass"
+    namespace = "com.kyant.backdrop"
     compileSdk = 36
     buildToolsVersion = "36.0.0"
 
@@ -41,7 +41,6 @@ android {
 }
 
 dependencies {
-    api(project(":backdrop"))
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)

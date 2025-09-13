@@ -20,6 +20,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Glass"
-include(":app")
+include(":backdrop")
 include(":liquid-glass")
+include(":app")
 include(":glassmusic")
