@@ -25,6 +25,10 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.kyant.blur.BlurStyle
+import com.kyant.blur.Highlight
+import com.kyant.blur.blur
+import com.kyant.blur.highlight
 import com.kyant.liquidglass.GlassStyle
 import com.kyant.liquidglass.highlight.GlassHighlight
 import com.kyant.liquidglass.liquidGlass
@@ -114,6 +118,20 @@ fun MainContent() {
                 .align(Alignment.BottomCenter),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Box(
+                Modifier
+                    .highlight(Highlight(CircleShape))
+                    .blur(
+                        liquidGlassProviderState.backdrop,
+                        BlurStyle(
+                            CircleShape,
+                            24.dp
+                        )
+                    )
+                    .height(56.dp)
+                    .fillMaxWidth()
+            )
+
             Box(
                 Modifier
                     .liquidGlass(

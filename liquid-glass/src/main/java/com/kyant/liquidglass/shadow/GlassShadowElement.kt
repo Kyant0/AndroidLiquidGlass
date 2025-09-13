@@ -48,7 +48,7 @@ internal class SimpleGlassShadowElement(
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is GlassShadowElement) return false
+        if (other !is SimpleGlassShadowElement) return false
 
         if (style != other.style) return false
 

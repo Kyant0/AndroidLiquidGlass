@@ -1,6 +1,6 @@
-package com.kyant.liquidglass.highlight
+package com.kyant.blur
 
-import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.CacheDrawModifierNode
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -23,102 +23,84 @@ import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.toIntSize
-import com.kyant.liquidglass.GlassStyle
 import kotlin.math.ceil
 import kotlin.math.min
 
-internal class SimpleGlassHighlightElement(
-    val style: GlassStyle
-) : ModifierNodeElement<SimpleGlassHighlightNode>() {
+fun Modifier.highlight(highlight: Highlight): Modifier =
+    this then SimpleHighlightElement(highlight)
 
-    override fun create(): SimpleGlassHighlightNode {
-        return SimpleGlassHighlightNode(style)
+internal class SimpleHighlightElement(
+    val highlight: Highlight
+) : ModifierNodeElement<SimpleHighlightNode>() {
+
+    override fun create(): SimpleHighlightNode {
+        return SimpleHighlightNode(highlight)
     }
 
-    override fun update(node: SimpleGlassHighlightNode) {
-        node.update(style)
+    override fun update(node: SimpleHighlightNode) {
+        node.update(highlight)
     }
 
     override fun InspectorInfo.inspectableProperties() {
-        name = "glassHighlight"
-        properties["style"] = style
+        name = "highlight"
+        properties["highlight"] = highlight
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is SimpleGlassHighlightElement) return false
+        if (other !is SimpleHighlightElement) return false
 
-        if (style != other.style) return false
+        if (highlight != other.highlight) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        return style.hashCode()
+        return highlight.hashCode()
     }
 }
 
-internal class GlassHighlightElement(
-    val style: () -> GlassStyle
-) : ModifierNodeElement<GlassHighlightNode>() {
+internal class HighlightElement(
+    val highlight: () -> Highlight
+) : ModifierNodeElement<HighlightNode>() {
 
-    override fun create(): GlassHighlightNode {
-        return GlassHighlightNode(style)
+    override fun create(): HighlightNode {
+        return HighlightNode(highlight)
     }
 
-    override fun update(node: GlassHighlightNode) {
-        node.update(style)
+    override fun update(node: HighlightNode) {
+        node.update(highlight)
     }
 
     override fun InspectorInfo.inspectableProperties() {
-        name = "glassHighlight"
-        properties["style"] = style
+        name = "highlight"
+        properties["highlight"] = highlight
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is GlassHighlightElement) return false
+        if (other !is HighlightElement) return false
 
-        if (style != other.style) return false
+        if (highlight != other.highlight) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        return style.hashCode()
+        return highlight.hashCode()
     }
 }
 
-internal class SimpleGlassHighlightNode(
-    var style: GlassStyle
+internal class SimpleHighlightNode(
+    var highlight: Highlight
 ) : DelegatingNode() {
 
     override val shouldAutoInvalidate: Boolean = false
-
-    private var highlight: GlassHighlight? = style.highlight
-        set(value) {
-            if (field != value) {
-                field = value
-                drawNode.invalidateDrawCache()
-            }
-        }
-
-    private var shape: CornerBasedShape = style.shape
-        set(value) {
-            if (field != value) {
-                field = value
-                drawNode.invalidateDrawCache()
-            }
-        }
 
     private var graphicsLayer: GraphicsLayer? = null
 
     private val drawNode = delegate(CacheDrawModifierNode {
         val highlight = highlight
-        if (highlight == null) {
-            return@CacheDrawModifierNode onDrawWithContent { drawContent() }
-        }
-
         val width = highlight.width
         val color = highlight.color
 
@@ -132,7 +114,7 @@ internal class SimpleGlassHighlightNode(
         val borderSize = Size(size.width - strokeWidthPx, size.height - strokeWidthPx)
         val outline =
             if (width.isSpecified && color.isSpecified) {
-                shape.createOutline(borderSize, layoutDirection, this)
+                highlight.shape.createOutline(borderSize, layoutDirection, this)
             } else {
                 null
             }
@@ -189,24 +171,23 @@ internal class SimpleGlassHighlightNode(
     }
 
     fun update(
-        style: GlassStyle
+        highlight: Highlight
     ) {
-        if (this.style != style) {
-            this.style = style
-            highlight = style.highlight
-            shape = style.shape
+        if (this.highlight != highlight) {
+            this.highlight = highlight
+            drawNode.invalidateDrawCache()
         }
     }
 }
 
-internal class GlassHighlightNode(
-    var style: () -> GlassStyle
+internal class HighlightNode(
+    var highlight: () -> Highlight
 ) : ObserverModifierNode, DelegatingNode() {
 
     override val shouldAutoInvalidate: Boolean = false
 
     private val drawNode = delegate(
-        SimpleGlassHighlightNode(style())
+        SimpleHighlightNode(highlight())
     )
 
     override fun onObservedReadsChanged() {
@@ -218,18 +199,18 @@ internal class GlassHighlightNode(
     }
 
     fun update(
-        style: () -> GlassStyle
+        highlight: () -> Highlight
     ) {
-        if (this.style != style) {
-            this.style = style
+        if (this.highlight != highlight) {
+            this.highlight = highlight
             updateHighlight()
         }
     }
 
     private fun updateHighlight() {
         observeReads {
-            val style = style()
-            drawNode.update(style)
+            val highlight = highlight()
+            drawNode.update(highlight)
         }
     }
 }

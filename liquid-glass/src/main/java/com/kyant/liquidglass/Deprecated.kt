@@ -153,7 +153,7 @@ class LiquidGlassProviderState internal constructor(
     internal val graphicsLayer: GraphicsLayer
 ) {
 
-    internal val backdrop = LayerBackdrop(graphicsLayer, backgroundColor)
+    val backdrop: LayerBackdrop = LayerBackdrop(graphicsLayer, backgroundColor)
 
     internal var position: Offset
         get() = backdrop.backdropPosition

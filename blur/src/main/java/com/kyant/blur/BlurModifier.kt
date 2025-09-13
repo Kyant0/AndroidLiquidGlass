@@ -1,123 +1,121 @@
-package com.kyant.liquidglass
+package com.kyant.blur
 
 import android.graphics.RenderEffect
-import android.graphics.RuntimeShader
-import android.graphics.Shader
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.CacheDrawModifierNode
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.asAndroidColorFilter
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.toAndroidTileMode
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.node.DelegatingNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
+import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.ObserverModifierNode
 import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.invalidateLayer
 import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.BackdropDrawScope
 import com.kyant.backdrop.SimpleBackdropDrawScope
-import com.kyant.liquidglass.dispersion.Dispersion
-import com.kyant.liquidglass.highlight.GlassHighlightElement
-import com.kyant.liquidglass.highlight.SimpleGlassHighlightElement
-import com.kyant.liquidglass.material.GlassBrushElement
-import com.kyant.liquidglass.material.SimpleGlassBrushElement
-import com.kyant.liquidglass.shadow.GlassShadowElement
-import com.kyant.liquidglass.shadow.SimpleGlassShadowElement
-import com.kyant.liquidglass.utils.GlassShaders
 
 private val DefaultOnDrawBackdrop: BackdropDrawScope.() -> Unit = { drawBackdrop() }
 
-fun Modifier.liquidGlass(
+fun Modifier.blur(
     backdrop: Backdrop,
-    style: GlassStyle,
+    style: BlurStyle,
     compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
     onDrawBackdrop: BackdropDrawScope.() -> Unit = DefaultOnDrawBackdrop
 ): Modifier =
     this
-        .then(SimpleGlassShadowElement(style))
-        .then(SimpleGlassShapeElement(style, compositingStrategy))
         .then(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                SimpleLiquidGlassElement(
+                SimpleBlurElement(
                     backdrop = backdrop,
                     style = style,
+                    compositingStrategy = compositingStrategy,
                     onDrawBackdrop = onDrawBackdrop
                 )
             } else {
                 Modifier
             }
         )
-        .then(SimpleGlassBrushElement(style))
-        .then(SimpleGlassHighlightElement(style))
 
-fun Modifier.liquidGlass(
+fun Modifier.blur(
     backdrop: Backdrop,
     compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
     onDrawBackdrop: BackdropDrawScope.() -> Unit = DefaultOnDrawBackdrop,
-    style: () -> GlassStyle
+    style: () -> BlurStyle
 ): Modifier =
     this
-        .then(GlassShadowElement(style))
-        .then(GlassShapeElement(style, compositingStrategy))
         .then(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                LiquidGlassElement(
+                BlurElement(
                     backdrop = backdrop,
                     style = style,
+                    compositingStrategy = compositingStrategy,
                     onDrawBackdrop = onDrawBackdrop
                 )
             } else {
                 Modifier
             }
         )
-        .then(GlassBrushElement(style))
-        .then(GlassHighlightElement(style))
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-private class SimpleLiquidGlassElement(
+private class SimpleBlurElement(
     val backdrop: Backdrop,
-    val style: GlassStyle,
+    val style: BlurStyle,
+    val compositingStrategy: CompositingStrategy,
     val onDrawBackdrop: BackdropDrawScope.() -> Unit
-) : ModifierNodeElement<SimpleLiquidGlassNode>() {
+) : ModifierNodeElement<SimpleBlurNode>() {
 
-    override fun create(): SimpleLiquidGlassNode {
-        return SimpleLiquidGlassNode(
+    override fun create(): SimpleBlurNode {
+        return SimpleBlurNode(
             backdrop = backdrop,
             style = style,
+            compositingStrategy = compositingStrategy,
             onDrawBackdrop = onDrawBackdrop
         )
     }
 
-    override fun update(node: SimpleLiquidGlassNode) {
+    override fun update(node: SimpleBlurNode) {
         node.update(
             backdrop = backdrop,
             style = style,
+            compositingStrategy = compositingStrategy,
             onDrawBackdrop = onDrawBackdrop
         )
     }
 
     override fun InspectorInfo.inspectableProperties() {
-        name = "liquidGlass"
+        name = "blur"
         properties["backdrop"] = backdrop
         properties["style"] = style
+        properties["compositingStrategy"] = compositingStrategy
         properties["onDrawBackdrop"] = onDrawBackdrop
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is SimpleLiquidGlassElement) return false
+        if (other !is SimpleBlurElement) return false
 
         if (backdrop != other.backdrop) return false
         if (style != other.style) return false
+        if (compositingStrategy != other.compositingStrategy) return false
         if (onDrawBackdrop != other.onDrawBackdrop) return false
 
         return true
@@ -126,47 +124,53 @@ private class SimpleLiquidGlassElement(
     override fun hashCode(): Int {
         var result = backdrop.hashCode()
         result = 31 * result + style.hashCode()
+        result = 31 * result + compositingStrategy.hashCode()
         result = 31 * result + onDrawBackdrop.hashCode()
         return result
     }
 }
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-private class LiquidGlassElement(
+private class BlurElement(
     val backdrop: Backdrop,
-    val style: () -> GlassStyle,
+    val style: () -> BlurStyle,
+    val compositingStrategy: CompositingStrategy,
     val onDrawBackdrop: BackdropDrawScope.() -> Unit
-) : ModifierNodeElement<LiquidGlassNode>() {
+) : ModifierNodeElement<BlurNode>() {
 
-    override fun create(): LiquidGlassNode {
-        return LiquidGlassNode(
+    override fun create(): BlurNode {
+        return BlurNode(
             backdrop = backdrop,
             style = style,
+            compositingStrategy = compositingStrategy,
             onDrawBackdrop = onDrawBackdrop
         )
     }
 
-    override fun update(node: LiquidGlassNode) {
+    override fun update(node: BlurNode) {
         node.update(
             backdrop = backdrop,
             style = style,
+            compositingStrategy = compositingStrategy,
             onDrawBackdrop = onDrawBackdrop
         )
     }
 
     override fun InspectorInfo.inspectableProperties() {
-        name = "liquidGlass"
+        name = "blur"
         properties["backdrop"] = backdrop
         properties["style"] = style
+        properties["compositingStrategy"] = compositingStrategy
         properties["onDrawBackdrop"] = onDrawBackdrop
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is LiquidGlassElement) return false
+        if (other !is BlurElement) return false
 
         if (backdrop != other.backdrop) return false
         if (style != other.style) return false
+        if (compositingStrategy != other.compositingStrategy) return false
         if (onDrawBackdrop != other.onDrawBackdrop) return false
 
         return true
@@ -175,24 +179,23 @@ private class LiquidGlassElement(
     override fun hashCode(): Int {
         var result = backdrop.hashCode()
         result = 31 * result + style.hashCode()
+        result = 31 * result + compositingStrategy.hashCode()
         result = 31 * result + onDrawBackdrop.hashCode()
         return result
     }
 }
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-private class SimpleLiquidGlassNode(
+private class SimpleBlurNode(
     var backdrop: Backdrop,
-    var style: GlassStyle,
+    var style: BlurStyle,
+    var compositingStrategy: CompositingStrategy,
     var onDrawBackdrop: BackdropDrawScope.() -> Unit
-) : GlobalPositionAwareModifierNode, DelegatingNode() {
+) : LayoutModifierNode, GlobalPositionAwareModifierNode, DelegatingNode() {
 
     override val shouldAutoInvalidate: Boolean = false
 
     private var graphicsLayer: GraphicsLayer? = null
-
-    private val innerRefractionShader = RuntimeShader(GlassShaders.refractionShaderString)
-    private var dispersionShader: RuntimeShader? = null
 
     private var drawBackdropBlock: DrawScope.() -> Unit = {}
 
@@ -207,102 +210,29 @@ private class SimpleLiquidGlassNode(
                 null
             }
 
-        val blurRadiusPx = style.material.blurRadius.toPx()
+        val blurRadiusPx = style.blurRadius.toPx()
         val blurRenderEffect =
             if (blurRadiusPx > 0f) {
+                val tileMode = style.tileMode.toAndroidTileMode()
                 if (colorFilterEffect != null) {
                     RenderEffect.createBlurEffect(
                         blurRadiusPx,
                         blurRadiusPx,
                         colorFilterEffect,
-                        Shader.TileMode.CLAMP
+                        tileMode
                     )
                 } else {
                     RenderEffect.createBlurEffect(
                         blurRadiusPx,
                         blurRadiusPx,
-                        Shader.TileMode.CLAMP
+                        tileMode
                     )
                 }
             } else {
                 colorFilterEffect
             }
 
-        val cornerRadiusPx = style.shape.topStart.toPx(size, this)
-
-        val innerRefractionHeight = style.innerRefraction.height.toPx(size, this)
-        val innerRefractionAmount = style.innerRefraction.amount.toPx(size, this)
-        val depthEffect = style.innerRefraction.depthEffect
-        val innerRefractionRenderEffect =
-            RenderEffect.createRuntimeShaderEffect(
-                innerRefractionShader.apply {
-                    setFloatUniform("size", size.width, size.height)
-                    setFloatUniform("cornerRadius", cornerRadiusPx)
-
-                    setFloatUniform("refractionHeight", innerRefractionHeight)
-                    setFloatUniform("refractionAmount", innerRefractionAmount)
-                    setFloatUniform("depthEffect", depthEffect)
-                },
-                "image"
-            )
-
-        val dispersion = style.dispersion
-        val dispersionHeight: Float
-        val dispersionAmount: Float
-        when (dispersion) {
-            Dispersion.None -> {
-                dispersionHeight = 0f
-                dispersionAmount = 0f
-            }
-
-            Dispersion.Automatic -> {
-                dispersionHeight = innerRefractionHeight
-                dispersionAmount = -innerRefractionAmount
-            }
-
-            is Dispersion.Fractional -> {
-                dispersionHeight = innerRefractionHeight * dispersion.fraction
-                dispersionAmount = -innerRefractionAmount * dispersion.fraction
-            }
-        }
-        val dispersionEffect =
-            if (dispersionHeight == 0f || dispersionAmount == 0f) {
-                null
-            } else {
-                val shader =
-                    dispersionShader
-                        ?: RuntimeShader(GlassShaders.dispersionShaderString).also { dispersionShader = it }
-                RenderEffect.createRuntimeShaderEffect(
-                    shader.apply {
-                        setFloatUniform("size", size.width, size.height)
-                        setFloatUniform("cornerRadius", cornerRadiusPx)
-
-                        setFloatUniform("dispersionHeight", dispersionHeight)
-                        setFloatUniform("dispersionAmount", dispersionAmount)
-                    },
-                    "image"
-                )
-            }
-
-        val refractionWithDispersionRenderEffect =
-            if (dispersionEffect != null) {
-                RenderEffect.createChainEffect(
-                    dispersionEffect,
-                    innerRefractionRenderEffect
-                )
-            } else {
-                innerRefractionRenderEffect
-            }
-
-        val renderEffect =
-            if (blurRenderEffect != null) {
-                RenderEffect.createChainEffect(
-                    refractionWithDispersionRenderEffect,
-                    blurRenderEffect
-                )
-            } else {
-                refractionWithDispersionRenderEffect
-            }.asComposeRenderEffect()
+        val renderEffect = blurRenderEffect?.asComposeRenderEffect()
 
         val graphicsLayer = graphicsLayer
         graphicsLayer?.renderEffect = renderEffect
@@ -317,9 +247,34 @@ private class SimpleLiquidGlassNode(
                 drawLayer(graphicsLayer)
             }
 
+            style.material.brush?.let { brush ->
+                drawRect(
+                    brush = brush,
+                    alpha = style.material.alpha,
+                    blendMode = style.material.blendMode
+                )
+            }
+
             drawContent()
         }
     })
+
+    private val layerBlock: GraphicsLayerScope.() -> Unit = {
+        clip = true
+        shape = style.shape
+        compositingStrategy = this@SimpleBlurNode.compositingStrategy
+    }
+
+    override fun MeasureScope.measure(
+        measurable: Measurable,
+        constraints: Constraints
+    ): MeasureResult {
+        val placeable = measurable.measure(constraints)
+
+        return layout(placeable.width, placeable.height) {
+            placeable.placeWithLayer(IntOffset.Zero, layerBlock = layerBlock)
+        }
+    }
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
@@ -346,15 +301,21 @@ private class SimpleLiquidGlassNode(
 
     fun update(
         backdrop: Backdrop,
-        style: GlassStyle,
+        style: BlurStyle,
+        compositingStrategy: CompositingStrategy,
         onDrawBackdrop: BackdropDrawScope.() -> Unit
     ) {
+        if (this.style != style ||
+            this.compositingStrategy != compositingStrategy
+        ) {
+            this.style = style
+            this.compositingStrategy = compositingStrategy
+            invalidateLayer()
+        }
         if (this.backdrop != backdrop ||
-            this.style != style ||
             this.onDrawBackdrop != onDrawBackdrop
         ) {
             this.backdrop = backdrop
-            this.style = style
             this.onDrawBackdrop = onDrawBackdrop
             drawNode.invalidateDrawCache()
         }
@@ -362,18 +323,20 @@ private class SimpleLiquidGlassNode(
 }
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-private class LiquidGlassNode(
+private class BlurNode(
     var backdrop: Backdrop,
-    var style: () -> GlassStyle,
+    var style: () -> BlurStyle,
+    var compositingStrategy: CompositingStrategy,
     var onDrawBackdrop: BackdropDrawScope.() -> Unit
 ) : ObserverModifierNode, DelegatingNode() {
 
     override val shouldAutoInvalidate: Boolean = false
 
     private val glassNode = delegate(
-        SimpleLiquidGlassNode(
+        SimpleBlurNode(
             backdrop = backdrop,
             style = style(),
+            compositingStrategy = compositingStrategy,
             onDrawBackdrop = onDrawBackdrop
         )
     )
@@ -384,15 +347,18 @@ private class LiquidGlassNode(
 
     fun update(
         backdrop: Backdrop,
-        style: () -> GlassStyle,
+        style: () -> BlurStyle,
+        compositingStrategy: CompositingStrategy,
         onDrawBackdrop: BackdropDrawScope.() -> Unit
     ) {
         if (this.backdrop != backdrop ||
             this.style != style ||
+            this.compositingStrategy != compositingStrategy ||
             this.onDrawBackdrop != onDrawBackdrop
         ) {
             this.backdrop = backdrop
             this.style = style
+            this.compositingStrategy = compositingStrategy
             this.onDrawBackdrop = onDrawBackdrop
             updateStyle()
         }
@@ -403,6 +369,7 @@ private class LiquidGlassNode(
             glassNode.update(
                 backdrop = backdrop,
                 style = style(),
+                compositingStrategy = compositingStrategy,
                 onDrawBackdrop = onDrawBackdrop
             )
         }

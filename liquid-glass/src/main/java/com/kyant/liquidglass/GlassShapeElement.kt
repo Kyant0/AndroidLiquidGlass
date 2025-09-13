@@ -40,7 +40,7 @@ internal class SimpleGlassShapeElement(
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is GlassShapeElement) return false
+        if (other !is SimpleGlassShapeElement) return false
 
         if (style != other.style) return false
         if (compositingStrategy != other.compositingStrategy) return false
@@ -125,7 +125,9 @@ internal class SimpleGlassShapeNode(
         style: GlassStyle,
         compositingStrategy: CompositingStrategy
     ) {
-        if (this.style != style || this.compositingStrategy != compositingStrategy) {
+        if (this.style != style ||
+            this.compositingStrategy != compositingStrategy
+        ) {
             this.style = style
             this.compositingStrategy = compositingStrategy
             invalidateLayer()

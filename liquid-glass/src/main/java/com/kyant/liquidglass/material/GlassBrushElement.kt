@@ -29,7 +29,7 @@ internal class SimpleGlassBrushElement(
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is GlassBrushElement) return false
+        if (other !is SimpleGlassBrushElement) return false
 
         if (style != other.style) return false
 
