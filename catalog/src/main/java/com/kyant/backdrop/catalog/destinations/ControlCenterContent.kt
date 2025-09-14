@@ -152,7 +152,9 @@ fun ControlCenterContent() {
                         val progress = progress
 
                         val blurRadius = 8f.dp.toPx() * progress.fastCoerceAtMost(1f)
-                        renderEffect = BlurEffect(blurRadius, blurRadius)
+                        if (blurRadius > 0f) {
+                            renderEffect = BlurEffect(blurRadius, blurRadius)
+                        }
                     }
                     .fillMaxSize(),
                 contentScale = ContentScale.Crop
