@@ -2,18 +2,15 @@ package com.kyant.backdrop.effects
 
 import android.graphics.RenderEffect
 import android.os.Build
-import androidx.annotation.RequiresApi
-import com.kyant.backdrop.BackdropDrawScope
+import com.kyant.backdrop.BackdropEffectScope
 
-@RequiresApi(Build.VERSION_CODES.S)
-fun BackdropDrawScope.effect(effect: RenderEffect) {
-    val renderEffect = renderEffect
-    this.renderEffect =
-        if (renderEffect != null) {
-            RenderEffect.createChainEffect(
-                effect,
-                renderEffect
-            )
+fun BackdropEffectScope.effect(effect: RenderEffect) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+
+    val currentEffect = renderEffect
+    renderEffect =
+        if (currentEffect != null) {
+            RenderEffect.createChainEffect(effect, currentEffect)
         } else {
             effect
         }

@@ -2,29 +2,26 @@ package com.kyant.backdrop.effects
 
 import android.graphics.RenderEffect
 import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ColorMatrixColorFilter
 import androidx.compose.ui.graphics.asAndroidColorFilter
-import com.kyant.backdrop.BackdropDrawScope
+import com.kyant.backdrop.BackdropEffectScope
 
-@RequiresApi(Build.VERSION_CODES.S)
-fun BackdropDrawScope.colorFilter(colorFilter: ColorFilter) {
-    val renderEffect = renderEffect
-    this.renderEffect =
-        if (renderEffect != null) {
-            RenderEffect.createColorFilterEffect(
-                colorFilter.asAndroidColorFilter(),
-                renderEffect
-            )
+fun BackdropEffectScope.colorFilter(colorFilter: ColorFilter) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+
+    val filter = colorFilter.asAndroidColorFilter()
+    val currentEffect = renderEffect
+    renderEffect =
+        if (currentEffect != null) {
+            RenderEffect.createColorFilterEffect(filter, currentEffect)
         } else {
-            RenderEffect.createColorFilterEffect(colorFilter.asAndroidColorFilter())
+            RenderEffect.createColorFilterEffect(filter)
         }
 }
 
-@RequiresApi(Build.VERSION_CODES.S)
-fun BackdropDrawScope.colorFilter(
+fun BackdropEffectScope.colorFilter(
     brightness: Float = 0f,
     contrast: Float = 1f,
     saturation: Float = 1f
@@ -37,8 +34,7 @@ fun BackdropDrawScope.colorFilter(
     colorFilter(colorFilter)
 }
 
-@RequiresApi(Build.VERSION_CODES.S)
-fun BackdropDrawScope.saturation() {
+fun BackdropEffectScope.saturation() {
     colorFilter(DefaultSaturationColorFilter)
 }
 

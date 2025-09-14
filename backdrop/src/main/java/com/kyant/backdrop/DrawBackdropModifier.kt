@@ -1,17 +1,21 @@
 package com.kyant.backdrop
 
 import android.graphics.RenderEffect
+import android.graphics.RuntimeShader
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.CacheDrawModifierNode
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.layer.CompositingStrategy
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -22,51 +26,95 @@ import androidx.compose.ui.node.DelegatingNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
-import androidx.compose.ui.node.invalidateLayer
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
+import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.highlight.HighlightElement
+import com.kyant.backdrop.shadow.Shadow
+import com.kyant.backdrop.shadow.ShadowElement
+
+private val DefaultHighlight = { Highlight() }
+private val DefaultShadow = { Shadow() }
 
 fun Modifier.drawBackdrop(
     backdrop: Backdrop,
-    compositingStrategy: CompositingStrategy = CompositingStrategy.Offscreen,
-    onDrawBackdrop: BackdropDrawScope.() -> Unit
-): Modifier =
-    this then DrawBackdropElement(
-        backdrop = backdrop,
-        compositingStrategy = compositingStrategy,
-        onDrawBackdrop = onDrawBackdrop
-    )
+    shapeProvider: () -> Shape,
+    highlight: (() -> Highlight?)? = DefaultHighlight,
+    shadow: (() -> Shadow?)? = DefaultShadow,
+    onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = { it() },
+    onDrawSurface: (DrawScope.() -> Unit)? = null,
+    effects: BackdropEffectScope.() -> Unit
+): Modifier {
+    val shapeProvider = CachedBackdropShapeProvider(shapeProvider)
+    return this
+        .then(
+            if (shadow != null) {
+                ShadowElement(
+                    shapeProvider = shapeProvider,
+                    shadow = shadow
+                )
+            } else {
+                Modifier
+            }
+        )
+        .then(
+            if (highlight != null) {
+                HighlightElement(
+                    shapeProvider = shapeProvider,
+                    highlight = highlight
+                )
+            } else {
+                Modifier
+            }
+        )
+        .then(
+            DrawBackdropElement(
+                backdrop = backdrop,
+                shapeProvider = shapeProvider,
+                effects = effects,
+                onDrawBackdrop = onDrawBackdrop,
+                onDrawSurface = onDrawSurface
+            )
+        )
+}
 
 private class DrawBackdropElement(
     val backdrop: Backdrop,
-    var compositingStrategy: CompositingStrategy,
-    val onDrawBackdrop: BackdropDrawScope.() -> Unit
+    val shapeProvider: BackdropShapeProvider,
+    val effects: BackdropEffectScope.() -> Unit,
+    val onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
+    val onDrawSurface: (DrawScope.() -> Unit)?
 ) : ModifierNodeElement<DrawBackdropNode>() {
 
     override fun create(): DrawBackdropNode {
         return DrawBackdropNode(
             backdrop = backdrop,
-            compositingStrategy = compositingStrategy,
-            onDrawBackdrop = onDrawBackdrop
+            shapeProvider = shapeProvider,
+            effects = effects,
+            onDrawBackdrop = onDrawBackdrop,
+            onDrawSurface = onDrawSurface
         )
     }
 
     override fun update(node: DrawBackdropNode) {
-        node.update(
-            backdrop = backdrop,
-            compositingStrategy = compositingStrategy,
-            onDrawBackdrop = onDrawBackdrop
-        )
+        node.backdrop = backdrop
+        node.shapeProvider = shapeProvider
+        node.effects = effects
+        node.onDrawBackdrop = onDrawBackdrop
+        node.onDrawSurface = onDrawSurface
+        node.drawNode.invalidateDrawCache()
     }
 
     override fun InspectorInfo.inspectableProperties() {
         name = "drawBackdrop"
         properties["backdrop"] = backdrop
-        properties["compositingStrategy"] = compositingStrategy
+        properties["shapeProvider"] = shapeProvider
+        properties["effects"] = effects
         properties["onDrawBackdrop"] = onDrawBackdrop
+        properties["onDrawSurface"] = onDrawSurface
     }
 
     override fun equals(other: Any?): Boolean {
@@ -74,87 +122,95 @@ private class DrawBackdropElement(
         if (other !is DrawBackdropElement) return false
 
         if (backdrop != other.backdrop) return false
-        if (compositingStrategy != other.compositingStrategy) return false
+        if (shapeProvider != other.shapeProvider) return false
+        if (effects != other.effects) return false
         if (onDrawBackdrop != other.onDrawBackdrop) return false
+        if (onDrawSurface != other.onDrawSurface) return false
 
         return true
     }
 
     override fun hashCode(): Int {
         var result = backdrop.hashCode()
-        result = 31 * result + compositingStrategy.hashCode()
+        result = 31 * result + shapeProvider.hashCode()
+        result = 31 * result + effects.hashCode()
         result = 31 * result + onDrawBackdrop.hashCode()
+        result = 31 * result + (onDrawSurface?.hashCode() ?: 0)
         return result
     }
 }
 
 private class DrawBackdropNode(
     var backdrop: Backdrop,
-    var compositingStrategy: CompositingStrategy,
-    var onDrawBackdrop: BackdropDrawScope.() -> Unit
+    var shapeProvider: BackdropShapeProvider,
+    var effects: BackdropEffectScope.() -> Unit,
+    var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
+    var onDrawSurface: (DrawScope.() -> Unit)?
 ) : LayoutModifierNode, GlobalPositionAwareModifierNode, DelegatingNode() {
 
     override val shouldAutoInvalidate: Boolean = false
 
     private var graphicsLayer: GraphicsLayer? = null
-    private val graphicsLayers: MutableMap<String, GraphicsLayer> = mutableMapOf()
-    private var clipShape: Shape? by mutableStateOf(null)
-    private var shouldClip by mutableStateOf(true)
     private var drawBackdropBlock: DrawScope.() -> Unit by mutableStateOf({})
-    private var onDrawBackdropBlock: DrawScope.(DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdropBlock
-    private var onDrawSurfaceBlock: (DrawScope.() -> Unit)? = null
+    private var shouldRecord = true
 
-    private val drawNode = delegate(CacheDrawModifierNode {
-        val scope = object : BackdropDrawScope {
+    private val effectScope =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            object : BackdropEffectScope {
 
-            override val size: Size = this@CacheDrawModifierNode.size
-            override val layoutDirection: LayoutDirection = this@CacheDrawModifierNode.layoutDirection
-            override val density: Float = this@CacheDrawModifierNode.density
-            override val fontScale: Float = this@CacheDrawModifierNode.fontScale
+                private val runtimeShaders = mutableMapOf<String, RuntimeShader>()
 
-            override var shape: Shape? by mutableStateOf(null)
-            override var clip: Boolean by mutableStateOf(true)
-            override var renderEffect: RenderEffect? = null
+                override var density: Float by mutableFloatStateOf(1f)
+                override var fontScale: Float by mutableFloatStateOf(1f)
+                override var size: Size by mutableStateOf(Size.Unspecified)
+                override var layoutDirection: LayoutDirection by mutableStateOf(LayoutDirection.Ltr)
+                override val shape: Shape get() = shapeProvider.innerShape
+                override var renderEffect: RenderEffect? = null
 
-            override fun obtainGraphicsLayer(key: String): GraphicsLayer {
-                return graphicsLayers.getOrPut(key) {
-                    this@CacheDrawModifierNode.obtainGraphicsLayer()
+                @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+                override fun obtainRuntimeShader(key: String, string: String): RuntimeShader {
+                    return runtimeShaders.getOrPut(key) { RuntimeShader(string) }
                 }
             }
-
-            override fun onDrawBackdrop(block: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit) {
-                onDrawBackdropBlock = block
-            }
-
-            override fun onDrawSurface(block: DrawScope.() -> Unit) {
-                onDrawSurfaceBlock = block
-            }
+        } else {
+            null
         }
 
-        onDrawBackdrop(scope)
-        clipShape = scope.shape
-        shouldClip = scope.clip
+    val drawNode = delegate(CacheDrawModifierNode {
+        val effect =
+            if (effectScope != null) {
+                effectScope.density = density
+                effectScope.fontScale = fontScale
+                effectScope.size = size
+                effectScope.layoutDirection = layoutDirection
+                effectScope.renderEffect = null
 
-        graphicsLayer?.renderEffect = scope.renderEffect?.asComposeRenderEffect()
+                effects(effectScope)
+
+                effectScope.renderEffect?.asComposeRenderEffect()
+            } else {
+                null
+            }
 
         onDrawWithContent {
             val graphicsLayer = graphicsLayer
             if (graphicsLayer != null) {
-                graphicsLayer.record { onDrawBackdropBlock(drawBackdropBlock) }
+                graphicsLayer.renderEffect = effect
+                if (shouldRecord) {
+                    graphicsLayer.record { onDrawBackdrop(drawBackdropBlock) }
+                    shouldRecord = false
+                }
                 drawLayer(graphicsLayer)
             }
-            onDrawSurfaceBlock?.invoke(this)
+            onDrawSurface?.invoke(this)
             drawContent()
         }
     })
 
     private val layerBlock: GraphicsLayerScope.() -> Unit = {
-        val clipShape = clipShape
-        if (clipShape != null) {
-            clip = shouldClip
-            shape = clipShape
-        }
-        compositingStrategy = this@DrawBackdropNode.compositingStrategy
+        clip = true
+        shape = shapeProvider.shape
+        compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
     }
 
     override fun MeasureScope.measure(
@@ -170,6 +226,7 @@ private class DrawBackdropNode(
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
             drawBackdropBlock = { with(backdrop) { drawBackdrop(coordinates) } }
+            shouldRecord = true
         }
     }
 
@@ -177,8 +234,9 @@ private class DrawBackdropNode(
         val graphicsContext = requireGraphicsContext()
         graphicsLayer =
             graphicsContext.createGraphicsLayer().apply {
-                compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
+                compositingStrategy = CompositingStrategy.Offscreen
             }
+        shouldRecord = true
     }
 
     override fun onDetach() {
@@ -187,29 +245,5 @@ private class DrawBackdropNode(
             graphicsContext.releaseGraphicsLayer(layer)
             graphicsLayer = null
         }
-        graphicsLayers.values.forEach { layer ->
-            graphicsContext.releaseGraphicsLayer(layer)
-        }
-        graphicsLayers.clear()
-    }
-
-    fun update(
-        backdrop: Backdrop,
-        compositingStrategy: CompositingStrategy,
-        onDrawBackdrop: BackdropDrawScope.() -> Unit
-    ) {
-        if (this.compositingStrategy != compositingStrategy) {
-            this.compositingStrategy = compositingStrategy
-            invalidateLayer()
-        }
-        if (this.backdrop != backdrop ||
-            this.onDrawBackdrop != onDrawBackdrop
-        ) {
-            this.backdrop = backdrop
-            this.onDrawBackdrop = onDrawBackdrop
-            drawNode.invalidateDrawCache()
-        }
     }
 }
-
-private val DefaultOnDrawBackdropBlock: DrawScope.(DrawScope.() -> Unit) -> Unit = { it() }

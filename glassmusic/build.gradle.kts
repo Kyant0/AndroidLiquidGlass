@@ -80,7 +80,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":liquid-glass"))
+    implementation(project(":backdrop"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)

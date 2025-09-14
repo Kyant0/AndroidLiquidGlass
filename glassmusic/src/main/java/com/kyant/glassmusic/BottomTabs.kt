@@ -1,6 +1,5 @@
 package com.kyant.glassmusic
 
-import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -49,10 +48,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.refractionWithDispersion
 import com.kyant.backdrop.effects.saturation
-import com.kyant.backdrop.highlight.drawHighlight
-import com.kyant.backdrop.highlight.onDrawSurfaceWithHighlight
 import com.kyant.backdrop.rememberLayerBackdrop
-import com.kyant.backdrop.shadow.backdropShadow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
@@ -108,22 +104,21 @@ fun <T> BottomTabs(
                     scaleX = scale
                     scaleY = scale
                 }
-                .backdropShadow(CircleShape)
-                .drawBackdrop(backdrop) {
-                    shape = CircleShape
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        saturation()
-                        blur(2f.dp)
-                        refraction(height = 12f.dp.toPx(), amount = size.minDimension / 2f)
-                    }
-                    onDrawBackdrop { drawBackdrop ->
+                .drawBackdrop(
+                    backdrop,
+                    { CircleShape },
+                    onDrawBackdrop = { drawBackdrop ->
                         val maxScale = 1f + 4.dp / height
                         val scale = lerp(1f, maxScale, dragFraction)
                         scale(1f / scale, 1f / scale, Offset.Zero) {
                             drawBackdrop()
                         }
-                    }
-                    onDrawSurfaceWithHighlight { drawRect(Color.White.copy(alpha = 0.3f)) }
+                    },
+                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.3f)) }
+                ) {
+                    saturation()
+                    blur(2f.dp.toPx())
+                    refraction(height = 12f.dp.toPx(), amount = size.minDimension / 2f)
                 }
                 .fillMaxSize()
                 .padding(padding),
@@ -210,16 +205,10 @@ fun <T> BottomTabs(
                     scaleY = lerp(1f, 0.9f, scaleYFraction)
                 }
                 .background(background, CircleShape)
-                .backdropShadow(CircleShape)
-                .drawBackdrop(bottomTabsBackdrop) {
-                    shape = CircleShape
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        refractionWithDispersion(
-                            height = 12f.dp.toPx() * dragFraction,
-                            amount = size.minDimension / 2f * dragFraction
-                        )
-                    }
-                    onDrawBackdrop { drawBackdrop ->
+                .drawBackdrop(
+                    bottomTabsBackdrop,
+                    { CircleShape },
+                    onDrawBackdrop = { drawBackdrop ->
                         scale(
                             lerp(1f, 0.8f, scaleXFraction),
                             lerp(1f, 0.8f, scaleYFraction)
@@ -231,7 +220,11 @@ fun <T> BottomTabs(
                             }
                         }
                     }
-                    drawHighlight()
+                ) {
+                    refractionWithDispersion(
+                        height = 12f.dp.toPx() * dragFraction,
+                        amount = size.minDimension / 2f * dragFraction
+                    )
                 }
                 .draggable(
                     rememberDraggableState { delta ->

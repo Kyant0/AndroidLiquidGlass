@@ -1,6 +1,5 @@
 package com.kyant.glassmusic
 
-import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,10 +29,8 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.saturation
-import com.kyant.backdrop.highlight.drawHighlight
-import com.kyant.backdrop.highlight.onDrawSurfaceWithHighlight
+import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.rememberLayerBackdrop
-import com.kyant.backdrop.shadow.backdropShadow
 
 @Composable
 fun MainContent() {
@@ -64,15 +61,14 @@ fun MainContent() {
         ) {
             Box(
                 Modifier
-                    .backdropShadow(CircleShape)
-                    .drawBackdrop(backdrop) {
-                        shape = CircleShape
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            saturation()
-                            blur(2f.dp)
-                            refraction(height = 8f.dp.toPx(), amount = size.minDimension)
-                        }
-                        onDrawSurfaceWithHighlight { drawRect(background.copy(alpha = 0.5f)) }
+                    .drawBackdrop(
+                        backdrop,
+                        { CircleShape },
+                        onDrawSurface = { drawRect(background.copy(alpha = 0.5f)) }
+                    ) {
+                        saturation()
+                        blur(2f.dp.toPx())
+                        refraction(height = 8f.dp.toPx(), amount = size.minDimension)
                     }
                     .clickable {}
                     .size(48.dp),
@@ -88,15 +84,14 @@ fun MainContent() {
 
             Box(
                 Modifier
-                    .backdropShadow(CircleShape)
-                    .drawBackdrop(backdrop) {
-                        shape = CircleShape
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            saturation()
-                            blur(2f.dp)
-                            refraction(height = 8f.dp.toPx(), amount = size.minDimension)
-                        }
-                        onDrawSurfaceWithHighlight { drawRect(background.copy(alpha = 0.5f)) }
+                    .drawBackdrop(
+                        backdrop,
+                        { CircleShape },
+                        onDrawSurface = { drawRect(background.copy(alpha = 0.5f)) }
+                    ) {
+                        saturation()
+                        blur(2f.dp.toPx())
+                        refraction(height = 8f.dp.toPx(), amount = size.minDimension)
                     }
                     .clickable {}
                     .size(48.dp),
@@ -122,15 +117,10 @@ fun MainContent() {
         ) {
             Box(
                 Modifier
-                    .backdropShadow(CircleShape)
-                    .drawBackdrop(backdrop) {
-                        shape = CircleShape
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            saturation()
-                            blur(2f.dp)
-                            refraction(height = size.minDimension / 4f, amount = size.minDimension / 2f)
-                        }
-                        drawHighlight()
+                    .drawBackdrop(backdrop, { CircleShape }) {
+                        saturation()
+                        blur(2f.dp.toPx())
+                        refraction(height = size.minDimension / 4f, amount = size.minDimension / 2f)
                     }
                     .height(56.dp)
                     .fillMaxWidth()
@@ -196,19 +186,21 @@ fun MainContent() {
 
                 Box(
                     Modifier
-                        .backdropShadow(CircleShape)
-                        .drawBackdrop(backdrop) {
-                            shape = CircleShape
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                saturation()
-                                blur(2f.dp)
-                                refraction(height = 8f.dp.toPx(), amount = size.minDimension)
-                            }
-                            onDrawSurfaceWithHighlight(
-                                width = 2f.dp.toPx(),
-                                color = Color(0xFFFFF59D),
-                                blendMode = BlendMode.Overlay
-                            ) { drawRect(Color(0xFFFDD835).copy(alpha = 0.8f)) }
+                        .drawBackdrop(
+                            backdrop,
+                            { CircleShape },
+                            highlight = {
+                                Highlight(
+                                    width = 2f.dp,
+                                    color = Color(0xFFFFF59D),
+                                    blendMode = BlendMode.Overlay
+                                )
+                            },
+                            onDrawSurface = { drawRect(Color(0xFFFDD835).copy(alpha = 0.8f)) }
+                        ) {
+                            saturation()
+                            blur(2f.dp.toPx())
+                            refraction(height = 8f.dp.toPx(), amount = size.minDimension)
                         }
                         .clickable {}
                         .size(64.dp),

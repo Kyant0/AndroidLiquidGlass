@@ -8,9 +8,13 @@ Apple's Liquid Glass effect for Android Jetpack Compose.
 
 ![](artworks/playground_app.jpg)
 
+- [Catalog](./catalog/release/catalog-release.apk)
+
+<img alt="Screenshot of the catalog app" height="400" src="artworks/catalog.jpg"/>
+
 - [Music player demo](./glassmusic/release/glassmusic-release.apk)
 
-<img alt="Screenshots of a music player demo" height="400" src="artworks/music_player_demo.png"/>
+<img alt="Screenshots of the music player demo" height="400" src="artworks/music_player_demo.png"/>
 
 ## Library
 
@@ -34,10 +38,103 @@ implementation("com.github.Kyant0:AndroidLiquidGlass:<version>")
 
 ### Examples
 
-### After 1.0.0-alpha09
+### After 1.0.0-alpha10
 
-We use the new `Backdrop` API introduced in 1.0.0-alpha09 to implement the glass effect.
-You can do more with the new API, not only the glass effect, but also the blur effect, magnifier, etc.
+#### Basic example
+
+```kotlin
+val backdrop = rememberLayerBackdrop(backgroundColor = Color.White)
+
+Box {
+    // backdrop content used to fill the backdrop layer
+    Box(Modifier.backdrop(backdrop))
+
+    // icon button with glass effect
+    Box(
+        Modifier
+            .drawBackdrop(
+                backdrop = backdrop,
+                shapeProvider = { CircleShape },
+                // draw a scrim to increase readability
+                onDrawSurface = { drawRect(background.copy(alpha = 0.5f)) }
+            ) {
+                // saturation boost
+                saturation()
+                // blur
+                blur(2f.dp.toPx())
+                // glass effect
+                refraction(height = 8f.dp.toPx(), amount = size.minDimension)
+            }
+            .clickable {}
+            .size(48.dp),
+        contentAlignment = Alignment.Center
+    ) {}
+}
+```
+
+#### Advanced example
+
+Here is the full definition of the `drawBackdrop` modifier:
+
+```kotlin
+fun Modifier.drawBackdrop(
+    backdrop: Backdrop,
+    shapeProvider: () -> Shape,
+    highlight: (() -> Highlight?)? = DefaultHighlight,
+    shadow: (() -> Shadow?)? = DefaultShadow,
+    onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = { it() },
+    onDrawSurface: (DrawScope.() -> Unit)? = null,
+    effects: BackdropEffectScope.() -> Unit
+): Modifier
+```
+
+The following example shows how to draw a dynamic highlight and apply scaling to the backdrop content:
+
+```kotlin
+val backdrop = rememberLayerBackdrop(backgroundColor = Color.White)
+
+Box {
+    // backdrop content used to fill the backdrop layer
+    Box(Modifier.backdrop(backdrop))
+
+    // [optional] scale if needed
+    val originalScale = 1.2f
+
+    // the highlight angle in degrees produced by sensors
+    val highlightAngle = 45f
+
+    // icon button with glass effect
+    Box(
+        Modifier
+            // [optional] scale if needed
+            .graphicsLayer {
+                scaleX = originalScale
+                scaleY = originalScale
+            }
+            .drawBackdrop(
+                backdrop = backdrop,
+                shapeProvider = { CircleShape },
+                // the dynamic highlight
+                highlight = { Highlight { HighlightStyle.Dynamic(angle = highlightAngle) } },
+                // the backdrop content to draw with effects
+                onDrawBackdrop = { drawBackdrop ->
+                    // apply the inverse scale to the backdrop content
+                    scale(1f / originalScale, 1f / originalScale, Offset.Zero) {
+                        drawBackdrop()
+                    }
+                    // [optional] call `drawImage()` here or similar to draw additional content to the front of backdrop layer
+                },
+                // the surface content to draw above the backdrop layer and below the highlight layer
+                onDrawSurface = { drawRect(background.copy(alpha = 0.5f)) }
+            )
+            .clickable {}
+            .size(48.dp),
+        contentAlignment = Alignment.Center
+    ) {}
+}
+```
+
+### 1.0.0-alpha09
 
 #### Basic example
 
@@ -129,7 +226,7 @@ Box {
 }
 ```
 
-### Pre 1.0.0-alpha09 (exclusive)
+### Before 1.0.0-alpha09 (exclusive)
 
 ```kotlin
 val providerState = rememberLiquidGlassProviderState(
