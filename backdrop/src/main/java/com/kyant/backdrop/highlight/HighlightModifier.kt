@@ -124,16 +124,14 @@ internal class HighlightNode(
 
     override fun onAttach() {
         val graphicsContext = requireGraphicsContext()
-        graphicsLayer =
-            graphicsContext.createGraphicsLayer().apply {
-            }
+        graphicsLayer = graphicsContext.createGraphicsLayer()
     }
 
     override fun onDetach() {
         val graphicsContext = requireGraphicsContext()
         graphicsLayer?.let { layer ->
             graphicsContext.releaseGraphicsLayer(layer)
-            this.graphicsLayer = null
+            graphicsLayer = null
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.kyant.backdrop
 
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
@@ -13,6 +14,7 @@ internal interface BackdropShapeProvider {
     val shape: Shape
 }
 
+@Immutable
 internal class CachedBackdropShapeProvider(
     val shapeProvider: () -> Shape
 ) : BackdropShapeProvider {

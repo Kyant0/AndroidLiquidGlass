@@ -15,7 +15,6 @@ import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.layer.CompositingStrategy
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -153,7 +152,6 @@ private class DrawBackdropNode(
 
     private var graphicsLayer: GraphicsLayer? = null
     private var drawBackdropBlock: DrawScope.() -> Unit by mutableStateOf({})
-    private var shouldRecord = true
 
     private val effectScope =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -178,30 +176,22 @@ private class DrawBackdropNode(
         }
 
     val drawNode = delegate(CacheDrawModifierNode {
-        val effect =
-            if (effectScope != null) {
-                effectScope.density = density
-                effectScope.fontScale = fontScale
-                effectScope.size = size
-                effectScope.layoutDirection = layoutDirection
-                effectScope.renderEffect = null
+        if (effectScope != null) {
+            effectScope.density = density
+            effectScope.fontScale = fontScale
+            effectScope.size = size
+            effectScope.layoutDirection = layoutDirection
+            effectScope.renderEffect = null
 
-                effects(effectScope)
+            effects(effectScope)
 
-                effectScope.renderEffect?.asComposeRenderEffect()
-            } else {
-                null
-            }
+            graphicsLayer?.renderEffect = effectScope.renderEffect?.asComposeRenderEffect()
+        }
 
         onDrawWithContent {
-            val graphicsLayer = graphicsLayer
-            if (graphicsLayer != null) {
-                graphicsLayer.renderEffect = effect
-                if (shouldRecord) {
-                    graphicsLayer.record { onDrawBackdrop(drawBackdropBlock) }
-                    shouldRecord = false
-                }
-                drawLayer(graphicsLayer)
+            graphicsLayer?.let { layer ->
+                layer.record { onDrawBackdrop(drawBackdropBlock) }
+                drawLayer(layer)
             }
             onDrawSurface?.invoke(this)
             drawContent()
@@ -227,17 +217,12 @@ private class DrawBackdropNode(
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
             drawBackdropBlock = { with(backdrop) { drawBackdrop(coordinates) } }
-            shouldRecord = true
         }
     }
 
     override fun onAttach() {
         val graphicsContext = requireGraphicsContext()
-        graphicsLayer =
-            graphicsContext.createGraphicsLayer().apply {
-                compositingStrategy = CompositingStrategy.Offscreen
-            }
-        shouldRecord = true
+        graphicsLayer = graphicsContext.createGraphicsLayer()
     }
 
     override fun onDetach() {
