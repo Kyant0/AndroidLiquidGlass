@@ -38,13 +38,14 @@ import com.kyant.backdrop.shadow.ShadowElement
 
 private val DefaultHighlight = { Highlight() }
 private val DefaultShadow = { Shadow() }
+private val DefaultOnDrawBackdrop: DrawScope.(DrawScope.() -> Unit) -> Unit = { it() }
 
 fun Modifier.drawBackdrop(
     backdrop: Backdrop,
     shapeProvider: () -> Shape,
     highlight: (() -> Highlight?)? = DefaultHighlight,
     shadow: (() -> Shadow?)? = DefaultShadow,
-    onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = { it() },
+    onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdrop,
     onDrawSurface: (DrawScope.() -> Unit)? = null,
     effects: BackdropEffectScope.() -> Unit
 ): Modifier {

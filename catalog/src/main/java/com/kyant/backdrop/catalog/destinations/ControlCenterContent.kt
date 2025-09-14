@@ -34,11 +34,13 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.util.fastCoerceAtMost
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.BackdropEffectScope
@@ -126,7 +128,7 @@ fun ControlCenterContent() {
                             enterProgressAnimation.animateTo(
                                 targetProgress,
                                 if (targetProgress > 0.5f) {
-                                    spring(0.5f, 300f, 0.001f)
+                                    spring(0.5f, 300f, 0.5f / maxDragHeight)
                                 } else {
                                     spring(1f, 300f, 0.01f)
                                 },
@@ -167,6 +169,9 @@ fun ControlCenterContent() {
 
                         translationY = lerp(-56f.dp.toPx(), 0f, progress)
                         alpha = EaseIn.transform(progress)
+                        scaleX = 1f - 0.1f / size.height * size.width * (progress - 1f).fastCoerceAtLeast(0f)
+                        scaleY = 1f + 0.1f * (progress - 1f).fastCoerceAtLeast(0f)
+                        transformOrigin = TransformOrigin(0.5f, 0f)
                     }
                     .padding(top = 80f.dp)
                     .systemBarsPadding()
