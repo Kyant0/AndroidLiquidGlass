@@ -1,8 +1,14 @@
 package com.kyant.backdrop.catalog.destinations
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseIn
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,19 +21,29 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastCoerceAtMost
+import androidx.compose.ui.util.lerp
+import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.catalog.ProgressConverter
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.rememberUISensor
 import com.kyant.backdrop.catalog.theme.LocalContentColor
@@ -40,6 +56,7 @@ import com.kyant.backdrop.highlight.HighlightStyle
 import com.kyant.backdrop.rememberLayerBackdrop
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlinx.coroutines.launch
 
 @Composable
 fun ControlCenterContent() {
@@ -67,38 +84,88 @@ fun ControlCenterContent() {
 
     val backdrop = rememberLayerBackdrop(null)
     val uiSensor = rememberUISensor()
+    val glassShape = { itemShape }
+    val glassHighlight = { Highlight { HighlightStyle.Dynamic(angle = uiSensor.gravityAngle) } }
+    val glassSurface: DrawScope.() -> Unit = { drawRect(containerColor) }
+    val glassEffects: BackdropEffectScope.() -> Unit = {
+        saturation()
+        blur(16f.dp.toPx())
+        refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
+    }
 
-    fun Modifier.glass() =
-        this
-            .drawBackdrop(
-                backdrop,
-                { itemShape },
-                highlight = { Highlight { HighlightStyle.Dynamic(angle = uiSensor.gravityAngle) } },
-                onDrawSurface = { drawRect(containerColor) }
-            ) {
-                saturation()
-                blur(16f.dp.toPx())
-                refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
+    val animationScope = rememberCoroutineScope()
+    val enterProgressAnimation = remember { Animatable(1f) }
+    val progress by remember {
+        derivedStateOf {
+            val progress = enterProgressAnimation.value
+            when {
+                progress < 0f -> ProgressConverter.Default.convert(progress)
+                progress <= 1f -> progress
+                else -> 1f + ProgressConverter.Default.convert(progress - 1f)
             }
+        }
+    }
+    val maxDragHeight = 1000f
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
-        Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .draggable(
+                    rememberDraggableState { delta ->
+                        val targetProgress = enterProgressAnimation.value + delta / maxDragHeight
+                        animationScope.launch { enterProgressAnimation.snapTo(targetProgress) }
+                    },
+                    Orientation.Vertical,
+                    onDragStopped = { velocity ->
+                        val targetProgress = when {
+                            velocity < 0f -> 0f
+                            velocity > 0f -> 1f
+                            else -> if (enterProgressAnimation.value < 0.5f) 0f else 1f
+                        }
+                        animationScope.launch {
+                            enterProgressAnimation.animateTo(
+                                targetProgress,
+                                if (targetProgress > 0.5f) {
+                                    spring(0.5f, 300f, 0.001f)
+                                } else {
+                                    spring(1f, 300f, 0.01f)
+                                },
+                                velocity / maxDragHeight
+                            )
+                        }
+                    }
+                )
+                .fillMaxSize()
+        ) {
             Image(
                 painterResource(R.drawable.system_home_screen_light),
                 null,
                 Modifier
                     .backdrop(backdrop)
                     .drawWithContent {
+                        val progress = progress
+
                         drawContent()
-                        drawRect(dimColor)
+                        drawRect(dimColor.copy(dimColor.alpha * progress.fastCoerceAtMost(1f)))
                     }
-                    .blur(8f.dp)
+                    .graphicsLayer {
+                        val progress = progress
+
+                        val blurRadius = 8f.dp.toPx() * progress.fastCoerceAtMost(1f)
+                        renderEffect = BlurEffect(blurRadius, blurRadius)
+                    }
                     .fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
 
             Column(
                 Modifier
+                    .graphicsLayer {
+                        val progress = progress
+
+                        translationY = lerp(-56f.dp.toPx(), 0f, progress)
+                        alpha = EaseIn.transform(progress)
+                    }
                     .padding(top = 80f.dp)
                     .systemBarsPadding()
                     .displayCutoutPadding()
@@ -112,7 +179,14 @@ fun ControlCenterContent() {
                 ) {
                     Box(
                         Modifier
-                            .glass()
+                            .drawBackdrop(
+                                backdrop,
+                                glassShape,
+                                highlight = glassHighlight,
+                                shadow = null,
+                                onDrawSurface = glassSurface,
+                                effects = glassEffects
+                            )
                             .size(itemTwoSpanSize)
                             .padding(itemSpacing)
                     ) {
@@ -149,7 +223,14 @@ fun ControlCenterContent() {
                     }
                     Box(
                         Modifier
-                            .glass()
+                            .drawBackdrop(
+                                backdrop,
+                                glassShape,
+                                highlight = glassHighlight,
+                                shadow = null,
+                                onDrawSurface = glassSurface,
+                                effects = glassEffects
+                            )
                             .size(itemTwoSpanSize)
                     )
                 }
@@ -167,14 +248,28 @@ fun ControlCenterContent() {
                         ) {
                             Box(
                                 Modifier
-                                    .glass()
+                                    .drawBackdrop(
+                                        backdrop,
+                                        glassShape,
+                                        highlight = glassHighlight,
+                                        shadow = null,
+                                        onDrawSurface = glassSurface,
+                                        effects = glassEffects
+                                    )
                                     .clickable {}
                                     .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                                     .size(itemSize)
                             )
                             Box(
                                 Modifier
-                                    .glass()
+                                    .drawBackdrop(
+                                        backdrop,
+                                        glassShape,
+                                        highlight = glassHighlight,
+                                        shadow = null,
+                                        onDrawSurface = glassSurface,
+                                        effects = glassEffects
+                                    )
                                     .clickable {}
                                     .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                                     .size(itemSize)
@@ -182,7 +277,14 @@ fun ControlCenterContent() {
                         }
                         Box(
                             Modifier
-                                .glass()
+                                .drawBackdrop(
+                                    backdrop,
+                                    glassShape,
+                                    highlight = glassHighlight,
+                                    shadow = null,
+                                    onDrawSurface = glassSurface,
+                                    effects = glassEffects
+                                )
                                 .size(itemTwoSpanSize, itemSize)
                         )
                     }
@@ -193,12 +295,26 @@ fun ControlCenterContent() {
                     ) {
                         Box(
                             Modifier
-                                .glass()
+                                .drawBackdrop(
+                                    backdrop,
+                                    glassShape,
+                                    highlight = glassHighlight,
+                                    shadow = null,
+                                    onDrawSurface = glassSurface,
+                                    effects = glassEffects
+                                )
                                 .size(itemSize, itemTwoSpanSize)
                         )
                         Box(
                             Modifier
-                                .glass()
+                                .drawBackdrop(
+                                    backdrop,
+                                    glassShape,
+                                    highlight = glassHighlight,
+                                    shadow = null,
+                                    onDrawSurface = glassSurface,
+                                    effects = glassEffects
+                                )
                                 .size(itemSize, itemTwoSpanSize)
                         )
                     }
@@ -210,7 +326,14 @@ fun ControlCenterContent() {
                 ) {
                     Box(
                         Modifier
-                            .glass()
+                            .drawBackdrop(
+                                backdrop,
+                                glassShape,
+                                highlight = glassHighlight,
+                                shadow = null,
+                                onDrawSurface = glassSurface,
+                                effects = glassEffects
+                            )
                             .size(itemTwoSpanSize)
                     )
 
@@ -223,14 +346,28 @@ fun ControlCenterContent() {
                         ) {
                             Box(
                                 Modifier
-                                    .glass()
+                                    .drawBackdrop(
+                                        backdrop,
+                                        glassShape,
+                                        highlight = glassHighlight,
+                                        shadow = null,
+                                        onDrawSurface = glassSurface,
+                                        effects = glassEffects
+                                    )
                                     .clickable {}
                                     .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                                     .size(itemSize)
                             )
                             Box(
                                 Modifier
-                                    .glass()
+                                    .drawBackdrop(
+                                        backdrop,
+                                        glassShape,
+                                        highlight = glassHighlight,
+                                        shadow = null,
+                                        onDrawSurface = glassSurface,
+                                        effects = glassEffects
+                                    )
                                     .clickable {}
                                     .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                                     .size(itemSize)
@@ -242,7 +379,14 @@ fun ControlCenterContent() {
                         ) {
                             Box(
                                 Modifier
-                                    .glass()
+                                    .drawBackdrop(
+                                        backdrop,
+                                        glassShape,
+                                        highlight = glassHighlight,
+                                        shadow = null,
+                                        onDrawSurface = glassSurface,
+                                        effects = glassEffects
+                                    )
                                     .clickable {}
                                     .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                                     .size(itemSize)

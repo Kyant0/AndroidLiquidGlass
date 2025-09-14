@@ -34,18 +34,18 @@ fun HomeContent(onNavigate: (CatalogDestination) -> Unit) {
         )
         Column {
             Text(
-                "Dialog",
-                TextStyles.body,
-                Modifier
-                    .clickable { onNavigate(CatalogDestination.Dialog) }
-                    .padding(16f.dp)
-                    .fillMaxWidth()
-            )
-            Text(
                 "Control center",
                 TextStyles.body,
                 Modifier
                     .clickable { onNavigate(CatalogDestination.ControlCenter) }
+                    .padding(16f.dp)
+                    .fillMaxWidth()
+            )
+            Text(
+                "Dialog",
+                TextStyles.body,
+                Modifier
+                    .clickable { onNavigate(CatalogDestination.Dialog) }
                     .padding(16f.dp)
                     .fillMaxWidth()
             )
