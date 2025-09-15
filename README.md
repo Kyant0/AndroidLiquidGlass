@@ -10,11 +10,9 @@ Apple's Liquid Glass effect for Android Jetpack Compose.
 
 - [Catalog](./catalog/release/catalog-release.apk)
 
-<img alt="Screenshot of the catalog app" height="400" src="artworks/catalog.jpg"/>
-
-- [Music player demo](./glassmusic/release/glassmusic-release.apk)
-
-<img alt="Screenshots of the music player demo" height="400" src="artworks/music_player_demo.png"/>
+|                                                                                   |                                                                             |
+|:---------------------------------------------------------------------------------:|:---------------------------------------------------------------------------:|
+| <img alt="Control center" width="200" src="artworks/catalog_control_center.jpg"/> | <img alt="Bottom tabs" width="200" src="artworks/catalog_bottom_tabs.jpg"/> |
 
 ## Library
 

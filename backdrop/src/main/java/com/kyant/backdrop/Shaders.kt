@@ -117,7 +117,8 @@ half4 main(float2 coord) {
         half rMask = step(0.5, t);
         half gMask = step(0.25, t) * step(t, 0.75);
         half bMask = step(t, 0.5);
-        half4 mask = half4(rMask, gMask, bMask, 1.0);
+        half aMask = rMask + gMask + bMask;
+        half4 mask = half4(rMask, gMask, bMask, aMask);
         dispersedColor += color * mask;
         weight += mask;
     }

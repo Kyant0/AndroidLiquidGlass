@@ -8,7 +8,7 @@ import com.kyant.backdrop.RefractionShaderString
 
 fun BackdropEffectScope.refraction(
     height: Float,
-    amount: Float,
+    amount: Float = height,
     hasDepthEffect: Boolean = false
 ) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
@@ -28,7 +28,7 @@ fun BackdropEffectScope.refraction(
 
 fun BackdropEffectScope.dispersion(
     height: Float,
-    amount: Float
+    amount: Float = height
 ) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
     if (height <= 0f || amount <= 0f) return
@@ -46,7 +46,7 @@ fun BackdropEffectScope.dispersion(
 
 fun BackdropEffectScope.refractionWithDispersion(
     height: Float,
-    amount: Float,
+    amount: Float = height,
     hasDepthEffect: Boolean = false,
     dispersionIntensity: Float = 1f
 ) {

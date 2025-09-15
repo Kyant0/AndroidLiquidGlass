@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.kyant.backdrop.catalog.destinations.BottomTabsContent
 import com.kyant.backdrop.catalog.destinations.ControlCenterContent
 import com.kyant.backdrop.catalog.destinations.DialogContent
 import com.kyant.backdrop.catalog.destinations.HomeContent
@@ -30,6 +31,7 @@ fun MainContent() {
         when (dest) {
             CatalogDestination.Home -> HomeContent(onNavigate = { destination = it })
             CatalogDestination.ControlCenter -> ControlCenterContent()
+            CatalogDestination.BottomTabs -> BottomTabsContent()
             CatalogDestination.Dialog -> DialogContent()
         }
     }

@@ -42,6 +42,14 @@ fun HomeContent(onNavigate: (CatalogDestination) -> Unit) {
                     .fillMaxWidth()
             )
             Text(
+                "Bottom tabs",
+                TextStyles.body,
+                Modifier
+                    .clickable { onNavigate(CatalogDestination.BottomTabs) }
+                    .padding(16f.dp)
+                    .fillMaxWidth()
+            )
+            Text(
                 "Dialog",
                 TextStyles.body,
                 Modifier
