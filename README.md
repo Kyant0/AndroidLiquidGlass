@@ -80,7 +80,8 @@ fun Modifier.drawBackdrop(
     shapeProvider: () -> Shape,
     highlight: (() -> Highlight?)? = DefaultHighlight,
     shadow: (() -> Shadow?)? = DefaultShadow,
-    onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = { it() },
+    onDrawBehind: (DrawScope.() -> Unit)? = null,
+    onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdrop,
     onDrawSurface: (DrawScope.() -> Unit)? = null,
     effects: BackdropEffectScope.() -> Unit
 ): Modifier
