@@ -19,7 +19,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
@@ -48,7 +48,7 @@ class LayerBackdrop(
     var backdropPosition: Offset by mutableStateOf(Offset.Zero)
 
     override fun DrawScope.drawBackdrop(coordinates: LayoutCoordinates) {
-        val position = coordinates.positionOnScreen() - backdropPosition
+        val position = coordinates.positionInWindow() - backdropPosition
         translate(-position.x, -position.y) {
             if (backgroundColor != null && backgroundColor.isSpecified) {
                 drawContext.canvas.nativeCanvas.drawColor(backgroundColor.toArgb())
@@ -106,7 +106,7 @@ private class LayerBackdropNode(
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
-            backdrop.backdropPosition = coordinates.positionOnScreen()
+            backdrop.backdropPosition = coordinates.positionInWindow()
         }
     }
 

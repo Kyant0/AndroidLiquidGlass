@@ -1,16 +1,22 @@
 package com.kyant.backdrop.highlight
 
+import android.graphics.Paint
+import android.graphics.RectF
+import android.os.Build
 import androidx.compose.ui.draw.CacheDrawModifierNode
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.GraphicsLayerScope
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asComposePaint
 import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.isUnspecified
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
@@ -71,6 +77,10 @@ internal class HighlightNode(
     override val shouldAutoInvalidate: Boolean = false
 
     private var graphicsLayer: GraphicsLayer? = null
+    private val paint =
+        Paint().apply {
+            style = Paint.Style.STROKE
+        }
 
     val drawNode = delegate(CacheDrawModifierNode {
         val highlight = highlight()
@@ -82,27 +92,43 @@ internal class HighlightNode(
         }
 
         val size = size
-        val widthPx = highlight.width.toPx()
-        val strokeWidth = ceil(widthPx.fastCoerceAtMost(size.minDimension / 2f))
+        val strokeWidth = ceil(highlight.width.toPx().fastCoerceAtMost(size.minDimension / 2f))
         val borderSize = Size(size.width - strokeWidth, size.height - strokeWidth)
         val outline = shapeProvider.shape.createOutline(borderSize, layoutDirection, this)
 
-        graphicsLayer.blendMode = highlight.blendMode
+        paint.color = highlight.color.toArgb()
+        paint.strokeWidth = strokeWidth
+        paint.asComposePaint().blendMode = highlight.blendMode
 
+        graphicsLayer.blendMode = highlight.blendMode
         graphicsLayer.record {
             translate(strokeWidth / 2f, strokeWidth / 2f) {
-                drawOutline(
-                    outline = outline,
-                    brush = SolidColor(highlight.color),
-                    style = Stroke(strokeWidth)
-                )
+                val canvas = drawContext.canvas.nativeCanvas
+
+                when (outline) {
+                    is Outline.Rectangle -> {
+                        val rect = RectF(0f, 0f, size.width, size.height)
+                        canvas.drawRect(rect, paint)
+                    }
+
+                    is Outline.Rounded -> {
+                        val path = Path().apply { addRoundRect(outline.roundRect) }.asAndroidPath()
+                        canvas.drawPath(path, paint)
+                    }
+
+                    is Outline.Generic -> {
+                        val path = outline.path.asAndroidPath()
+                        canvas.drawPath(path, paint)
+                    }
+                }
             }
         }
 
         onDrawWithContent {
-            val borderRenderEffect = highlight.style().createRenderEffect(size, strokeWidth)
-            graphicsLayer.renderEffect = borderRenderEffect?.asComposeRenderEffect()
-
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                graphicsLayer.renderEffect =
+                    highlight.style().createRenderEffect(size, strokeWidth)?.asComposeRenderEffect()
+            }
             drawContent()
             drawLayer(graphicsLayer)
         }

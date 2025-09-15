@@ -1,16 +1,16 @@
 package com.kyant.backdrop.shadow
 
-import android.graphics.drawable.ShapeDrawable
-import android.graphics.drawable.shapes.PathShape
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.RectF
+import android.os.Build
 import androidx.compose.ui.draw.CacheDrawModifierNode
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePaint
-import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.isUnspecified
 import androidx.compose.ui.graphics.layer.CompositingStrategy
@@ -23,7 +23,6 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.util.fastCoerceIn
 import com.kyant.backdrop.BackdropShapeProvider
 import kotlin.math.ceil
 
@@ -73,7 +72,15 @@ internal class ShadowNode(
     override val shouldAutoInvalidate: Boolean = false
 
     private var graphicsLayer: GraphicsLayer? = null
-    private val shapeDrawable = ShapeDrawable()
+    private val shadowPaint = Paint()
+    private val maskPaint =
+        Paint().apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                blendMode = android.graphics.BlendMode.DST_OUT
+            } else {
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+            }
+        }
 
     val drawNode = delegate(CacheDrawModifierNode {
         val shadow = shadow()
@@ -83,32 +90,11 @@ internal class ShadowNode(
 
         val size = size
         val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)
-        val path = when (outline) {
-            is Outline.Rectangle -> Path().apply { addRect(outline.rect) }
-            is Outline.Rounded -> Path().apply { addRoundRect(outline.roundRect) }
-            is Outline.Generic -> outline.path
-        }
-
         val elevation = shadow.elevation.toPx()
         val offset = Offset(shadow.offset.x.toPx(), shadow.offset.y.toPx())
 
-        shapeDrawable.apply {
-            this.shape =
-                PathShape(
-                    path.asAndroidPath(),
-                    size.width,
-                    size.height
-                )
-            setBounds(0, 0, ceil(size.width).toInt(), ceil(size.height).toInt())
-            paint.setShadowLayer(
-                elevation,
-                offset.x,
-                offset.y,
-                shadow.color.toArgb()
-            )
-            paint.alpha = (shadow.alpha.fastCoerceIn(0f, 1f) * 255f + 0.5f).toInt()
-            paint.asComposePaint().blendMode = shadow.blendMode
-        }
+        shadowPaint.setShadowLayer(elevation, offset.x, offset.y, shadow.color.toArgb())
+        shadowPaint.asComposePaint().blendMode = shadow.blendMode
 
         graphicsLayer?.record(
             density = this,
@@ -118,14 +104,27 @@ internal class ShadowNode(
                 ceil(size.height + elevation * 2).toInt()
             )
         ) {
-            translate(elevation - offset.x, elevation - offset.y) {
-                shapeDrawable.draw(drawContext.canvas.nativeCanvas)
+            val canvas = drawContext.canvas.nativeCanvas
+            canvas.translate(elevation - offset.x, elevation - offset.y)
 
-                drawOutline(
-                    outline = outline,
-                    color = Color.Black,
-                    blendMode = BlendMode.DstOut
-                )
+            when (outline) {
+                is Outline.Rectangle -> {
+                    val rect = RectF(0f, 0f, size.width, size.height)
+                    canvas.drawRect(rect, shadowPaint)
+                    canvas.drawRect(rect, maskPaint)
+                }
+
+                is Outline.Rounded -> {
+                    val path = Path().apply { addRoundRect(outline.roundRect) }.asAndroidPath()
+                    canvas.drawPath(path, shadowPaint)
+                    canvas.drawPath(path, maskPaint)
+                }
+
+                is Outline.Generic -> {
+                    val path = outline.path.asAndroidPath()
+                    canvas.drawPath(path, shadowPaint)
+                    canvas.drawPath(path, maskPaint)
+                }
             }
         }
 

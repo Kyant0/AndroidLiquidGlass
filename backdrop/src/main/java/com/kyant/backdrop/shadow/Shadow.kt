@@ -13,6 +13,5 @@ data class Shadow(
     val elevation: Dp = 24f.dp,
     val color: Color = Color.Black.copy(alpha = 0.15f),
     val offset: DpOffset = DpOffset(0f.dp, 4f.dp),
-    val alpha: Float = 1f,
     val blendMode: BlendMode = DrawScope.DefaultBlendMode
 )

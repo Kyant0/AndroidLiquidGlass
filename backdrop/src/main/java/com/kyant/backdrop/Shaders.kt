@@ -4,18 +4,18 @@ import org.intellij.lang.annotations.Language
 
 @Language("AGSL")
 private const val RoundedRectSDF = """
-float radiusAt(float2 coord, float4 radius) {
+float radiusAt(float2 coord, float4 radii) {
     if (coord.x >= 0.0) {
-        if (coord.y <= 0.0) return radius.y;
-        else return radius.z;
+        if (coord.y <= 0.0) return radii.y;
+        else return radii.z;
     } else {
-        if (coord.y <= 0.0) return radius.x;
-        else return radius.w;
+        if (coord.y <= 0.0) return radii.x;
+        else return radii.w;
     }
 }
 
-float sdRoundedRectangle(float2 coord, float2 halfSize, float4 radius) {
-    float r = radiusAt(coord, radius);
+float sdRoundedRectangle(float2 coord, float2 halfSize, float4 radii) {
+    float r = radiusAt(coord, radii);
     float2 innerHalfSize = halfSize - float2(r);
     float2 cornerCoord = abs(coord) - innerHalfSize;
     
@@ -24,8 +24,8 @@ float sdRoundedRectangle(float2 coord, float2 halfSize, float4 radius) {
     return outside + inside;
 }
 
-float2 gradSdRoundedRectangle(float2 coord, float2 halfSize, float4 radius) {
-    float r = radiusAt(coord, radius);
+float2 gradSdRoundedRectangle(float2 coord, float2 halfSize, float4 radii) {
+    float r = radiusAt(coord, radii);
     float2 innerHalfSize = halfSize - float2(r);
     float2 cornerCoord = abs(coord) - innerHalfSize;
     
@@ -41,7 +41,7 @@ internal const val RefractionShaderString = """
 uniform shader image;
 
 uniform float2 size;
-uniform float4 cornerRadius;
+uniform float4 cornerRadii;
 uniform float refractionHeight;
 uniform float refractionAmount;
 uniform float depthEffect;
@@ -55,14 +55,14 @@ float circleMap(float x) {
 half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
     float2 centeredCoord = coord - halfSize;
-    float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadius);
+    float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadii);
     if (-sd >= refractionHeight) {
         return image.eval(coord);
     }
     sd = min(sd, 0.0);
     
     float4 maxGradRadius = float4(min(halfSize.x, halfSize.y));
-    float4 gradRadius = min(cornerRadius * 1.5, maxGradRadius);
+    float4 gradRadius = min(cornerRadii * 1.5, maxGradRadius);
     float2 normal = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
     
     float refractedDistance = circleMap(1.0 - -sd / refractionHeight) * refractionAmount;
@@ -77,7 +77,7 @@ internal const val DispersionShaderString = """
 uniform shader image;
 
 uniform float2 size;
-uniform float4 cornerRadius;
+uniform float4 cornerRadii;
 uniform float dispersionHeight;
 uniform float dispersionAmount;
 
@@ -90,7 +90,7 @@ float circleMap(float x) {
 half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
     float2 centeredCoord = coord - halfSize;
-    float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadius);
+    float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadii);
     if (-sd >= dispersionHeight) {
         return image.eval(coord);
     }
@@ -103,7 +103,7 @@ half4 main(float2 coord) {
     }
     
     float4 maxGradRadius = float4(min(halfSize.x, halfSize.y));
-    float4 gradRadius = min(cornerRadius * 1.5, maxGradRadius);
+    float4 gradRadius = min(cornerRadii * 1.5, maxGradRadius);
     float2 normal = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
     float2 tangent = float2(normal.y, -normal.x);
     

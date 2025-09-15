@@ -16,7 +16,7 @@ fun BackdropEffectScope.refraction(
 
     val shader = obtainRuntimeShader("Refraction", RefractionShaderString).apply {
         setFloatUniform("size", size.width, size.height)
-        setFloatUniform("cornerRadius", cornerRadiusArray)
+        setFloatUniform("cornerRadii", cornerRadii)
         setFloatUniform("refractionHeight", height)
         setFloatUniform("refractionAmount", -amount)
         setFloatUniform("depthEffect", if (hasDepthEffect) 1f else 0f)
@@ -35,7 +35,7 @@ fun BackdropEffectScope.dispersion(
 
     val shader = obtainRuntimeShader("Dispersion", DispersionShaderString).apply {
         setFloatUniform("size", size.width, size.height)
-        setFloatUniform("cornerRadius", cornerRadiusArray)
+        setFloatUniform("cornerRadii", cornerRadii)
         setFloatUniform("dispersionHeight", height)
         setFloatUniform("dispersionAmount", amount)
     }
@@ -53,18 +53,18 @@ fun BackdropEffectScope.refractionWithDispersion(
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
     if (height <= 0f || amount <= 0f) return
 
-    val cornerRadiusArray = cornerRadiusArray
+    val cornerRadii = cornerRadii
 
     val refractionShader = obtainRuntimeShader("Refraction", RefractionShaderString).apply {
         setFloatUniform("size", size.width, size.height)
-        setFloatUniform("cornerRadius", cornerRadiusArray)
+        setFloatUniform("cornerRadii", cornerRadii)
         setFloatUniform("refractionHeight", height)
         setFloatUniform("refractionAmount", -amount)
         setFloatUniform("depthEffect", if (hasDepthEffect) 1f else 0f)
     }
     val dispersionShader = obtainRuntimeShader("Dispersion", DispersionShaderString).apply {
         setFloatUniform("size", size.width, size.height)
-        setFloatUniform("cornerRadius", cornerRadiusArray)
+        setFloatUniform("cornerRadii", cornerRadii)
         setFloatUniform("dispersionHeight", height * dispersionIntensity)
         setFloatUniform("dispersionAmount", amount * dispersionIntensity)
     }

@@ -5,6 +5,7 @@ import android.graphics.RuntimeShader
 import android.graphics.Shader
 import android.os.Build
 import androidx.annotation.FloatRange
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.geometry.Size
@@ -14,6 +15,7 @@ import kotlin.math.PI
 @Immutable
 interface HighlightStyle {
 
+    @RequiresApi(Build.VERSION_CODES.S)
     fun createRenderEffect(size: Size, width: Float): RenderEffect? {
         return null
     }
@@ -24,18 +26,15 @@ interface HighlightStyle {
     @Immutable
     data object Soft : HighlightStyle {
 
+        @RequiresApi(Build.VERSION_CODES.S)
         override fun createRenderEffect(size: Size, width: Float): RenderEffect? {
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val blurRadiusPx = width / 2f
-                if (blurRadiusPx > 0f) {
-                    RenderEffect.createBlurEffect(
-                        blurRadiusPx,
-                        blurRadiusPx,
-                        Shader.TileMode.DECAL
-                    )
-                } else {
-                    null
-                }
+            val blurRadiusPx = width / 2f
+            return if (blurRadiusPx > 0f) {
+                RenderEffect.createBlurEffect(
+                    blurRadiusPx,
+                    blurRadiusPx,
+                    Shader.TileMode.DECAL
+                )
             } else {
                 null
             }
@@ -48,20 +47,21 @@ interface HighlightStyle {
         @param:FloatRange(from = 0.0) val falloff: Float = 1f
     ) : HighlightStyle {
 
+        @RequiresApi(Build.VERSION_CODES.S)
         override fun createRenderEffect(size: Size, width: Float): RenderEffect? {
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val blurRadiusPx = width / 2f
-                val blurRenderEffect =
-                    if (blurRadiusPx > 0f) {
-                        RenderEffect.createBlurEffect(
-                            blurRadiusPx,
-                            blurRadiusPx,
-                            Shader.TileMode.DECAL
-                        )
-                    } else {
-                        null
-                    }
+            val blurRadiusPx = width / 2f
+            val blurRenderEffect =
+                if (blurRadiusPx > 0f) {
+                    RenderEffect.createBlurEffect(
+                        blurRadiusPx,
+                        blurRadiusPx,
+                        Shader.TileMode.DECAL
+                    )
+                } else {
+                    null
+                }
 
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val highlightRenderEffect =
                     RenderEffect.createRuntimeShaderEffect(
                         RuntimeShader(DynamicHighlightStyleShaderString).apply {
@@ -73,15 +73,12 @@ interface HighlightStyle {
                     )
 
                 if (blurRenderEffect != null) {
-                    RenderEffect.createChainEffect(
-                        highlightRenderEffect,
-                        blurRenderEffect
-                    )
+                    RenderEffect.createChainEffect(highlightRenderEffect, blurRenderEffect)
                 } else {
                     highlightRenderEffect
                 }
             } else {
-                null
+                blurRenderEffect
             }
         }
     }

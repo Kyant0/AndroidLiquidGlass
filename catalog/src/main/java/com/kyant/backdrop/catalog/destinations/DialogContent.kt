@@ -38,6 +38,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorFilter
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.highlight.HighlightStyle
 import com.kyant.backdrop.rememberLayerBackdrop
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -77,11 +78,7 @@ fun DialogContent() {
                 .drawBackdrop(
                     backdrop,
                     { ContinuousRoundedRectangle(48f.dp) },
-                    highlight = {
-                        Highlight(
-                            style = { com.kyant.backdrop.highlight.HighlightStyle.Soft }
-                        )
-                    },
+                    highlight = { Highlight { HighlightStyle.Soft } },
                     onDrawSurface = { drawRect(containerColor) }
                 ) {
                     colorFilter(

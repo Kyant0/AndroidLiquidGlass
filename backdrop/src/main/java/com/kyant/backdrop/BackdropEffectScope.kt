@@ -20,23 +20,21 @@ interface BackdropEffectScope : Density {
 
     var renderEffect: RenderEffect?
 
-    val cornerRadiusArray: FloatArray
+    val cornerRadii: FloatArray
         get() {
             val shape = shape
-            require(shape is CornerBasedShape) { "Lens effects only support CornerBasedShape" }
+            require(shape is CornerBasedShape) { "Only CornerBasedShape is supported." }
             val isLtr = layoutDirection == LayoutDirection.Ltr
-            val cornerRadius =
-                floatArrayOf(
-                    if (isLtr) shape.topStart.toPx(size, this)
-                    else shape.topEnd.toPx(size, this),
-                    if (isLtr) shape.topEnd.toPx(size, this)
-                    else shape.topStart.toPx(size, this),
-                    if (isLtr) shape.bottomEnd.toPx(size, this)
-                    else shape.bottomStart.toPx(size, this),
-                    if (isLtr) shape.bottomStart.toPx(size, this)
-                    else shape.bottomEnd.toPx(size, this)
-                )
-            return cornerRadius
+            return floatArrayOf(
+                if (isLtr) shape.topStart.toPx(size, this)
+                else shape.topEnd.toPx(size, this),
+                if (isLtr) shape.topEnd.toPx(size, this)
+                else shape.topStart.toPx(size, this),
+                if (isLtr) shape.bottomEnd.toPx(size, this)
+                else shape.bottomStart.toPx(size, this),
+                if (isLtr) shape.bottomStart.toPx(size, this)
+                else shape.bottomEnd.toPx(size, this)
+            )
         }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
