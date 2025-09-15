@@ -48,9 +48,9 @@ import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.refractionWithDispersion
 import com.kyant.backdrop.effects.saturation
 import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.highlight.HighlightStyle
 import com.kyant.backdrop.rememberLayerBackdrop
 import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 
 @Composable
@@ -94,16 +94,12 @@ fun BottomTabsContent() {
                 Modifier
                     .drawBackdrop(
                         backdrop,
-                        { ContinuousRoundedRectangle(48f.dp) },
-                        highlight = {
-                            Highlight(
-                                style = { com.kyant.backdrop.highlight.HighlightStyle.Soft }
-                            )
-                        },
+                        { ContinuousCapsule },
+                        highlight = { Highlight { HighlightStyle.Soft } },
                         onDrawSurface = { drawRect(containerColor) }
                     ) {
                         saturation()
-                        blur(if (isLightTheme) 8f.dp.toPx() else 8f.dp.toPx())
+                        blur(8f.dp.toPx())
                         refraction(24f.dp.toPx(), 24f.dp.toPx())
                     }
                     .height(72f.dp)
@@ -141,16 +137,12 @@ fun BottomTabsContent() {
                     .backdrop(tabsBackdrop)
                     .drawBackdrop(
                         backdrop,
-                        { ContinuousRoundedRectangle(48f.dp) },
-                        highlight = {
-                            Highlight(
-                                style = { com.kyant.backdrop.highlight.HighlightStyle.Soft }
-                            )
-                        },
+                        { ContinuousCapsule },
+                        highlight = { Highlight { HighlightStyle.Soft } },
                         onDrawSurface = { drawRect(containerColor) }
                     ) {
                         saturation()
-                        blur(if (isLightTheme) 8f.dp.toPx() else 8f.dp.toPx())
+                        blur(8f.dp.toPx())
                         refraction(24f.dp.toPx(), 24f.dp.toPx())
                     }
                     .graphicsLayer(colorFilter = ColorFilter.tint(accentColor))
