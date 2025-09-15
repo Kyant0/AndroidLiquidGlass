@@ -49,13 +49,14 @@ import com.kyant.backdrop.catalog.ProgressConverter
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.rememberUISensor
 import com.kyant.backdrop.catalog.theme.LocalContentColor
+import com.kyant.backdrop.contentBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.saturation
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightStyle
-import com.kyant.backdrop.rememberLayerBackdrop
+import com.kyant.backdrop.rememberBackdrop
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
@@ -84,7 +85,7 @@ fun ControlCenterContent() {
     val airplaneModeIcon = painterResource(R.drawable.flight_40px)
     val iconColorFilter = ColorFilter.tint(Color.White)
 
-    val backdrop = rememberLayerBackdrop(null)
+    val backdrop = rememberBackdrop()
     val uiSensor = rememberUISensor()
     val glassShape = { itemShape }
     val glassHighlight = { Highlight { HighlightStyle.Dynamic(angle = uiSensor.gravityAngle) } }
@@ -186,10 +187,18 @@ fun ControlCenterContent() {
                 ) {
                     Box(
                         Modifier
+                            .contentBackdrop(
+                                { ContinuousRoundedRectangle(40f.dp) },
+                                highlight = glassHighlight,
+                                shadow = null,
+                                onDrawSurface = glassSurface
+                            ) {
+                                refraction(12f.dp.toPx(), size.minDimension / 4f, true)
+                            }
                             .drawBackdrop(
                                 backdrop,
-                                glassShape,
-                                highlight = glassHighlight,
+                                { ContinuousRoundedRectangle(40f.dp) },
+                                highlight = null,
                                 shadow = null,
                                 onDrawSurface = glassSurface,
                                 effects = glassEffects

@@ -39,7 +39,7 @@ import com.kyant.backdrop.effects.colorFilter
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightStyle
-import com.kyant.backdrop.rememberLayerBackdrop
+import com.kyant.backdrop.rememberBackdrop
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 
@@ -56,7 +56,7 @@ fun DialogContent() {
         if (isLightTheme) Color(0xFF29293A).copy(0.23f)
         else Color(0xFF121212).copy(0.56f)
 
-    val backdrop = rememberLayerBackdrop(null)
+    val backdrop = rememberBackdrop()
 
     Box(Modifier.fillMaxSize()) {
         Image(

@@ -47,7 +47,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.refractionWithDispersion
 import com.kyant.backdrop.effects.saturation
-import com.kyant.backdrop.rememberLayerBackdrop
+import com.kyant.backdrop.rememberBackdrop
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.launch
 
@@ -67,9 +67,9 @@ fun BottomTabsContent() {
         else Color(0xFF787880).copy(0.32f)
     val iconColorFilter = ColorFilter.tint(LocalContentColor.current)
 
-    val backdrop = rememberLayerBackdrop(null)
+    val backdrop = rememberBackdrop()
 
-    val tabsBackdrop = rememberLayerBackdrop(null)
+    val tabsBackdrop = rememberBackdrop()
 
     Box(Modifier.fillMaxSize()) {
         Image(

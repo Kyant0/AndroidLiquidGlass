@@ -41,7 +41,7 @@ implementation("com.github.Kyant0:AndroidLiquidGlass:<version>")
 #### Basic example
 
 ```kotlin
-val backdrop = rememberLayerBackdrop(backgroundColor = Color.White)
+val backdrop = rememberBackdrop()
 
 Box {
     // backdrop content used to fill the backdrop layer
@@ -87,10 +87,23 @@ fun Modifier.drawBackdrop(
 ): Modifier
 ```
 
+To apply effects for the Composable's self content, use the `contentBackdrop` modifier:
+
+```kotlin
+fun Modifier.contentBackdrop(
+    shapeProvider: () -> Shape,
+    highlight: (() -> Highlight?)? = DefaultHighlight,
+    shadow: (() -> Shadow?)? = DefaultShadow,
+    onDrawBehind: (DrawScope.() -> Unit)? = null,
+    onDrawSurface: (DrawScope.() -> Unit)? = null,
+    effects: BackdropEffectScope.() -> Unit
+): Modifier
+```
+
 The following example shows how to draw a dynamic highlight and apply scaling to the backdrop content:
 
 ```kotlin
-val backdrop = rememberLayerBackdrop(backgroundColor = Color.White)
+val backdrop = rememberBackdrop()
 
 Box {
     // backdrop content used to fill the backdrop layer
