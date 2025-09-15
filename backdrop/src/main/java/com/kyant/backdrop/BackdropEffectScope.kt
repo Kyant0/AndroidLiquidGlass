@@ -20,9 +20,6 @@ interface BackdropEffectScope : Density {
 
     var renderEffect: RenderEffect?
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun obtainRuntimeShader(key: String, string: String): RuntimeShader
-
     val cornerRadiusArray: FloatArray
         get() {
             val shape = shape
@@ -41,4 +38,7 @@ interface BackdropEffectScope : Density {
                 )
             return cornerRadius
         }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    fun obtainRuntimeShader(key: String, string: String): RuntimeShader
 }

@@ -50,14 +50,28 @@ fun BackdropEffectScope.refractionWithDispersion(
     hasDepthEffect: Boolean = false,
     dispersionIntensity: Float = 1f
 ) {
-    refraction(
-        height = height,
-        amount = amount,
-        hasDepthEffect = hasDepthEffect
-    )
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    if (height <= 0f || amount <= 0f) return
 
-    dispersion(
-        height = height * dispersionIntensity,
-        amount = amount * dispersionIntensity
+    val cornerRadiusArray = cornerRadiusArray
+
+    val refractionShader = obtainRuntimeShader("Refraction", RefractionShaderString).apply {
+        setFloatUniform("size", size.width, size.height)
+        setFloatUniform("cornerRadius", cornerRadiusArray)
+        setFloatUniform("refractionHeight", height)
+        setFloatUniform("refractionAmount", -amount)
+        setFloatUniform("depthEffect", if (hasDepthEffect) 1f else 0f)
+    }
+    val dispersionShader = obtainRuntimeShader("Dispersion", DispersionShaderString).apply {
+        setFloatUniform("size", size.width, size.height)
+        setFloatUniform("cornerRadius", cornerRadiusArray)
+        setFloatUniform("dispersionHeight", height * dispersionIntensity)
+        setFloatUniform("dispersionAmount", amount * dispersionIntensity)
+    }
+
+    val effect = RenderEffect.createChainEffect(
+        RenderEffect.createRuntimeShaderEffect(dispersionShader, "image"),
+        RenderEffect.createRuntimeShaderEffect(refractionShader, "image")
     )
+    effect(effect)
 }
