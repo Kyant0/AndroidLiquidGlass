@@ -84,7 +84,10 @@ internal class ShadowNode(
 
     val drawNode = delegate(CacheDrawModifierNode {
         val shadow = shadow()
-        if (shadow == null || shadow.elevation.value <= 0f || shadow.color.isUnspecified) {
+        val graphicsLayer = graphicsLayer
+        if (shadow == null || graphicsLayer == null ||
+            shadow.elevation.value <= 0f || shadow.color.isUnspecified
+        ) {
             return@CacheDrawModifierNode onDrawWithContent { drawContent() }
         }
 
@@ -96,7 +99,7 @@ internal class ShadowNode(
         shadowPaint.setShadowLayer(elevation, offset.x, offset.y, shadow.color.toArgb())
         shadowPaint.asComposePaint().blendMode = shadow.blendMode
 
-        graphicsLayer?.record(
+        graphicsLayer.record(
             density = this,
             layoutDirection = layoutDirection,
             size = IntSize(
@@ -129,10 +132,8 @@ internal class ShadowNode(
         }
 
         onDrawWithContent {
-            graphicsLayer?.let { layer ->
-                translate(-(elevation - offset.x), -(elevation - offset.y)) {
-                    drawLayer(layer)
-                }
+            translate(-(elevation - offset.x), -(elevation - offset.y)) {
+                drawLayer(graphicsLayer)
             }
             drawContent()
         }
