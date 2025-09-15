@@ -66,7 +66,6 @@ interface HighlightStyle {
                     RenderEffect.createRuntimeShaderEffect(
                         RuntimeShader(DynamicHighlightStyleShaderString).apply {
                             setFloatUniform("size", size.width, size.height)
-
                             setFloatUniform("angle", angle * (PI / 180f).toFloat())
                             setFloatUniform("falloff", falloff)
                         },

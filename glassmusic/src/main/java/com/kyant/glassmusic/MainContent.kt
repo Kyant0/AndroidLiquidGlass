@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -117,7 +118,17 @@ fun MainContent() {
         ) {
             Box(
                 Modifier
-                    .drawBackdrop(backdrop, { CircleShape }) {
+                    .drawBackdrop(
+                        backdrop,
+                        {
+                            RoundedCornerShape(
+                                topStartPercent = 50,
+                                topEndPercent = 50,
+                                bottomEndPercent = 25,
+                                bottomStartPercent = 25
+                            )
+                        }
+                    ) {
                         saturation()
                         blur(2f.dp.toPx())
                         refraction(height = size.minDimension / 4f, amount = size.minDimension / 2f)
