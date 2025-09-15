@@ -7,7 +7,6 @@ import androidx.compose.ui.draw.CacheDrawModifierNode
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePaint
 import androidx.compose.ui.graphics.asComposeRenderEffect
@@ -107,13 +106,20 @@ internal class HighlightNode(
 
                 when (outline) {
                     is Outline.Rectangle -> {
-                        val rect = RectF(0f, 0f, size.width, size.height)
+                        val rect = RectF(0f, 0f, borderSize.width, borderSize.height)
                         canvas.drawRect(rect, paint)
                     }
 
                     is Outline.Rounded -> {
-                        val path = Path().apply { addRoundRect(outline.roundRect) }.asAndroidPath()
-                        canvas.drawPath(path, paint)
+                        @Suppress("INVISIBLE_REFERENCE")
+                        val path = outline.roundRectPath?.asAndroidPath()
+                        if (path != null) {
+                            canvas.drawPath(path, paint)
+                        } else {
+                            val rect = with(outline.roundRect) { RectF(left, top, right, bottom) }
+                            val radius = outline.roundRect.topLeftCornerRadius.x
+                            canvas.drawRoundRect(rect, radius, radius, paint)
+                        }
                     }
 
                     is Outline.Generic -> {

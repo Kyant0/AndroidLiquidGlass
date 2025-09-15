@@ -47,8 +47,6 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.refractionWithDispersion
 import com.kyant.backdrop.effects.saturation
-import com.kyant.backdrop.highlight.Highlight
-import com.kyant.backdrop.highlight.HighlightStyle
 import com.kyant.backdrop.rememberLayerBackdrop
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.launch
@@ -67,7 +65,6 @@ fun BottomTabsContent() {
     val activeTabContainerColor =
         if (isLightTheme) Color(0xFF787880).copy(0.16f)
         else Color(0xFF787880).copy(0.32f)
-    val activeIconColorFilter = ColorFilter.tint(accentColor)
     val iconColorFilter = ColorFilter.tint(LocalContentColor.current)
 
     val backdrop = rememberLayerBackdrop(null)
@@ -95,7 +92,6 @@ fun BottomTabsContent() {
                     .drawBackdrop(
                         backdrop,
                         { ContinuousCapsule },
-                        highlight = { Highlight { HighlightStyle.Soft } },
                         onDrawSurface = { drawRect(containerColor) }
                     ) {
                         saturation()
@@ -138,7 +134,6 @@ fun BottomTabsContent() {
                     .drawBackdrop(
                         backdrop,
                         { ContinuousCapsule },
-                        highlight = { Highlight { HighlightStyle.Soft } },
                         onDrawSurface = { drawRect(containerColor) }
                     ) {
                         saturation()

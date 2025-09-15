@@ -1,5 +1,6 @@
 package com.kyant.backdrop.shadow
 
+import android.graphics.BlendMode
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
@@ -8,7 +9,6 @@ import android.os.Build
 import androidx.compose.ui.draw.CacheDrawModifierNode
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePaint
 import androidx.compose.ui.graphics.drawscope.translate
@@ -76,7 +76,7 @@ internal class ShadowNode(
     private val maskPaint =
         Paint().apply {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                blendMode = android.graphics.BlendMode.DST_OUT
+                blendMode = BlendMode.DST_OUT
             } else {
                 xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
             }
@@ -118,9 +118,17 @@ internal class ShadowNode(
                 }
 
                 is Outline.Rounded -> {
-                    val path = Path().apply { addRoundRect(outline.roundRect) }.asAndroidPath()
-                    canvas.drawPath(path, shadowPaint)
-                    canvas.drawPath(path, maskPaint)
+                    @Suppress("INVISIBLE_REFERENCE")
+                    val path = outline.roundRectPath?.asAndroidPath()
+                    if (path != null) {
+                        canvas.drawPath(path, shadowPaint)
+                        canvas.drawPath(path, maskPaint)
+                    } else {
+                        val rect = with(outline.roundRect) { RectF(left, top, right, bottom) }
+                        val radius = outline.roundRect.topLeftCornerRadius.x
+                        canvas.drawRoundRect(rect, radius, radius, shadowPaint)
+                        canvas.drawRoundRect(rect, radius, radius, maskPaint)
+                    }
                 }
 
                 is Outline.Generic -> {
