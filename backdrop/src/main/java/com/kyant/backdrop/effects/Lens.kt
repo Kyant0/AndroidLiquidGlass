@@ -6,8 +6,8 @@ import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.util.fastCoerceAtMost
 import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.DispersionShaderString
-import com.kyant.backdrop.RefractionShaderString
+import com.kyant.backdrop.RoundedRectDispersionShaderString
+import com.kyant.backdrop.RoundedRectRefractionShaderString
 
 fun BackdropEffectScope.refraction(
     height: Float,
@@ -20,7 +20,7 @@ fun BackdropEffectScope.refraction(
     val cornerRadii = cornerRadii
     val effect =
         if (cornerRadii != null) {
-            val shader = obtainRuntimeShader("Refraction", RefractionShaderString).apply {
+            val shader = obtainRuntimeShader("Refraction", RoundedRectRefractionShaderString).apply {
                 setFloatUniform("size", size.width, size.height)
                 setFloatUniform("cornerRadii", cornerRadii)
                 setFloatUniform("refractionHeight", height)
@@ -44,7 +44,7 @@ fun BackdropEffectScope.dispersion(
     val cornerRadii = cornerRadii
     val effect =
         if (cornerRadii != null) {
-            val shader = obtainRuntimeShader("Dispersion", DispersionShaderString).apply {
+            val shader = obtainRuntimeShader("Dispersion", RoundedRectDispersionShaderString).apply {
                 setFloatUniform("size", size.width, size.height)
                 setFloatUniform("cornerRadii", cornerRadii)
                 setFloatUniform("dispersionHeight", height)
@@ -69,14 +69,14 @@ fun BackdropEffectScope.refractionWithDispersion(
     val cornerRadii = cornerRadii
     val effect =
         if (cornerRadii != null) {
-            val refractionShader = obtainRuntimeShader("Refraction", RefractionShaderString).apply {
+            val refractionShader = obtainRuntimeShader("Refraction", RoundedRectRefractionShaderString).apply {
                 setFloatUniform("size", size.width, size.height)
                 setFloatUniform("cornerRadii", cornerRadii)
                 setFloatUniform("refractionHeight", height)
                 setFloatUniform("refractionAmount", -amount)
                 setFloatUniform("depthEffect", if (hasDepthEffect) 1f else 0f)
             }
-            val dispersionShader = obtainRuntimeShader("Dispersion", DispersionShaderString).apply {
+            val dispersionShader = obtainRuntimeShader("Dispersion", RoundedRectDispersionShaderString).apply {
                 setFloatUniform("size", size.width, size.height)
                 setFloatUniform("cornerRadii", cornerRadii)
                 setFloatUniform("dispersionHeight", height * dispersionIntensity)

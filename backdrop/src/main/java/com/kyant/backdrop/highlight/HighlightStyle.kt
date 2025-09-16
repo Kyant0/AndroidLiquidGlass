@@ -9,7 +9,7 @@ import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.geometry.Size
-import com.kyant.backdrop.DynamicHighlightStyleShaderString
+import com.kyant.backdrop.DynamicHighlightShaderString
 import kotlin.math.PI
 
 @Immutable
@@ -64,7 +64,7 @@ interface HighlightStyle {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val highlightRenderEffect =
                     RenderEffect.createRuntimeShaderEffect(
-                        RuntimeShader(DynamicHighlightStyleShaderString).apply {
+                        RuntimeShader(DynamicHighlightShaderString).apply {
                             setFloatUniform("size", size.width, size.height)
                             setFloatUniform("angle", angle * (PI / 180f).toFloat())
                             setFloatUniform("falloff", falloff)

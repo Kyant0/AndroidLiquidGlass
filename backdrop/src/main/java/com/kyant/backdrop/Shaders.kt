@@ -37,7 +37,7 @@ float2 gradSdRoundedRectangle(float2 coord, float2 halfSize, float4 radii) {
 }"""
 
 @Language("AGSL")
-internal const val RefractionShaderString = """
+internal const val RoundedRectRefractionShaderString = """
 uniform shader image;
 
 uniform float2 size;
@@ -73,7 +73,7 @@ half4 main(float2 coord) {
 }"""
 
 @Language("AGSL")
-internal const val DispersionShaderString = """
+internal const val RoundedRectDispersionShaderString = """
 uniform shader image;
 
 uniform float2 size;
@@ -127,7 +127,7 @@ half4 main(float2 coord) {
 }"""
 
 @Language("AGSL")
-internal const val DynamicHighlightStyleShaderString = """
+internal const val DynamicHighlightShaderString = """
 uniform shader image;
 
 uniform float2 size;
