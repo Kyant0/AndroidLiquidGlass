@@ -1,6 +1,16 @@
-# Liquid Glass
+# Backdrop (Liquid Glass)
 
 Apple's Liquid Glass effect for Android Jetpack Compose.
+
+⚠️ The library is in alpha stage, every API may be changed, use it on your own risk.
+
+## Docs
+
+[![JitPack Release](https://jitpack.io/v/Kyant0/AndroidLiquidGlass.svg)](https://jitpack.io/#Kyant0/AndroidLiquidGlass)
+
+[1.0.0-alpha10](https://kyant.gitbook.io/backdrop)
+
+[before 1.0.0-alpha10](docs/LegacyDocs.md)
 
 ## Demos
 
@@ -13,18 +23,6 @@ Apple's Liquid Glass effect for Android Jetpack Compose.
 |                                                                                   |                                                                             |
 |:---------------------------------------------------------------------------------:|:---------------------------------------------------------------------------:|
 | <img alt="Control center" width="200" src="artworks/catalog_control_center.jpg"/> | <img alt="Bottom tabs" width="200" src="artworks/catalog_bottom_tabs.jpg"/> |
-
-## Library
-
-⚠️ The library is in alpha stage, every API may be changed, use it on your own risk.
-
-### Docs
-
-[![JitPack Release](https://jitpack.io/v/Kyant0/AndroidLiquidGlass.svg)](https://jitpack.io/#Kyant0/AndroidLiquidGlass)
-
-[1.0.0-alpha10](https://kyant.gitbook.io/backdrop)
-
-[before 1.0.0-alpha09](docs/LegacyDocs.md)
 
 ## Comparing with iOS
 
