@@ -15,9 +15,7 @@ internal interface BackdropShapeProvider {
 }
 
 @Immutable
-internal class CachedBackdropShapeProvider(
-    val shapeProvider: () -> Shape
-) : BackdropShapeProvider {
+internal class CachedBackdropShapeProvider(val shapeProvider: () -> Shape) : BackdropShapeProvider {
 
     private var _outline: Outline? = null
     private var _size: Size = Size.Unspecified

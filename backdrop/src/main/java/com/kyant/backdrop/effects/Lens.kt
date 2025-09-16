@@ -2,6 +2,8 @@ package com.kyant.backdrop.effects
 
 import android.graphics.RenderEffect
 import android.os.Build
+import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.ui.unit.LayoutDirection
 import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.DispersionShaderString
 import com.kyant.backdrop.RefractionShaderString
@@ -14,15 +16,21 @@ fun BackdropEffectScope.refraction(
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
     if (height <= 0f || amount <= 0f) return
 
-    val shader = obtainRuntimeShader("Refraction", RefractionShaderString).apply {
-        setFloatUniform("size", size.width, size.height)
-        setFloatUniform("cornerRadii", cornerRadii)
-        setFloatUniform("refractionHeight", height)
-        setFloatUniform("refractionAmount", -amount)
-        setFloatUniform("depthEffect", if (hasDepthEffect) 1f else 0f)
-    }
+    val cornerRadii = cornerRadii
+    val effect =
+        if (cornerRadii != null) {
+            val shader = obtainRuntimeShader("Refraction", RefractionShaderString).apply {
+                setFloatUniform("size", size.width, size.height)
+                setFloatUniform("cornerRadii", cornerRadii)
+                setFloatUniform("refractionHeight", height)
+                setFloatUniform("refractionAmount", -amount)
+                setFloatUniform("depthEffect", if (hasDepthEffect) 1f else 0f)
+            }
+            RenderEffect.createRuntimeShaderEffect(shader, "image")
+        } else {
+            throwUnsupportedSDFException()
+        }
 
-    val effect = RenderEffect.createRuntimeShaderEffect(shader, "image")
     effect(effect)
 }
 
@@ -33,14 +41,19 @@ fun BackdropEffectScope.dispersion(
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
     if (height <= 0f || amount <= 0f) return
 
-    val shader = obtainRuntimeShader("Dispersion", DispersionShaderString).apply {
-        setFloatUniform("size", size.width, size.height)
-        setFloatUniform("cornerRadii", cornerRadii)
-        setFloatUniform("dispersionHeight", height)
-        setFloatUniform("dispersionAmount", amount)
-    }
-
-    val effect = RenderEffect.createRuntimeShaderEffect(shader, "image")
+    val cornerRadii = cornerRadii
+    val effect =
+        if (cornerRadii != null) {
+            val shader = obtainRuntimeShader("Dispersion", DispersionShaderString).apply {
+                setFloatUniform("size", size.width, size.height)
+                setFloatUniform("cornerRadii", cornerRadii)
+                setFloatUniform("dispersionHeight", height)
+                setFloatUniform("dispersionAmount", amount)
+            }
+            RenderEffect.createRuntimeShaderEffect(shader, "image")
+        } else {
+            throwUnsupportedSDFException()
+        }
     effect(effect)
 }
 
@@ -54,24 +67,48 @@ fun BackdropEffectScope.refractionWithDispersion(
     if (height <= 0f || amount <= 0f) return
 
     val cornerRadii = cornerRadii
+    val effect =
+        if (cornerRadii != null) {
+            val refractionShader = obtainRuntimeShader("Refraction", RefractionShaderString).apply {
+                setFloatUniform("size", size.width, size.height)
+                setFloatUniform("cornerRadii", cornerRadii)
+                setFloatUniform("refractionHeight", height)
+                setFloatUniform("refractionAmount", -amount)
+                setFloatUniform("depthEffect", if (hasDepthEffect) 1f else 0f)
+            }
+            val dispersionShader = obtainRuntimeShader("Dispersion", DispersionShaderString).apply {
+                setFloatUniform("size", size.width, size.height)
+                setFloatUniform("cornerRadii", cornerRadii)
+                setFloatUniform("dispersionHeight", height * dispersionIntensity)
+                setFloatUniform("dispersionAmount", amount * dispersionIntensity)
+            }
+            RenderEffect.createChainEffect(
+                RenderEffect.createRuntimeShaderEffect(dispersionShader, "image"),
+                RenderEffect.createRuntimeShaderEffect(refractionShader, "image")
+            )
+        } else {
+            throwUnsupportedSDFException()
+        }
 
-    val refractionShader = obtainRuntimeShader("Refraction", RefractionShaderString).apply {
-        setFloatUniform("size", size.width, size.height)
-        setFloatUniform("cornerRadii", cornerRadii)
-        setFloatUniform("refractionHeight", height)
-        setFloatUniform("refractionAmount", -amount)
-        setFloatUniform("depthEffect", if (hasDepthEffect) 1f else 0f)
-    }
-    val dispersionShader = obtainRuntimeShader("Dispersion", DispersionShaderString).apply {
-        setFloatUniform("size", size.width, size.height)
-        setFloatUniform("cornerRadii", cornerRadii)
-        setFloatUniform("dispersionHeight", height * dispersionIntensity)
-        setFloatUniform("dispersionAmount", amount * dispersionIntensity)
-    }
-
-    val effect = RenderEffect.createChainEffect(
-        RenderEffect.createRuntimeShaderEffect(dispersionShader, "image"),
-        RenderEffect.createRuntimeShaderEffect(refractionShader, "image")
-    )
     effect(effect)
+}
+
+private val BackdropEffectScope.cornerRadii: FloatArray?
+    get() {
+        val shape = shape as? CornerBasedShape ?: return null
+        val isLtr = layoutDirection == LayoutDirection.Ltr
+        return floatArrayOf(
+            if (isLtr) shape.topStart.toPx(size, this)
+            else shape.topEnd.toPx(size, this),
+            if (isLtr) shape.topEnd.toPx(size, this)
+            else shape.topStart.toPx(size, this),
+            if (isLtr) shape.bottomEnd.toPx(size, this)
+            else shape.bottomStart.toPx(size, this),
+            if (isLtr) shape.bottomStart.toPx(size, this)
+            else shape.bottomEnd.toPx(size, this)
+        )
+    }
+
+private fun throwUnsupportedSDFException(): Nothing {
+    throw UnsupportedOperationException("Only CornerBasedShape is supported in lens effects.")
 }
