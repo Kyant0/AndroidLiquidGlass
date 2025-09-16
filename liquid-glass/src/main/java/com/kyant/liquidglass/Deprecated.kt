@@ -1,38 +1,24 @@
 package com.kyant.liquidglass
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.DrawTransform
 import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.positionOnScreen
-import androidx.compose.ui.node.DrawModifierNode
-import androidx.compose.ui.node.GlobalPositionAwareModifierNode
-import androidx.compose.ui.node.ModifierNodeElement
-import androidx.compose.ui.platform.InspectorInfo
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.LayerBackdrop
 import com.kyant.backdrop.backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorFilter
 import com.kyant.backdrop.effects.dispersion
 import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightStyle
-import com.kyant.backdrop.highlight.highlight
+import com.kyant.backdrop.rememberBackdrop
 import com.kyant.backdrop.shadow.Shadow
-import com.kyant.backdrop.shadow.backdropShadow
 import com.kyant.liquidglass.dispersion.Dispersion
 import com.kyant.liquidglass.highlight.GlassHighlightStyle
 
@@ -60,92 +46,90 @@ fun Modifier.liquidGlass(
     style: () -> GlassStyle
 ): Modifier =
     this
-        .backdropShadow {
-            val style = style()
+        .drawBackdrop(
+            backdrop = backdrop,
+            shapeProvider = { style().shape },
+            highlight = {
+                style().highlight?.let {
+                    Highlight(
+                        width = it.width,
+                        color = it.color,
+                        blendMode = it.blendMode
+                    ) {
+                        when (it.style) {
+                            is GlassHighlightStyle.Solid -> HighlightStyle.Solid
+                            is GlassHighlightStyle.Soft -> HighlightStyle.Soft
+                            is GlassHighlightStyle.Dynamic ->
+                                HighlightStyle.Dynamic(
+                                    angle = it.style.angle,
+                                    falloff = it.style.falloff
+                                )
 
-            style.shadow?.run {
-                Shadow(
-                    shape = style.shape,
-                    elevation = elevation,
-                    color = color,
-                    offset = offset,
-                    blendMode = blendMode
-                )
-            }
-        }
-        .drawBackdrop(backdrop, compositingStrategy) {
-            val style = style()
-
-            shape = style.shape
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                style.material.colorFilter?.let { colorFilter(it) }
-                blur(style.material.blurRadius)
-
-                val refractionHeight = style.innerRefraction.height.toPx(size, this)
-                val refractionAmount = style.innerRefraction.amount.toPx(size, this)
-
-                refraction(
-                    height = refractionHeight,
-                    amount = -refractionAmount,
-                    hasDepthEffect = style.innerRefraction.depthEffect > 0f
-                )
-
-                val dispersion = style.dispersion
-                val dispersionHeight: Float
-                val dispersionAmount: Float
-                when (dispersion) {
-                    Dispersion.None -> {
-                        dispersionHeight = 0f
-                        dispersionAmount = 0f
-                    }
-
-                    Dispersion.Automatic -> {
-                        dispersionHeight = refractionHeight
-                        dispersionAmount = -refractionAmount
-                    }
-
-                    is Dispersion.Fractional -> {
-                        dispersionHeight = refractionHeight * dispersion.fraction
-                        dispersionAmount = -refractionAmount * dispersion.fraction
+                            else -> HighlightStyle.Default
+                        }
                     }
                 }
-                dispersion(
-                    height = dispersionHeight,
-                    amount = dispersionAmount
-                )
-            }
-
-            onDrawBackdrop(onDrawBackdrop)
-
-            val highlight = style.highlight?.let {
-                highlight(
-                    width = it.width.toPx(),
-                    color = it.color,
-                    blendMode = it.blendMode,
-                    style = when (it.style) {
-                        is GlassHighlightStyle.Solid -> HighlightStyle.Solid
-                        is GlassHighlightStyle.Soft -> HighlightStyle.Soft
-                        is GlassHighlightStyle.Dynamic -> HighlightStyle.Dynamic(
-                            angle = it.style.angle,
-                            falloff = it.style.falloff
-                        )
-
-                        else -> HighlightStyle.Default
-                    }
-                )
-            }
-
-            onDrawSurface {
-                style.material.brush?.let {
-                    drawRect(
-                        it,
-                        alpha = style.material.alpha,
-                        blendMode = style.material.blendMode
+            },
+            shadow = {
+                style().shadow?.run {
+                    Shadow(
+                        elevation = elevation,
+                        color = color,
+                        offset = offset,
+                        blendMode = blendMode
                     )
                 }
-                highlight?.run { draw() }
+            },
+            onDrawBackdrop = onDrawBackdrop,
+            onDrawSurface = {
+                style().material.run {
+                    if (brush != null) {
+                        drawRect(
+                            brush = brush,
+                            alpha = alpha,
+                            blendMode = blendMode
+                        )
+                    }
+                }
             }
+        ) {
+            val style = style()
+
+            style.material.colorFilter?.let { colorFilter(it) }
+
+            blur(style.material.blurRadius.toPx())
+
+            val refractionHeight = style.innerRefraction.height.toPx(size, this)
+            val refractionAmount = -style.innerRefraction.amount.toPx(size, this)
+            refraction(
+                height = refractionHeight,
+                amount = refractionAmount,
+                hasDepthEffect = style.innerRefraction.depthEffect > 0f
+            )
+
+            val dispersion = style.dispersion
+            val dispersionHeight: Float
+            val dispersionAmount: Float
+            when (dispersion) {
+                Dispersion.None -> {
+                    dispersionHeight = 0f
+                    dispersionAmount = 0f
+                }
+
+                Dispersion.Automatic -> {
+                    dispersionHeight = refractionHeight
+                    dispersionAmount = refractionAmount
+                }
+
+                is Dispersion.Fractional -> {
+                    dispersionHeight = refractionHeight * dispersion.fraction
+                    dispersionAmount = refractionAmount * dispersion.fraction
+                }
+            }
+            dispersion(
+                height = dispersionHeight,
+                amount = dispersionAmount
+            )
         }
 
 @Deprecated(message = "Use the new Backdrop API")
@@ -196,93 +180,21 @@ fun Modifier.liquidGlass(
 fun Modifier.liquidGlassProvider(state: LiquidGlassProviderState): Modifier =
     this.backdrop(state.backdrop)
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-private class LiquidGlassProviderElement(
-    val state: LiquidGlassProviderState
-) : ModifierNodeElement<LiquidGlassProviderNode>() {
-
-    override fun create(): LiquidGlassProviderNode {
-        return LiquidGlassProviderNode(state = state)
-    }
-
-    override fun update(node: LiquidGlassProviderNode) {
-        node.update(state = state)
-    }
-
-    override fun InspectorInfo.inspectableProperties() {
-        name = "liquidGlassProvider"
-        properties["state"] = state
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is LiquidGlassProviderElement) return false
-
-        if (state != other.state) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        return state.hashCode()
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-private class LiquidGlassProviderNode(
-    var state: LiquidGlassProviderState
-) : DrawModifierNode, GlobalPositionAwareModifierNode, Modifier.Node() {
-
-    override val shouldAutoInvalidate: Boolean = false
-
-    override fun ContentDrawScope.draw() {
-        drawContent()
-
-        state.graphicsLayer.record {
-            state.backgroundColor?.let { drawRect(it) }
-            this@draw.drawContent()
-        }
-    }
-
-    override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
-        if (coordinates.isAttached) {
-            state.position = coordinates.positionOnScreen()
-        }
-    }
-
-    fun update(
-        state: LiquidGlassProviderState
-    ) {
-        this.state = state
-    }
-}
-
-@Deprecated("[Backdrop API] Use `rememberLayerBackdrop` instead")
+@Deprecated("[Backdrop API] Use `rememberBackdrop` instead")
 @Composable
-fun rememberLiquidGlassProviderState(
-    backgroundColor: Color?
-): LiquidGlassProviderState {
-    val graphicsLayer = rememberGraphicsLayer()
-    return remember(backgroundColor, graphicsLayer) {
-        LiquidGlassProviderState(
-            backgroundColor = backgroundColor,
-            graphicsLayer = graphicsLayer
-        )
-    }
+fun rememberLiquidGlassProviderState(backgroundColor: Color?): LiquidGlassProviderState {
+    return LiquidGlassProviderState(
+        backgroundColor,
+        rememberBackdrop {
+            backgroundColor?.let { drawRect(it) }
+            drawContent()
+        }
+    )
 }
 
-@Deprecated("[Backdrop API] Use `LayerBackdrop` instead")
+@Deprecated("[Backdrop API] Use `Backdrop` instead")
 @Stable
 class LiquidGlassProviderState internal constructor(
     val backgroundColor: Color?,
-    internal val graphicsLayer: GraphicsLayer
-) {
-
-    val backdrop: LayerBackdrop = LayerBackdrop(graphicsLayer, backgroundColor)
-
-    internal var position: Offset
-        get() = backdrop.backdropPosition
-        set(value) {
-            backdrop.backdropPosition = value
-        }
-}
+    internal val backdrop: Backdrop
+)
