@@ -30,7 +30,6 @@ fun BackdropEffectScope.refraction(
         } else {
             throwUnsupportedSDFException()
         }
-
     effect(effect)
 }
 
@@ -89,7 +88,6 @@ fun BackdropEffectScope.refractionWithDispersion(
         } else {
             throwUnsupportedSDFException()
         }
-
     effect(effect)
 }
 
