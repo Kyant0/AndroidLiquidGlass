@@ -4,6 +4,7 @@ import android.graphics.RenderEffect
 import android.os.Build
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.util.fastCoerceAtMost
 import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.DispersionShaderString
 import com.kyant.backdrop.RefractionShaderString
@@ -94,16 +95,26 @@ fun BackdropEffectScope.refractionWithDispersion(
 private val BackdropEffectScope.cornerRadii: FloatArray?
     get() {
         val shape = shape as? CornerBasedShape ?: return null
+        val size = size
+        val maxRadius = size.minDimension / 2f
         val isLtr = layoutDirection == LayoutDirection.Ltr
-        return floatArrayOf(
+        val topLeft =
             if (isLtr) shape.topStart.toPx(size, this)
-            else shape.topEnd.toPx(size, this),
+            else shape.topEnd.toPx(size, this)
+        val topRight =
             if (isLtr) shape.topEnd.toPx(size, this)
-            else shape.topStart.toPx(size, this),
+            else shape.topStart.toPx(size, this)
+        val bottomRight =
             if (isLtr) shape.bottomEnd.toPx(size, this)
-            else shape.bottomStart.toPx(size, this),
+            else shape.bottomStart.toPx(size, this)
+        val bottomLeft =
             if (isLtr) shape.bottomStart.toPx(size, this)
             else shape.bottomEnd.toPx(size, this)
+        return floatArrayOf(
+            topLeft.fastCoerceAtMost(maxRadius),
+            topRight.fastCoerceAtMost(maxRadius),
+            bottomRight.fastCoerceAtMost(maxRadius),
+            bottomLeft.fastCoerceAtMost(maxRadius)
         )
     }
 
