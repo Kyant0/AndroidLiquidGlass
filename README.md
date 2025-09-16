@@ -2,6 +2,8 @@
 
 Apple's Liquid Glass effect for Android Jetpack Compose.
 
+![Banner](artworks/banner.png)
+
 ⚠️ The library is in alpha stage, every API may be changed, use it on your own risk.
 
 ## Docs
@@ -16,7 +18,7 @@ Apple's Liquid Glass effect for Android Jetpack Compose.
 
 - [Playground app](./app/release/app-release.apk), Android 13 and above is required.
 
-![](artworks/playground_app.jpg)
+![Playground screenshot](artworks/playground_app.jpg)
 
 - [Catalog](./catalog/release/catalog-release.apk)
 
@@ -32,9 +34,9 @@ Android device: Google Pixel 4 XL (the smallest width is adjusted to 440 dp to m
 
 Glass size: 300 x 300, corner radius: 30
 
-|                   iOS                    |                   Android                    |
-|:----------------------------------------:|:--------------------------------------------:|
-| ![](./artworks/ios_inner_refraction.png) | ![](./artworks/android_inner_refraction.png) |
+|                             iOS                              |                               Android                                |
+|:------------------------------------------------------------:|:--------------------------------------------------------------------:|
+| ![iOS inner refraction](./artworks/ios_inner_refraction.png) | ![Android inner refraction](./artworks/android_inner_refraction.png) |
 
 Complete comparisons:
 
