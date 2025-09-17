@@ -1,16 +1,15 @@
 package com.kyant.backdrop.highlight
 
+import android.graphics.BlurMaskFilter
 import android.graphics.Paint
 import android.graphics.RectF
 import android.os.Build
 import androidx.compose.ui.draw.CacheDrawModifierNode
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePaint
 import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.isUnspecified
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -91,41 +90,42 @@ internal class HighlightNode(
         }
 
         val size = size
-        val strokeWidth = ceil(highlight.width.toPx().fastCoerceAtMost(size.minDimension / 2f))
-        val borderSize = Size(size.width - strokeWidth, size.height - strokeWidth)
-        val outline = shapeProvider.shape.createOutline(borderSize, layoutDirection, this)
+        val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)
 
         paint.color = highlight.color.toArgb()
-        paint.strokeWidth = strokeWidth
+        val strokeWidth = ceil(highlight.width.toPx().fastCoerceAtMost(size.minDimension / 2f))
+        paint.strokeWidth = strokeWidth * 2f
+        val blurRadius = highlight.blurRadius.toPx()
+        if (blurRadius > 0f) {
+            paint.maskFilter = BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
+        }
         paint.asComposePaint().blendMode = highlight.blendMode
 
         graphicsLayer.blendMode = highlight.blendMode
         graphicsLayer.record {
-            translate(strokeWidth / 2f, strokeWidth / 2f) {
-                val canvas = drawContext.canvas.nativeCanvas
+            val canvas = drawContext.canvas.nativeCanvas
 
-                when (outline) {
-                    is Outline.Rectangle -> {
-                        val rect = RectF(0f, 0f, borderSize.width, borderSize.height)
-                        canvas.drawRect(rect, paint)
-                    }
+            when (outline) {
+                is Outline.Rectangle -> {
+                    val rect = RectF(0f, 0f, size.width, size.height)
+                    canvas.drawRect(rect, paint)
+                }
 
-                    is Outline.Rounded -> {
-                        @Suppress("INVISIBLE_REFERENCE")
-                        val path = outline.roundRectPath?.asAndroidPath()
-                        if (path != null) {
-                            canvas.drawPath(path, paint)
-                        } else {
-                            val rect = with(outline.roundRect) { RectF(left, top, right, bottom) }
-                            val radius = outline.roundRect.topLeftCornerRadius.x
-                            canvas.drawRoundRect(rect, radius, radius, paint)
-                        }
-                    }
-
-                    is Outline.Generic -> {
-                        val path = outline.path.asAndroidPath()
+                is Outline.Rounded -> {
+                    @Suppress("INVISIBLE_REFERENCE")
+                    val path = outline.roundRectPath?.asAndroidPath()
+                    if (path != null) {
                         canvas.drawPath(path, paint)
+                    } else {
+                        val rect = with(outline.roundRect) { RectF(left, top, right, bottom) }
+                        val radius = outline.roundRect.topLeftCornerRadius.x
+                        canvas.drawRoundRect(rect, radius, radius, paint)
                     }
+                }
+
+                is Outline.Generic -> {
+                    val path = outline.path.asAndroidPath()
+                    canvas.drawPath(path, paint)
                 }
             }
         }
@@ -141,6 +141,8 @@ internal class HighlightNode(
     })
 
     private val layerBlock: GraphicsLayerScope.() -> Unit = {
+        clip = true
+        shape = shapeProvider.shape
         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
     }
 

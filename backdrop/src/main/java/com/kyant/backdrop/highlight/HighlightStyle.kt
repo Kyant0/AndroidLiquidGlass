@@ -2,7 +2,6 @@ package com.kyant.backdrop.highlight
 
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
-import android.graphics.Shader
 import android.os.Build
 import androidx.annotation.FloatRange
 import androidx.annotation.RequiresApi
@@ -24,22 +23,7 @@ interface HighlightStyle {
     data object Solid : HighlightStyle
 
     @Immutable
-    data object Soft : HighlightStyle {
-
-        @RequiresApi(Build.VERSION_CODES.S)
-        override fun createRenderEffect(size: Size, width: Float): RenderEffect? {
-            val blurRadiusPx = width / 2f
-            return if (blurRadiusPx > 0f) {
-                RenderEffect.createBlurEffect(
-                    blurRadiusPx,
-                    blurRadiusPx,
-                    Shader.TileMode.DECAL
-                )
-            } else {
-                null
-            }
-        }
-    }
+    data object Soft : HighlightStyle
 
     @Immutable
     data class Dynamic(
@@ -49,36 +33,17 @@ interface HighlightStyle {
 
         @RequiresApi(Build.VERSION_CODES.S)
         override fun createRenderEffect(size: Size, width: Float): RenderEffect? {
-            val blurRadiusPx = width / 2f
-            val blurRenderEffect =
-                if (blurRadiusPx > 0f) {
-                    RenderEffect.createBlurEffect(
-                        blurRadiusPx,
-                        blurRadiusPx,
-                        Shader.TileMode.DECAL
-                    )
-                } else {
-                    null
-                }
-
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val highlightRenderEffect =
-                    RenderEffect.createRuntimeShaderEffect(
-                        RuntimeShader(DynamicHighlightShaderString).apply {
-                            setFloatUniform("size", size.width, size.height)
-                            setFloatUniform("angle", angle * (PI / 180f).toFloat())
-                            setFloatUniform("falloff", falloff)
-                        },
-                        "image"
-                    )
-
-                if (blurRenderEffect != null) {
-                    RenderEffect.createChainEffect(highlightRenderEffect, blurRenderEffect)
-                } else {
-                    highlightRenderEffect
-                }
+                RenderEffect.createRuntimeShaderEffect(
+                    RuntimeShader(DynamicHighlightShaderString).apply {
+                        setFloatUniform("size", size.width, size.height)
+                        setFloatUniform("angle", angle * (PI / 180f).toFloat())
+                        setFloatUniform("falloff", falloff)
+                    },
+                    "image"
+                )
             } else {
-                blurRenderEffect
+                null
             }
         }
     }

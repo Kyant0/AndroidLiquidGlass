@@ -9,8 +9,9 @@ import androidx.compose.ui.unit.dp
 @Immutable
 data class Highlight(
     val width: Dp = 1f.dp,
-    val color: Color = Color.White.copy(alpha = 0.38f),
+    val color: Color = Color.White.copy(alpha = 0.25f),
     val blendMode: BlendMode = BlendMode.Plus,
+    val blurRadius: Dp = width / 3f,
     val style: () -> HighlightStyle = DefaultHighlightStyle
 )
 

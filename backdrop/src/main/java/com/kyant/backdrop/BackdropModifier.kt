@@ -25,7 +25,7 @@ private class BackdropElement(val backdrop: Backdrop) : ModifierNodeElement<Back
     }
 
     override fun InspectorInfo.inspectableProperties() {
-        name = "layerBackdrop"
+        name = "backdrop"
         properties["backdrop"] = backdrop
     }
 
