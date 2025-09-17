@@ -49,7 +49,7 @@ class UISensor(context: Context) {
                 val y = event.values[1]
                 val norm = sqrt(x * x + y * y + 9.81f * 9.81f)
 
-                val alpha = 0.025f
+                val alpha = 0.5f
                 gravityAngle = gravityAngle * (1f - alpha) + atan2(y, x) * (180f / PI).toFloat() * alpha
                 gravity = gravity * (1f - alpha) + Offset(x / norm, y / norm) * alpha
             }
@@ -59,7 +59,7 @@ class UISensor(context: Context) {
     }
 
     fun start() {
-        sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_FASTEST)
+        sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_UI)
     }
 
     fun stop() {
