@@ -154,7 +154,7 @@ private class DrawBackdropNode(
     override val shouldAutoInvalidate: Boolean = false
 
     private var graphicsLayer: GraphicsLayer? = null
-    private var drawBackdropBlock: DrawScope.() -> Unit by mutableStateOf({})
+    private var recordBlock: (DrawScope.() -> Unit)? by mutableStateOf(null)
 
     private val effectScope =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -175,11 +175,16 @@ private class DrawBackdropNode(
 
         onDrawWithContent {
             onDrawBehind?.invoke(this)
-            graphicsLayer?.let { layer ->
-                layer.record { onDrawBackdrop(drawBackdropBlock) }
+
+            val layer = graphicsLayer
+            val recordBlock = recordBlock
+            if (layer != null && recordBlock != null) {
+                layer.record(block = recordBlock)
                 drawLayer(layer)
             }
+
             onDrawSurface?.invoke(this)
+
             drawContent()
         }
     })
@@ -202,7 +207,7 @@ private class DrawBackdropNode(
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
-            drawBackdropBlock = { with(backdrop) { drawBackdrop(coordinates) } }
+            recordBlock = { with(backdrop) { onDrawBackdrop { drawBackdrop(coordinates) } } }
         }
     }
 
@@ -217,5 +222,6 @@ private class DrawBackdropNode(
             graphicsContext.releaseGraphicsLayer(layer)
             graphicsLayer = null
         }
+        recordBlock = null
     }
 }

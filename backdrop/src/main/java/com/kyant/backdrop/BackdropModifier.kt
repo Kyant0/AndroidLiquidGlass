@@ -2,8 +2,8 @@ package com.kyant.backdrop
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
@@ -48,14 +48,20 @@ private class BackdropNode(var backdrop: Backdrop) :
 
     override val shouldAutoInvalidate: Boolean = false
 
+    private val recordBlock: DrawScope.() -> Unit = { backdrop.drawLayer(this as ContentDrawScope) }
+
     override fun ContentDrawScope.draw() {
         drawContent()
-        backdrop.graphicsLayer.record { backdrop.drawLayer.invoke(this@draw) }
+        backdrop.graphicsLayer.record(block = recordBlock)
     }
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
-            backdrop.backdropPosition = coordinates.positionInWindow()
+            backdrop.backdropCoordinates = coordinates
         }
+    }
+
+    override fun onDetach() {
+        backdrop.backdropCoordinates = null
     }
 }
