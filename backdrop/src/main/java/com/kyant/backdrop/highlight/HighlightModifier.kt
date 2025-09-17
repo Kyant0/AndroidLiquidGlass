@@ -106,7 +106,6 @@ internal class HighlightNode(
         if (blurRadius > 0f) {
             paint.maskFilter = BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
         }
-        //paint.asComposePaint().blendMode = highlight.blendMode
 
         graphicsLayer.blendMode = highlight.blendMode
         graphicsLayer.record {

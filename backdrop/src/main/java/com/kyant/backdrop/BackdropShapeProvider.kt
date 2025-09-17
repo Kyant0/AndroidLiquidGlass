@@ -17,6 +17,7 @@ internal interface BackdropShapeProvider {
 @Immutable
 internal class CachedBackdropShapeProvider(val shapeProvider: () -> Shape) : BackdropShapeProvider {
 
+    private var _shape: Shape? = null
     private var _outline: Outline? = null
     private var _size: Size = Size.Unspecified
     private var _layoutDirection: LayoutDirection? = null
@@ -32,11 +33,16 @@ internal class CachedBackdropShapeProvider(val shapeProvider: () -> Shape) : Bac
             layoutDirection: LayoutDirection,
             density: Density
         ): Outline {
+            val shape = shapeProvider()
+            if (_shape != shape) {
+                _shape = shape
+                _outline = null
+            }
             if (_outline == null || _size != size || _layoutDirection != layoutDirection || _density != density.density) {
                 _size = size
                 _layoutDirection = layoutDirection
                 _density = density.density
-                _outline = innerShape.createOutline(size, layoutDirection, density)
+                _outline = shape.createOutline(size, layoutDirection, density)
             }
 
             return _outline!!
