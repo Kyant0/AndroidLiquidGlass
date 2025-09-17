@@ -20,7 +20,7 @@ internal class CachedBackdropShapeProvider(val shapeProvider: () -> Shape) : Bac
     private var _outline: Outline? = null
     private var _size: Size = Size.Unspecified
     private var _layoutDirection: LayoutDirection? = null
-    private var _density: Density? = null
+    private var _density: Float? = null
 
     override val innerShape: Shape
         get() = shapeProvider()
@@ -32,10 +32,10 @@ internal class CachedBackdropShapeProvider(val shapeProvider: () -> Shape) : Bac
             layoutDirection: LayoutDirection,
             density: Density
         ): Outline {
-            if (_outline == null || _size != size || _layoutDirection != layoutDirection || _density != density) {
+            if (_outline == null || _size != size || _layoutDirection != layoutDirection || _density != density.density) {
                 _size = size
                 _layoutDirection = layoutDirection
-                _density = density
+                _density = density.density
                 _outline = innerShape.createOutline(size, layoutDirection, density)
             }
 

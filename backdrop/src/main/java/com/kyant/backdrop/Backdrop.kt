@@ -31,7 +31,7 @@ fun rememberBackdrop(
 
 @Stable
 class Backdrop internal constructor(
-    internal val graphicsLayer: GraphicsLayer,
+    val graphicsLayer: GraphicsLayer,
     internal val drawLayer: ContentDrawScope.() -> Unit
 ) {
 

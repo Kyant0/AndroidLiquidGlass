@@ -41,7 +41,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceAtLeast
-import androidx.compose.ui.util.fastCoerceAtMost
+import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.backdrop
@@ -67,7 +67,7 @@ fun ControlCenterContent() {
     val accentColor =
         if (isLightTheme) Color(0xFF0088FF)
         else Color(0xFF0091FF)
-    val containerColor = Color.White.copy(0.1f)
+    val containerColor = Color.Black.copy(0.05f)
     val dimColor = Color.Black.copy(0.4f)
 
     val itemSpacing = 16f.dp
@@ -88,16 +88,21 @@ fun ControlCenterContent() {
     val backdrop = rememberBackdrop()
     val uiSensor = rememberUISensor()
     val glassShape = { itemShape }
-    val glassHighlight = { Highlight { HighlightStyle.Dynamic(angle = uiSensor.gravityAngle) } }
+    val glassHighlight = {
+        Highlight(color = Color.White.copy(0.5f)) {
+            HighlightStyle.Dynamic(angle = uiSensor.gravityAngle)
+        }
+    }
     val glassSurface: DrawScope.() -> Unit = { drawRect(containerColor) }
     val glassEffects: BackdropEffectScope.() -> Unit = {
         saturation()
-        blur(16f.dp.toPx())
+        blur(8f.dp.toPx())
         refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
     }
 
     val animationScope = rememberCoroutineScope()
     val enterProgressAnimation = remember { Animatable(1f) }
+    val safeEnterProgressAnimation = remember { Animatable(1f) }
     val progress by remember {
         derivedStateOf {
             val progress = enterProgressAnimation.value
@@ -116,7 +121,14 @@ fun ControlCenterContent() {
                 .draggable(
                     rememberDraggableState { delta ->
                         val targetProgress = enterProgressAnimation.value + delta / maxDragHeight
-                        animationScope.launch { enterProgressAnimation.snapTo(targetProgress) }
+                        animationScope.launch {
+                            launch {
+                                enterProgressAnimation.snapTo(targetProgress)
+                            }
+                            launch {
+                                safeEnterProgressAnimation.snapTo(targetProgress.fastCoerceIn(0f, 1f))
+                            }
+                        }
                     },
                     Orientation.Vertical,
                     onDragStopped = { velocity ->
@@ -126,15 +138,23 @@ fun ControlCenterContent() {
                             else -> if (enterProgressAnimation.value < 0.5f) 0f else 1f
                         }
                         animationScope.launch {
-                            enterProgressAnimation.animateTo(
-                                targetProgress,
-                                if (targetProgress > 0.5f) {
-                                    spring(0.5f, 300f, 0.5f / maxDragHeight)
-                                } else {
+                            launch {
+                                enterProgressAnimation.animateTo(
+                                    targetProgress,
+                                    if (targetProgress > 0.5f) {
+                                        spring(0.5f, 300f, 0.5f / maxDragHeight)
+                                    } else {
+                                        spring(1f, 300f, 0.01f)
+                                    },
+                                    velocity / maxDragHeight
+                                )
+                            }
+                            launch {
+                                safeEnterProgressAnimation.animateTo(
+                                    targetProgress,
                                     spring(1f, 300f, 0.01f)
-                                },
-                                velocity / maxDragHeight
-                            )
+                                )
+                            }
                         }
                     }
                 )
@@ -146,15 +166,15 @@ fun ControlCenterContent() {
                 Modifier
                     .backdrop(backdrop)
                     .drawWithContent {
-                        val progress = progress
+                        val progress = safeEnterProgressAnimation.value
 
                         drawContent()
-                        drawRect(dimColor.copy(dimColor.alpha * progress.fastCoerceAtMost(1f)))
+                        drawRect(dimColor.copy(dimColor.alpha * progress))
                     }
                     .graphicsLayer {
-                        val progress = progress
+                        val progress = safeEnterProgressAnimation.value
 
-                        val blurRadius = 8f.dp.toPx() * progress.fastCoerceAtMost(1f)
+                        val blurRadius = 4f.dp.toPx() * progress
                         if (blurRadius > 0f) {
                             renderEffect = BlurEffect(blurRadius, blurRadius)
                         }

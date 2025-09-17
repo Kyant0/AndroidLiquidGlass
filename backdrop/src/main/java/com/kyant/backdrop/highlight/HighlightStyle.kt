@@ -23,12 +23,9 @@ interface HighlightStyle {
     data object Solid : HighlightStyle
 
     @Immutable
-    data object Soft : HighlightStyle
-
-    @Immutable
     data class Dynamic(
         val angle: Float = 45f,
-        @param:FloatRange(from = 0.0) val falloff: Float = 2f
+        @param:FloatRange(from = 0.0) val falloff: Float = 1f
     ) : HighlightStyle {
 
         @RequiresApi(Build.VERSION_CODES.S)

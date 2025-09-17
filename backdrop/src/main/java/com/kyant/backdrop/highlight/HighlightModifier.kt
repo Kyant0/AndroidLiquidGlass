@@ -8,7 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.asComposePaint
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -107,7 +106,7 @@ internal class HighlightNode(
         if (blurRadius > 0f) {
             paint.maskFilter = BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
         }
-        paint.asComposePaint().blendMode = highlight.blendMode
+        //paint.asComposePaint().blendMode = highlight.blendMode
 
         graphicsLayer.blendMode = highlight.blendMode
         graphicsLayer.record {

@@ -25,19 +25,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastCoerceIn
+import androidx.compose.ui.util.fastRoundToInt
+import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.backdrop
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.components.Text
@@ -47,7 +56,9 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.refractionWithDispersion
 import com.kyant.backdrop.effects.saturation
+import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.rememberBackdrop
+import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.launch
 
@@ -68,8 +79,18 @@ fun BottomTabsContent() {
     val iconColorFilter = ColorFilter.tint(LocalContentColor.current)
 
     val backdrop = rememberBackdrop()
-
+    val tabBarBackdrop = rememberBackdrop()
     val tabsBackdrop = rememberBackdrop()
+    val tabsLayer =
+        rememberGraphicsLayer().apply {
+            colorFilter = ColorFilter.tint(accentColor)
+        }
+
+    val animationScope = rememberCoroutineScope()
+    val pressAnimation = remember { Animatable(0f) }
+    val scaleXAnimation = remember { Animatable(0f) }
+    val scaleYAnimation = remember { Animatable(0f) }
+    val tabOffsetAnimation = remember { Animatable(0f) }
 
     Box(Modifier.fillMaxSize()) {
         Image(
@@ -87,104 +108,149 @@ fun BottomTabsContent() {
                 .align(Alignment.Center),
             contentAlignment = Alignment.CenterStart
         ) {
-            Row(
+            Box(
                 Modifier
-                    .drawBackdrop(
-                        backdrop,
-                        { ContinuousCapsule },
-                        onDrawSurface = { drawRect(containerColor) }
-                    ) {
-                        saturation()
-                        blur(8f.dp.toPx())
-                        refraction(24f.dp.toPx(), 24f.dp.toPx())
-                    }
-                    .height(72f.dp)
-                    .fillMaxWidth()
-                    .padding(4f.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(4) { index ->
-                    Column(
-                        Modifier
-                            .clip(ContinuousCapsule)
-                            .clickable {}
-                            .fillMaxHeight()
-                            .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2f.dp, Alignment.CenterVertically),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            Modifier
-                                .size(28f.dp)
-                                .paint(airplaneModeIcon, colorFilter = iconColorFilter)
-                        )
-                        Text(
-                            "Tab ${index + 1}",
-                            TextStyle(fontSize = 12f.sp)
-                        )
-                    }
-                }
-            }
-
-            Row(
-                Modifier
-                    .clearAndSetSemantics {}
                     .alpha(0f)
-                    .backdrop(tabsBackdrop)
-                    .drawBackdrop(
-                        backdrop,
-                        { ContinuousCapsule },
-                        onDrawSurface = { drawRect(containerColor) }
-                    ) {
-                        saturation()
-                        blur(8f.dp.toPx())
-                        refraction(24f.dp.toPx(), 24f.dp.toPx())
-                    }
-                    .graphicsLayer(colorFilter = ColorFilter.tint(accentColor))
-                    .height(60f.dp)
-                    .fillMaxWidth()
-                    .padding(4f.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .backdrop(tabsBackdrop),
+                contentAlignment = Alignment.CenterStart
             ) {
-                repeat(4) { index ->
-                    Column(
-                        Modifier
-                            .clip(ContinuousCapsule)
-                            .fillMaxHeight()
-                            .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2f.dp, Alignment.CenterVertically),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            Modifier
-                                .size(28f.dp)
-                                .paint(airplaneModeIcon, colorFilter = iconColorFilter)
-                        )
-                        Text(
-                            "Tab ${index + 1}",
-                            TextStyle(fontSize = 12f.sp)
-                        )
-                    }
-                }
+                Box(
+                    Modifier
+                        .drawBackdrop(
+                            backdrop,
+                            { ContinuousCapsule },
+                            onDrawSurface = { drawRect(containerColor) }
+                        ) {
+                            saturation()
+                            blur(8f.dp.toPx())
+                            refraction(24f.dp.toPx(), 24f.dp.toPx())
+                        }
+                        .height(60f.dp)
+                        .fillMaxWidth()
+                )
+
+                Box(
+                    Modifier
+                        .graphicsLayer {
+                            val progress = pressAnimation.value
+                            val scale = lerp(1f, 1f + 4f.dp.toPx() / size.height, progress)
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .drawBehind {
+                            drawLayer(tabsLayer)
+                        }
+                        .height(64f.dp)
+                        .fillMaxWidth()
+                )
             }
 
-            val scaleXAnimation = remember { Animatable(1f) }
-            val scaleYAnimation = remember { Animatable(1f) }
+            Box(
+                Modifier
+                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints)
+                        val width =
+                            placeable.width +
+                                    (8f.dp.toPx() / placeable.height * placeable.width).fastRoundToInt() +
+                                    48f.dp.roundToPx()
+                        val height =
+                            placeable.height +
+                                    8f.dp.roundToPx() +
+                                    48f.dp.roundToPx()
+                        layout(width, height) {
+                            placeable.place(
+                                (width - placeable.width) / 2,
+                                (height - placeable.height) / 2
+                            )
+                        }
+                    }
+            ) {
+                Row(
+                    Modifier
+                        .graphicsLayer {
+                            val progress = pressAnimation.value
+                            val scale = lerp(1f, 1f + 4f.dp.toPx() / size.height, progress)
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .drawBackdrop(
+                            backdrop,
+                            { ContinuousCapsule },
+                            onDrawBackdrop = { drawBackdrop ->
+                                val progress = pressAnimation.value
+                                val scale = lerp(1f, 1f + 4f.dp.toPx() / size.height, progress)
+                                scale(1f / scale, 1f / scale, Offset.Zero) {
+                                    drawBackdrop()
+                                }
+                            },
+                            onDrawSurface = { drawRect(containerColor) }
+                        ) {
+                            saturation()
+                            blur(8f.dp.toPx())
+                            refraction(24f.dp.toPx(), 24f.dp.toPx())
+                        }
+                        .drawWithContent {
+                            drawContent()
+                            tabsLayer.record { this@drawWithContent.drawContent() }
+                        }
+                        .height(64f.dp)
+                        .fillMaxWidth()
+                        .padding(4f.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(4) { index ->
+                        Column(
+                            Modifier
+                                .clip(ContinuousCapsule)
+                                .clickable {}
+                                .fillMaxHeight()
+                                .weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2f.dp, Alignment.CenterVertically),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(28f.dp)
+                                    .paint(airplaneModeIcon, colorFilter = iconColorFilter)
+                            )
+                            Text(
+                                "Tab ${index + 1}",
+                                TextStyle(fontSize = 12f.sp)
+                            )
+                        }
+                    }
+                }
 
-            val animationScope = rememberCoroutineScope()
-            val tabOffsetAnimation = remember { Animatable(0f) }
+                Box(
+                    Modifier
+                        .padding(4f.dp)
+                        .graphicsLayer {
+                            translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * 3)
+                            scaleX = lerp(1f, 1f + 28f.dp.toPx() / size.height, scaleXAnimation.value)
+                            scaleY = lerp(1f, 1f + 28f.dp.toPx() / size.height, scaleYAnimation.value)
+                        }
+                        .clip(ContinuousCapsule)
+                        .drawBehind {
+                            drawRect(Color.Black, blendMode = BlendMode.DstOut)
+                        }
+                        .height(56f.dp)
+                        .fillMaxWidth(0.25f)
+                )
+            }
 
             Box(
                 Modifier
                     .padding(4f.dp)
                     .graphicsLayer {
                         translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * 3)
-                        scaleX = scaleYAnimation.value
-                        scaleY = scaleYAnimation.value
+                        scaleX = lerp(1f, 1f + 28f.dp.toPx() / size.height, scaleXAnimation.value)
+                        scaleY = lerp(1f, 1f + 28f.dp.toPx() / size.height, scaleYAnimation.value)
                     }
                     .draggable(
                         rememberDraggableState { delta ->
-                            val targetProgress = tabOffsetAnimation.value + delta * scaleXAnimation.value
+                            val scaleX = lerp(1f, 1.5f, scaleXAnimation.value)
+                            val targetProgress = tabOffsetAnimation.value + delta * scaleX
                             animationScope.launch { tabOffsetAnimation.snapTo(targetProgress) }
                         },
                         Orientation.Horizontal,
@@ -192,14 +258,20 @@ fun BottomTabsContent() {
                         onDragStarted = {
                             animationScope.launch {
                                 launch {
+                                    pressAnimation.animateTo(
+                                        1f,
+                                        spring(1f, 800f, 0.001f)
+                                    )
+                                }
+                                launch {
                                     scaleXAnimation.animateTo(
-                                        1.33f,
+                                        1f,
                                         spring(0.3f, 200f, 0.001f)
                                     )
                                 }
                                 launch {
                                     scaleYAnimation.animateTo(
-                                        1.33f,
+                                        1f,
                                         spring(0.5f, 200f, 0.001f)
                                     )
                                 }
@@ -208,14 +280,20 @@ fun BottomTabsContent() {
                         onDragStopped = { velocity ->
                             animationScope.launch {
                                 launch {
+                                    pressAnimation.animateTo(
+                                        0f,
+                                        spring(1f, 800f, 0.001f)
+                                    )
+                                }
+                                launch {
                                     scaleXAnimation.animateTo(
-                                        1f,
+                                        0f,
                                         spring(0.3f, 200f, 0.001f)
                                     )
                                 }
                                 launch {
                                     scaleYAnimation.animateTo(
-                                        1f,
+                                        0f,
                                         spring(0.5f, 200f, 0.001f)
                                     )
                                 }
@@ -225,26 +303,40 @@ fun BottomTabsContent() {
                     .drawBackdrop(
                         tabsBackdrop,
                         { ContinuousCapsule },
+                        highlight = {
+                            val progress = pressAnimation.value
+                            Highlight(color = Color.White.copy(0.38f * progress))
+                        },
+                        shadow = {
+                            val progress = pressAnimation.value
+                            Shadow(
+                                elevation = 24f.dp * progress,
+                                offset = DpOffset(0f.dp, 4f.dp * progress)
+                            )
+                        },
                         onDrawBackdrop = { drawBackdrop ->
-                            scale(
-                                1f / scaleYAnimation.value,
-                                1f / scaleYAnimation.value,
-                                Offset.Zero
-                            ) {
+                            val scaleX = lerp(1f, 1f + 28f.dp.toPx() / size.height, scaleXAnimation.value)
+                            val scaleY = lerp(1f, 1f + 28f.dp.toPx() / size.height, scaleYAnimation.value)
+                            scale(1f / scaleX, 1f / scaleY, Offset.Zero) {
                                 drawBackdrop()
                             }
                         },
                         onDrawSurface = {
+                            val progress = pressAnimation.value
                             drawRect(
-                                activeTabContainerColor,
-                                alpha = 0f
+                                Color.Black.copy(0.1f),
+                                alpha = 1f - progress
                             )
                         }
                     ) {
+                        val progress = pressAnimation.value
                         saturation()
-                        refractionWithDispersion(16f.dp.toPx(), 16f.dp.toPx())
+                        refractionWithDispersion(
+                            16f.dp.toPx() * progress,
+                            11f.dp.toPx() * progress
+                        )
                     }
-                    .height(64f.dp)
+                    .height(56f.dp)
                     .fillMaxWidth(0.25f)
             )
         }

@@ -22,6 +22,7 @@ import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.toIntSize
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightElement
 import com.kyant.backdrop.shadow.Shadow
@@ -175,7 +176,13 @@ private class ContentBackdropNode(
         onDrawBehind?.invoke(this)
 
         graphicsLayer?.let { layer ->
-            layer.record { this@draw.drawContent() }
+            layer.record(
+                density = this,
+                layoutDirection = layoutDirection,
+                size = size.toIntSize()
+            ) {
+                this@draw.drawContent()
+            }
             drawLayer(layer)
         }
 

@@ -78,7 +78,7 @@ fun DialogContent() {
                 .drawBackdrop(
                     backdrop,
                     { ContinuousRoundedRectangle(48f.dp) },
-                    highlight = { Highlight { HighlightStyle.Soft } },
+                    highlight = { Highlight { HighlightStyle.Solid } },
                     onDrawSurface = { drawRect(containerColor) }
                 ) {
                     colorFilter(

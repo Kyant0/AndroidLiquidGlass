@@ -27,6 +27,7 @@ import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.toIntSize
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightElement
 import com.kyant.backdrop.shadow.Shadow
@@ -205,7 +206,12 @@ private class DrawBackdropNode(
         val layer = graphicsLayer
         val recordBlock = recordBlock
         if (layer != null && recordBlock != null) {
-            layer.record(block = recordBlock)
+            layer.record(
+                density = this,
+                layoutDirection = layoutDirection,
+                size = size.toIntSize(),
+                block = recordBlock
+            )
             drawLayer(layer)
         }
 
@@ -216,7 +222,7 @@ private class DrawBackdropNode(
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
-            recordBlock = { with(backdrop) { onDrawBackdrop { drawBackdrop(coordinates) } } }
+            recordBlock = { onDrawBackdrop { with(backdrop) { drawBackdrop(coordinates) } } }
         }
     }
 
