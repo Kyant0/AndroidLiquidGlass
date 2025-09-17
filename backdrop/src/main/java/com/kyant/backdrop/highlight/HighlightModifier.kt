@@ -4,12 +4,14 @@ import android.graphics.BlurMaskFilter
 import android.graphics.Paint
 import android.graphics.RectF
 import android.os.Build
-import androidx.compose.ui.draw.CacheDrawModifierNode
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePaint
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.isUnspecified
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -18,9 +20,12 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
-import androidx.compose.ui.node.DelegatingNode
+import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.ObserverModifierNode
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
@@ -41,7 +46,7 @@ internal class HighlightElement(
     override fun update(node: HighlightNode) {
         node.shapeProvider = shapeProvider
         node.highlight = highlight
-        node.drawNode.invalidateDrawCache()
+        node.invalidateDrawCache()
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -70,7 +75,7 @@ internal class HighlightElement(
 internal class HighlightNode(
     var shapeProvider: BackdropShapeProvider,
     var highlight: () -> Highlight?
-) : LayoutModifierNode, DelegatingNode() {
+) : LayoutModifierNode, DrawModifierNode, ObserverModifierNode, Modifier.Node() {
 
     override val shouldAutoInvalidate: Boolean = false
 
@@ -80,13 +85,16 @@ internal class HighlightNode(
             style = Paint.Style.STROKE
         }
 
-    val drawNode = delegate(CacheDrawModifierNode {
-        val highlight = highlight()
+    private var isCacheValid = false
+    private var _highlight: Highlight? = null
+    private val cacheDrawBlock: DrawScope.() -> Unit = cacheDrawBlock@{
+        val highlight = highlight().also { _highlight = it }
         val graphicsLayer = graphicsLayer
         if (highlight == null || graphicsLayer == null ||
             highlight.width.value <= 0f || highlight.color.isUnspecified
         ) {
-            return@CacheDrawModifierNode onDrawWithContent { drawContent() }
+            _highlight = null
+            return@cacheDrawBlock
         }
 
         val size = size
@@ -129,16 +137,7 @@ internal class HighlightNode(
                 }
             }
         }
-
-        onDrawWithContent {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                graphicsLayer.renderEffect =
-                    highlight.style().createRenderEffect(size, strokeWidth)?.asComposeRenderEffect()
-            }
-            drawContent()
-            drawLayer(graphicsLayer)
-        }
-    })
+    }
 
     private val layerBlock: GraphicsLayerScope.() -> Unit = {
         clip = true
@@ -154,6 +153,35 @@ internal class HighlightNode(
         return layout(placeable.width, placeable.height) {
             placeable.placeWithLayer(IntOffset.Zero, layerBlock = layerBlock)
         }
+    }
+
+    override fun ContentDrawScope.draw() {
+        if (!isCacheValid) {
+            observeReads { cacheDrawBlock() }
+            isCacheValid = true
+        }
+
+        drawContent()
+
+        val highlight = _highlight
+        val graphicsLayer = graphicsLayer
+        if (highlight != null && graphicsLayer != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val strokeWidth = ceil(highlight.width.toPx().fastCoerceAtMost(size.minDimension / 2f))
+                graphicsLayer.renderEffect =
+                    highlight.style().createRenderEffect(size, strokeWidth)?.asComposeRenderEffect()
+            }
+            drawLayer(graphicsLayer)
+        }
+    }
+
+    override fun onObservedReadsChanged() {
+        invalidateDrawCache()
+    }
+
+    fun invalidateDrawCache() {
+        isCacheValid = false
+        invalidateDraw()
     }
 
     override fun onAttach() {

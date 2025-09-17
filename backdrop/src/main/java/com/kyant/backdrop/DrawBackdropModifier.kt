@@ -5,10 +5,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.CacheDrawModifierNode
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -16,10 +16,13 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
-import androidx.compose.ui.node.DelegatingNode
+import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.ObserverModifierNode
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
@@ -104,7 +107,7 @@ private class DrawBackdropElement(
         node.onDrawBackdrop = onDrawBackdrop
         node.onDrawSurface = onDrawSurface
         node.effects = effects
-        node.drawNode.invalidateDrawCache()
+        node.invalidateDrawCache()
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -149,7 +152,7 @@ private class DrawBackdropNode(
     var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     var onDrawSurface: (DrawScope.() -> Unit)?,
     var effects: BackdropEffectScope.() -> Unit
-) : LayoutModifierNode, GlobalPositionAwareModifierNode, DelegatingNode() {
+) : LayoutModifierNode, DrawModifierNode, GlobalPositionAwareModifierNode, ObserverModifierNode, Modifier.Node() {
 
     override val shouldAutoInvalidate: Boolean = false
 
@@ -166,28 +169,14 @@ private class DrawBackdropNode(
             null
         }
 
-    val drawNode = delegate(CacheDrawModifierNode {
+    private var isCacheValid = false
+    private val cacheDrawBlock: DrawScope.() -> Unit = {
         if (effectScope != null) {
             effectScope.applyDrawScope(this)
             effects(effectScope)
             graphicsLayer?.renderEffect = effectScope.renderEffect?.asComposeRenderEffect()
         }
-
-        onDrawWithContent {
-            onDrawBehind?.invoke(this)
-
-            val layer = graphicsLayer
-            val recordBlock = recordBlock
-            if (layer != null && recordBlock != null) {
-                layer.record(block = recordBlock)
-                drawLayer(layer)
-            }
-
-            onDrawSurface?.invoke(this)
-
-            drawContent()
-        }
-    })
+    }
 
     private val layerBlock: GraphicsLayerScope.() -> Unit = {
         clip = true
@@ -205,10 +194,39 @@ private class DrawBackdropNode(
         }
     }
 
+    override fun ContentDrawScope.draw() {
+        if (!isCacheValid) {
+            observeReads { cacheDrawBlock() }
+            isCacheValid = true
+        }
+
+        onDrawBehind?.invoke(this)
+
+        val layer = graphicsLayer
+        val recordBlock = recordBlock
+        if (layer != null && recordBlock != null) {
+            layer.record(block = recordBlock)
+            drawLayer(layer)
+        }
+
+        onDrawSurface?.invoke(this)
+
+        drawContent()
+    }
+
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
             recordBlock = { with(backdrop) { onDrawBackdrop { drawBackdrop(coordinates) } } }
         }
+    }
+
+    override fun onObservedReadsChanged() {
+        invalidateDrawCache()
+    }
+
+    fun invalidateDrawCache() {
+        isCacheValid = false
+        invalidateDraw()
     }
 
     override fun onAttach() {

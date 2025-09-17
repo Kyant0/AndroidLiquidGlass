@@ -6,11 +6,13 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.os.Build
-import androidx.compose.ui.draw.CacheDrawModifierNode
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePaint
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.isUnspecified
 import androidx.compose.ui.graphics.layer.CompositingStrategy
@@ -18,8 +20,11 @@ import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.node.DelegatingNode
+import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.ObserverModifierNode
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.IntSize
@@ -38,7 +43,7 @@ internal class ShadowElement(
     override fun update(node: ShadowNode) {
         node.shapeProvider = shapeProvider
         node.shadow = shadow
-        node.drawNode.invalidateDrawCache()
+        node.invalidateDrawCache()
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -67,7 +72,7 @@ internal class ShadowElement(
 internal class ShadowNode(
     var shapeProvider: BackdropShapeProvider,
     var shadow: () -> Shadow?
-) : DelegatingNode() {
+) : DrawModifierNode, ObserverModifierNode, Modifier.Node() {
 
     override val shouldAutoInvalidate: Boolean = false
 
@@ -82,13 +87,16 @@ internal class ShadowNode(
             }
         }
 
-    val drawNode = delegate(CacheDrawModifierNode {
-        val shadow = shadow()
+    private var _shadow: Shadow? = null
+    private var isCacheValid = false
+    private val cacheDrawBlock: DrawScope.() -> Unit = cacheDrawBlock@{
+        val shadow = shadow().also { _shadow = it }
         val graphicsLayer = graphicsLayer
         if (shadow == null || graphicsLayer == null ||
             shadow.elevation.value <= 0f || shadow.color.isUnspecified
         ) {
-            return@CacheDrawModifierNode onDrawWithContent { drawContent() }
+            _shadow = null
+            return@cacheDrawBlock
         }
 
         val size = size
@@ -138,14 +146,34 @@ internal class ShadowNode(
                 }
             }
         }
+    }
 
-        onDrawWithContent {
-            translate(-(elevation - offset.x), -(elevation - offset.y)) {
+    override fun ContentDrawScope.draw() {
+        if (!isCacheValid) {
+            observeReads { cacheDrawBlock() }
+            isCacheValid = true
+        }
+
+        val shadow = _shadow
+        val graphicsLayer = graphicsLayer
+        if (shadow != null && graphicsLayer != null) {
+            val elevation = shadow.elevation.toPx()
+            translate(-(elevation - shadow.offset.x.toPx()), -(elevation - shadow.offset.y.toPx())) {
                 drawLayer(graphicsLayer)
             }
-            drawContent()
         }
-    })
+
+        drawContent()
+    }
+
+    override fun onObservedReadsChanged() {
+        invalidateDrawCache()
+    }
+
+    fun invalidateDrawCache() {
+        isCacheValid = false
+        invalidateDraw()
+    }
 
     override fun onAttach() {
         val graphicsContext = requireGraphicsContext()

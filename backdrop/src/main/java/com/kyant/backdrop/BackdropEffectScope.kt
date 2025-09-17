@@ -8,9 +8,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.draw.CacheDrawScope
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 
@@ -43,7 +43,7 @@ internal abstract class BackdropEffectScopeImpl : BackdropEffectScope {
         return runtimeShaders.getOrPut(key) { RuntimeShader(string) }
     }
 
-    fun applyDrawScope(scope: CacheDrawScope) {
+    fun applyDrawScope(scope: DrawScope) {
         density = scope.density
         fontScale = scope.fontScale
         size = scope.size

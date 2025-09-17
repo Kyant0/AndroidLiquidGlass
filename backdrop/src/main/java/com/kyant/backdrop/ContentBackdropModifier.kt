@@ -2,19 +2,22 @@ package com.kyant.backdrop
 
 import android.os.Build
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.CacheDrawModifierNode
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
-import androidx.compose.ui.node.DelegatingNode
+import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.ObserverModifierNode
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
@@ -85,7 +88,7 @@ private class ContentBackdropElement(
         node.onDrawBehind = onDrawBehind
         node.onDrawSurface = onDrawSurface
         node.effects = effects
-        node.drawNode.invalidateDrawCache()
+        node.invalidateDrawCache()
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -122,7 +125,7 @@ private class ContentBackdropNode(
     var onDrawBehind: (DrawScope.() -> Unit)?,
     var onDrawSurface: (DrawScope.() -> Unit)?,
     var effects: BackdropEffectScope.() -> Unit
-) : LayoutModifierNode, DelegatingNode() {
+) : LayoutModifierNode, DrawModifierNode, ObserverModifierNode, Modifier.Node() {
 
     override val shouldAutoInvalidate: Boolean = false
 
@@ -138,22 +141,14 @@ private class ContentBackdropNode(
             null
         }
 
-    val drawNode = delegate(CacheDrawModifierNode {
+    private var isCacheValid = false
+    private val cacheDrawBlock: DrawScope.() -> Unit = {
         if (effectScope != null) {
             effectScope.applyDrawScope(this)
             effects(effectScope)
             graphicsLayer?.renderEffect = effectScope.renderEffect?.asComposeRenderEffect()
         }
-
-        onDrawWithContent {
-            onDrawBehind?.invoke(this)
-            graphicsLayer?.let { layer ->
-                layer.record { this@onDrawWithContent.drawContent() }
-                drawLayer(layer)
-            }
-            onDrawSurface?.invoke(this)
-        }
-    })
+    }
 
     private val layerBlock: GraphicsLayerScope.() -> Unit = {
         clip = true
@@ -169,6 +164,31 @@ private class ContentBackdropNode(
         return layout(placeable.width, placeable.height) {
             placeable.placeWithLayer(IntOffset.Zero, layerBlock = layerBlock)
         }
+    }
+
+    override fun ContentDrawScope.draw() {
+        if (!isCacheValid) {
+            observeReads { cacheDrawBlock() }
+            isCacheValid = true
+        }
+
+        onDrawBehind?.invoke(this)
+
+        graphicsLayer?.let { layer ->
+            layer.record { this@draw.drawContent() }
+            drawLayer(layer)
+        }
+
+        onDrawSurface?.invoke(this)
+    }
+
+    override fun onObservedReadsChanged() {
+        invalidateDrawCache()
+    }
+
+    fun invalidateDrawCache() {
+        isCacheValid = false
+        invalidateDraw()
     }
 
     override fun onAttach() {
