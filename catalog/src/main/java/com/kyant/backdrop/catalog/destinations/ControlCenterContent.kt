@@ -88,11 +88,7 @@ fun ControlCenterContent() {
     val backdrop = rememberBackdrop()
     val uiSensor = rememberUISensor()
     val glassShape = { itemShape }
-    val glassHighlight = {
-        Highlight(color = Color.White.copy(0.5f)) {
-            HighlightStyle.Dynamic(angle = uiSensor.gravityAngle)
-        }
-    }
+    val glassHighlight = { Highlight { HighlightStyle.Dynamic(angle = uiSensor.gravityAngle) } }
     val glassSurface: DrawScope.() -> Unit = { drawRect(containerColor) }
     val glassEffects: BackdropEffectScope.() -> Unit = {
         saturation()
