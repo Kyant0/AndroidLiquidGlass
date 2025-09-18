@@ -206,8 +206,7 @@ fun ControlCenterContent() {
                             .contentBackdrop(
                                 { ContinuousRoundedRectangle(40f.dp) },
                                 highlight = glassHighlight,
-                                shadow = null,
-                                onDrawSurface = glassSurface
+                                shadow = null
                             ) {
                                 refraction(12f.dp.toPx(), size.minDimension / 4f, true)
                             }

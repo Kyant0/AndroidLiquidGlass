@@ -213,16 +213,18 @@ private class DrawBackdropNode(
     }
 
     override fun ContentDrawScope.draw() {
-        if (!isCacheValid) {
-            observeReads { cacheDrawBlock() }
-            isCacheValid = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!isCacheValid) {
+                observeReads { cacheDrawBlock() }
+                isCacheValid = true
+            }
         }
 
         onDrawBehind?.invoke(this)
 
         val layer = graphicsLayer
         val recordBlock = recordBlock
-        if (layer != null && recordBlock != null) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && layer != null && recordBlock != null) {
             layer.record(
                 density = this,
                 layoutDirection = layoutDirection,
@@ -230,6 +232,8 @@ private class DrawBackdropNode(
                 block = recordBlock
             )
             drawLayer(layer)
+        } else {
+            recordBlock?.invoke(this)
         }
 
         onDrawSurface?.invoke(this)

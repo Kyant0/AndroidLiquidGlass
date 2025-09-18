@@ -24,7 +24,6 @@ import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.toIntSize
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightElement
 import com.kyant.backdrop.shadow.Shadow
@@ -188,19 +187,18 @@ private class ContentBackdropNode(
     }
 
     override fun ContentDrawScope.draw() {
-        if (!isCacheValid) {
-            observeReads { cacheDrawBlock() }
-            isCacheValid = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!isCacheValid) {
+                observeReads { cacheDrawBlock() }
+                isCacheValid = true
+            }
         }
 
         onDrawBehind?.invoke(this)
 
-        graphicsLayer?.let { layer ->
-            layer.record(
-                density = this,
-                layoutDirection = layoutDirection,
-                size = size.toIntSize()
-            ) {
+        val layer = graphicsLayer
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && layer != null) {
+            layer.record {
                 this@draw.drawContent()
             }
 
@@ -214,6 +212,8 @@ private class ContentBackdropNode(
             } else {
                 drawLayer(layer)
             }
+        } else {
+            drawContent()
         }
 
         onDrawSurface?.invoke(this)
