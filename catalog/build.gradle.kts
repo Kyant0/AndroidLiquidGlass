@@ -9,7 +9,7 @@ plugins {
 android {
     namespace = "com.kyant.backdrop.catalog"
     compileSdk = 36
-    buildToolsVersion = "36.0.0"
+    buildToolsVersion = "36.1.0"
 
     defaultConfig {
         applicationId = "com.kyant.backdrop.catalog"
@@ -38,6 +38,7 @@ android {
             jvmTarget = JvmTarget.JVM_21
             freeCompilerArgs.addAll(
                 "-jvm-default=no-compatibility",
+                "-Xlambdas=class"
             )
         }
     }
