@@ -1,8 +1,5 @@
 package com.kyant.backdrop
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -34,7 +31,7 @@ internal class SimpleGraphicsLayerScope : GraphicsLayerScope {
     override var rotationY: Float = 0f
     override var rotationZ: Float = 0f
     override var cameraDistance: Float = 8f
-    override var transformOrigin: TransformOrigin by mutableStateOf(TransformOrigin.Center)
+    override var transformOrigin: TransformOrigin = TransformOrigin.Center
     override var shape: Shape = RectangleShape
     override var clip: Boolean = false
     override var renderEffect: RenderEffect? = null
