@@ -10,9 +10,9 @@ Apple's Liquid Glass effect for Android Jetpack Compose.
 
 [![JitPack Release](https://jitpack.io/v/Kyant0/AndroidLiquidGlass.svg)](https://jitpack.io/#Kyant0/AndroidLiquidGlass)
 
-[1.0.0-alpha11](https://kyant.gitbook.io/backdrop)
+[Latest docs](https://kyant.gitbook.io/backdrop)
 
-[before 1.0.0-alpha10](docs/LegacyDocs.md)
+[legacy docs (before 1.0.0-alpha10)](docs/LegacyDocs.md)
 
 ## Demos
 
