@@ -28,12 +28,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.paint
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -130,21 +128,14 @@ fun BottomTabsContent() {
             ) {
                 Row(
                     Modifier
-                        .graphicsLayer {
-                            val progress = pressAnimation.value
-                            val scale = lerp(1f, 1f + 2f.dp.toPx() / size.height, progress)
-                            scaleX = scale
-                            scaleY = scale
-                        }
                         .drawBackdrop(
                             backdrop,
                             { ContinuousCapsule },
-                            onDrawBackdrop = { drawBackdrop ->
+                            layerBlock = {
                                 val progress = pressAnimation.value
                                 val scale = lerp(1f, 1f + 2f.dp.toPx() / size.height, progress)
-                                scale(1f / scale, 1f / scale, Offset.Zero) {
-                                    drawBackdrop()
-                                }
+                                scaleX = scale
+                                scaleY = scale
                             },
                             onDrawSurface = { drawRect(containerColor) }
                         ) {
@@ -258,14 +249,43 @@ fun BottomTabsContent() {
                             placeable.place(padding, 0)
                         }
                     }
-                    .graphicsLayer {
-                        translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * 3)
-                        scaleX = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleXAnimation.value)
-                        scaleY = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleYAnimation.value)
+                    .drawBackdrop(
+                        tabsBackdrop,
+                        { ContinuousCapsule },
+                        highlight = {
+                            val progress = pressAnimation.value
+                            Highlight(color = Color.White.copy(0.38f * progress))
+                        },
+                        shadow = {
+                            val progress = pressAnimation.value
+                            Shadow(
+                                elevation = 24f.dp * progress,
+                                offset = DpOffset(0f.dp, 4f.dp * progress)
+                            )
+                        },
+                        layerBlock = {
+                            translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * 3)
+                            scaleX = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleXAnimation.value)
+                            scaleY = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleYAnimation.value)
+                        },
+                        onDrawSurface = {
+                            val progress = pressAnimation.value
+                            drawRect(
+                                if (isLightTheme) Color.Black.copy(0.1f)
+                                else Color.White.copy(0.1f),
+                                alpha = 1f - progress
+                            )
+                        }
+                    ) {
+                        val progress = pressAnimation.value
+                        refractionWithDispersion(
+                            12f.dp.toPx() * progress,
+                            12f.dp.toPx() * progress
+                        )
                     }
                     .draggable(
                         rememberDraggableState { delta ->
-                            val scaleX = lerp(1f, 1.5f, scaleXAnimation.value)
+                            val scaleX = lerp(1f, 1f + 20f / 56f, scaleXAnimation.value)
                             val targetProgress =
                                 (tabOffsetAnimation.value + delta * scaleX).fastCoerceAtLeast(0f)
                             animationScope.launch { tabOffsetAnimation.snapTo(targetProgress) }
@@ -317,42 +337,6 @@ fun BottomTabsContent() {
                             }
                         }
                     )
-                    .drawBackdrop(
-                        tabsBackdrop,
-                        { ContinuousCapsule },
-                        highlight = {
-                            val progress = pressAnimation.value
-                            Highlight(color = Color.White.copy(0.38f * progress))
-                        },
-                        shadow = {
-                            val progress = pressAnimation.value
-                            Shadow(
-                                elevation = 24f.dp * progress,
-                                offset = DpOffset(0f.dp, 4f.dp * progress)
-                            )
-                        },
-                        onDrawBackdrop = { drawBackdrop ->
-                            val scaleX = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleXAnimation.value)
-                            val scaleY = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleYAnimation.value)
-                            scale(1f / scaleX, 1f / scaleY, Offset.Zero) {
-                                drawBackdrop()
-                            }
-                        },
-                        onDrawSurface = {
-                            val progress = pressAnimation.value
-                            drawRect(
-                                if (isLightTheme) Color.Black.copy(0.1f)
-                                else Color.White.copy(0.1f),
-                                alpha = 1f - progress
-                            )
-                        }
-                    ) {
-                        val progress = pressAnimation.value
-                        refractionWithDispersion(
-                            12f.dp.toPx() * progress,
-                            12f.dp.toPx() * progress
-                        )
-                    }
                     .height(56f.dp)
                     .fillMaxWidth(0.25f)
             )

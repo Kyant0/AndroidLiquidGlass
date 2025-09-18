@@ -6,9 +6,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -37,11 +39,28 @@ class Backdrop internal constructor(
 
     internal var backdropCoordinates: LayoutCoordinates? by mutableStateOf(null)
 
-    internal fun DrawScope.drawBackdrop(coordinates: LayoutCoordinates) {
+    private var layerScope: SimpleGraphicsLayerScope? = null
+
+    internal fun DrawScope.drawBackdrop(
+        coordinates: LayoutCoordinates,
+        layerBlock: (GraphicsLayerScope.() -> Unit)?
+    ) {
         val backdropCoordinates = backdropCoordinates ?: return
         val offset = backdropCoordinates.localPositionOf(coordinates)
-        translate(-offset.x, -offset.y) {
-            drawLayer(graphicsLayer)
+        val layerBlock = layerBlock
+        if (layerBlock != null) {
+            val layerScope = layerScope ?: SimpleGraphicsLayerScope().also { layerScope = it }
+            layerScope.apply(this, layerBlock)
+            withTransform({
+                transform(layerScope.matrix)
+                translate(-offset.x, -offset.y)
+            }) {
+                drawLayer(graphicsLayer)
+            }
+        } else {
+            translate(-offset.x, -offset.y) {
+                drawLayer(graphicsLayer)
+            }
         }
     }
 }

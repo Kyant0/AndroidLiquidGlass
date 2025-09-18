@@ -34,6 +34,14 @@ fun HomeContent(onNavigate: (CatalogDestination) -> Unit) {
         )
         Column {
             Text(
+                "Glass playground",
+                TextStyles.body,
+                Modifier
+                    .clickable { onNavigate(CatalogDestination.GlassPlayground) }
+                    .padding(16f.dp)
+                    .fillMaxWidth()
+            )
+            Text(
                 "Control center",
                 TextStyles.body,
                 Modifier
@@ -46,6 +54,14 @@ fun HomeContent(onNavigate: (CatalogDestination) -> Unit) {
                 TextStyles.body,
                 Modifier
                     .clickable { onNavigate(CatalogDestination.BottomTabs) }
+                    .padding(16f.dp)
+                    .fillMaxWidth()
+            )
+            Text(
+                "Icon button",
+                TextStyles.body,
+                Modifier
+                    .clickable { onNavigate(CatalogDestination.IconButton) }
                     .padding(16f.dp)
                     .fillMaxWidth()
             )

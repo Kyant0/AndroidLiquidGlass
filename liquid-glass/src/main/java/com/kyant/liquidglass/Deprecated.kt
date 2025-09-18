@@ -58,7 +58,7 @@ fun Modifier.liquidGlass(
                     ) {
                         when (it.style) {
                             is GlassHighlightStyle.Solid -> HighlightStyle.Solid
-                            is GlassHighlightStyle.Soft -> HighlightStyle.Soft
+                            is GlassHighlightStyle.Soft -> HighlightStyle.Solid
                             is GlassHighlightStyle.Dynamic ->
                                 HighlightStyle.Dynamic(
                                     angle = it.style.angle,

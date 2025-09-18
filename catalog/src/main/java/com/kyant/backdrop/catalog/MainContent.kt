@@ -13,7 +13,9 @@ import androidx.compose.ui.Modifier
 import com.kyant.backdrop.catalog.destinations.BottomTabsContent
 import com.kyant.backdrop.catalog.destinations.ControlCenterContent
 import com.kyant.backdrop.catalog.destinations.DialogContent
+import com.kyant.backdrop.catalog.destinations.GlassPlaygroundContent
 import com.kyant.backdrop.catalog.destinations.HomeContent
+import com.kyant.backdrop.catalog.destinations.IconButtonContent
 
 @Composable
 fun MainContent() {
@@ -30,8 +32,10 @@ fun MainContent() {
     ) { dest ->
         when (dest) {
             CatalogDestination.Home -> HomeContent(onNavigate = { destination = it })
+            CatalogDestination.GlassPlayground -> GlassPlaygroundContent()
             CatalogDestination.ControlCenter -> ControlCenterContent()
             CatalogDestination.BottomTabs -> BottomTabsContent()
+            CatalogDestination.IconButton -> IconButtonContent()
             CatalogDestination.Dialog -> DialogContent()
         }
     }

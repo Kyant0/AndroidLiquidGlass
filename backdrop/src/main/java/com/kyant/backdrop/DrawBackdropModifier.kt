@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -42,6 +43,7 @@ fun Modifier.drawBackdrop(
     shapeProvider: () -> Shape,
     highlight: (() -> Highlight?)? = DefaultHighlight,
     shadow: (() -> Shadow?)? = DefaultShadow,
+    layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
     onDrawBehind: (DrawScope.() -> Unit)? = null,
     onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdrop,
     onDrawSurface: (DrawScope.() -> Unit)? = null,
@@ -49,6 +51,13 @@ fun Modifier.drawBackdrop(
 ): Modifier {
     val shapeProvider = CachedBackdropShapeProvider(shapeProvider)
     return this
+        .then(
+            if (layerBlock != null) {
+                Modifier.graphicsLayer(layerBlock)
+            } else {
+                Modifier
+            }
+        )
         .then(
             if (shadow != null) {
                 ShadowElement(
@@ -73,6 +82,7 @@ fun Modifier.drawBackdrop(
             DrawBackdropElement(
                 backdrop = backdrop,
                 shapeProvider = shapeProvider,
+                layerBlock = layerBlock,
                 onDrawBehind = onDrawBehind,
                 onDrawBackdrop = onDrawBackdrop,
                 onDrawSurface = onDrawSurface,
@@ -84,6 +94,7 @@ fun Modifier.drawBackdrop(
 private class DrawBackdropElement(
     val backdrop: Backdrop,
     val shapeProvider: BackdropShapeProvider,
+    val layerBlock: (GraphicsLayerScope.() -> Unit)?,
     val onDrawBehind: (DrawScope.() -> Unit)?,
     val onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     val onDrawSurface: (DrawScope.() -> Unit)?,
@@ -94,6 +105,7 @@ private class DrawBackdropElement(
         return DrawBackdropNode(
             backdrop = backdrop,
             shapeProvider = shapeProvider,
+            layerBlock = layerBlock,
             onDrawBehind = onDrawBehind,
             onDrawBackdrop = onDrawBackdrop,
             onDrawSurface = onDrawSurface,
@@ -104,6 +116,7 @@ private class DrawBackdropElement(
     override fun update(node: DrawBackdropNode) {
         node.backdrop = backdrop
         node.shapeProvider = shapeProvider
+        node.layerBlock = layerBlock
         node.onDrawBehind = onDrawBehind
         node.onDrawBackdrop = onDrawBackdrop
         node.onDrawSurface = onDrawSurface
@@ -115,6 +128,7 @@ private class DrawBackdropElement(
         name = "drawBackdrop"
         properties["backdrop"] = backdrop
         properties["shapeProvider"] = shapeProvider
+        properties["layerBlock"] = layerBlock
         properties["onDrawBehind"] = onDrawBehind
         properties["onDrawBackdrop"] = onDrawBackdrop
         properties["onDrawSurface"] = onDrawSurface
@@ -127,6 +141,7 @@ private class DrawBackdropElement(
 
         if (backdrop != other.backdrop) return false
         if (shapeProvider != other.shapeProvider) return false
+        if (layerBlock != other.layerBlock) return false
         if (onDrawBehind != other.onDrawBehind) return false
         if (onDrawBackdrop != other.onDrawBackdrop) return false
         if (onDrawSurface != other.onDrawSurface) return false
@@ -138,6 +153,7 @@ private class DrawBackdropElement(
     override fun hashCode(): Int {
         var result = backdrop.hashCode()
         result = 31 * result + shapeProvider.hashCode()
+        result = 31 * result + (layerBlock?.hashCode() ?: 0)
         result = 31 * result + (onDrawBehind?.hashCode() ?: 0)
         result = 31 * result + onDrawBackdrop.hashCode()
         result = 31 * result + (onDrawSurface?.hashCode() ?: 0)
@@ -149,6 +165,7 @@ private class DrawBackdropElement(
 private class DrawBackdropNode(
     var backdrop: Backdrop,
     var shapeProvider: BackdropShapeProvider,
+    var layerBlock: (GraphicsLayerScope.() -> Unit)?,
     var onDrawBehind: (DrawScope.() -> Unit)?,
     var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     var onDrawSurface: (DrawScope.() -> Unit)?,
@@ -179,7 +196,7 @@ private class DrawBackdropNode(
         }
     }
 
-    private val layerBlock: GraphicsLayerScope.() -> Unit = {
+    private val layoutLayerBlock: GraphicsLayerScope.() -> Unit = {
         clip = true
         shape = shapeProvider.shape
         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
@@ -191,7 +208,7 @@ private class DrawBackdropNode(
     ): MeasureResult {
         val placeable = measurable.measure(constraints)
         return layout(placeable.width, placeable.height) {
-            placeable.placeWithLayer(IntOffset.Zero, layerBlock = layerBlock)
+            placeable.placeWithLayer(IntOffset.Zero, layerBlock = layoutLayerBlock)
         }
     }
 
@@ -222,7 +239,16 @@ private class DrawBackdropNode(
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
-            recordBlock = { onDrawBackdrop { with(backdrop) { drawBackdrop(coordinates) } } }
+            recordBlock = {
+                onDrawBackdrop {
+                    with(backdrop) {
+                        drawBackdrop(
+                            coordinates = coordinates,
+                            layerBlock = layerBlock
+                        )
+                    }
+                }
+            }
         }
     }
 
