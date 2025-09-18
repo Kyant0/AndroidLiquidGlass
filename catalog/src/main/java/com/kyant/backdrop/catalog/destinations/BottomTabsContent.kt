@@ -188,7 +188,7 @@ fun BottomTabsContent() {
                     Modifier
                         .layout { measurable, constraints ->
                             val padding = (4f.dp.toPx() * (1f - pressAnimation.value)).fastRoundToInt()
-                            val placeable = measurable.measure(constraints.offset(-padding, 0))
+                            val placeable = measurable.measure(constraints.offset(-padding * 2, 0))
                             layout(placeable.width + padding, placeable.height) {
                                 placeable.place(padding, 4f.dp.roundToPx())
                             }
@@ -253,7 +253,7 @@ fun BottomTabsContent() {
                 Modifier
                     .layout { measurable, constraints ->
                         val padding = (4f.dp.toPx() * (1f - pressAnimation.value)).fastRoundToInt()
-                        val placeable = measurable.measure(constraints.offset(-padding, 0))
+                        val placeable = measurable.measure(constraints.offset(-padding * 2, 0))
                         layout(placeable.width + padding, placeable.height) {
                             placeable.place(padding, 0)
                         }
