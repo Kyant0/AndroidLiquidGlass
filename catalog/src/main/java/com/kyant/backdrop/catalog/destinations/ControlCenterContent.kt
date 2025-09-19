@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -34,14 +35,17 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.util.fastCoerceIn
+import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.backdrop
@@ -51,7 +55,6 @@ import com.kyant.backdrop.catalog.rememberUISensor
 import com.kyant.backdrop.catalog.theme.LocalContentColor
 import com.kyant.backdrop.contentBackdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.saturation
 import com.kyant.backdrop.highlight.Highlight
@@ -85,17 +88,6 @@ fun ControlCenterContent() {
     val airplaneModeIcon = painterResource(R.drawable.flight_40px)
     val iconColorFilter = ColorFilter.tint(Color.White)
 
-    val backdrop = rememberBackdrop()
-    val uiSensor = rememberUISensor()
-    val glassShape = { itemShape }
-    val glassHighlight = { Highlight { HighlightStyle.Dynamic(angle = uiSensor.gravityAngle) } }
-    val glassSurface: DrawScope.() -> Unit = { drawRect(containerColor) }
-    val glassEffects: BackdropEffectScope.() -> Unit = {
-        saturation()
-        blur(8f.dp.toPx())
-        refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
-    }
-
     val animationScope = rememberCoroutineScope()
     val enterProgressAnimation = remember { Animatable(1f) }
     val safeEnterProgressAnimation = remember { Animatable(1f) }
@@ -110,6 +102,36 @@ fun ControlCenterContent() {
         }
     }
     val maxDragHeight = 1000f
+
+    val backdrop = rememberBackdrop()
+    val uiSensor = rememberUISensor()
+    val glassShape = { itemShape }
+    val glassHighlight = { Highlight { HighlightStyle.Dynamic(angle = uiSensor.gravityAngle) } }
+    val glassLayer: GraphicsLayerScope.() -> Unit = {
+        val progress = progress
+        val safeProgress = safeEnterProgressAnimation.value
+        translationY = lerp(-24f.dp.toPx(), 0f, progress)
+        alpha = EaseIn.transform(safeProgress)
+        scaleX = 1f - 0.05f * (progress - 1f).fastCoerceAtLeast(0f)
+        scaleY = 1f + 0.1f * (progress - 1f).fastCoerceAtLeast(0f)
+        transformOrigin = TransformOrigin(0.5f, 0f)
+    }
+    val glassSurface: DrawScope.() -> Unit = { drawRect(containerColor) }
+    val glassEffects: BackdropEffectScope.() -> Unit = {
+        saturation()
+        refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
+    }
+
+    val spacerLayoutModifier = Modifier.layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        val progress = progress
+        val height =
+            itemSpacing.roundToPx() +
+                    (24f.dp.toPx() * (progress - 1f).fastCoerceAtLeast(0f)).fastRoundToInt()
+        layout(constraints.maxWidth, height) {
+            placeable.place(0, 0)
+        }
+    }
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         Box(
@@ -181,21 +203,11 @@ fun ControlCenterContent() {
 
             Column(
                 Modifier
-                    .graphicsLayer {
-                        val progress = progress
-
-                        translationY = lerp(-56f.dp.toPx(), 0f, progress)
-                        alpha = EaseIn.transform(progress)
-                        scaleX = 1f - 0.1f / size.height * size.width * (progress - 1f).fastCoerceAtLeast(0f)
-                        scaleY = 1f + 0.1f * (progress - 1f).fastCoerceAtLeast(0f)
-                        transformOrigin = TransformOrigin(0.5f, 0f)
-                    }
                     .padding(top = 80f.dp)
                     .systemBarsPadding()
                     .displayCutoutPadding()
                     .fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(itemSpacing)
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(itemSpacing),
@@ -203,6 +215,17 @@ fun ControlCenterContent() {
                 ) {
                     Box(
                         Modifier
+                            .drawBackdrop(
+                                backdrop,
+                                { ContinuousRoundedRectangle(40f.dp) },
+                                layerBlock = {
+                                    glassLayer()
+                                },
+                                highlight = null,
+                                shadow = null,
+                                onDrawSurface = glassSurface,
+                                effects = glassEffects
+                            )
                             .contentBackdrop(
                                 { ContinuousRoundedRectangle(40f.dp) },
                                 highlight = glassHighlight,
@@ -210,14 +233,6 @@ fun ControlCenterContent() {
                             ) {
                                 refraction(12f.dp.toPx(), size.minDimension / 4f, true)
                             }
-                            .drawBackdrop(
-                                backdrop,
-                                { ContinuousRoundedRectangle(40f.dp) },
-                                highlight = null,
-                                shadow = null,
-                                onDrawSurface = glassSurface,
-                                effects = glassEffects
-                            )
                             .size(itemTwoSpanSize)
                             .padding(itemSpacing)
                     ) {
@@ -257,6 +272,7 @@ fun ControlCenterContent() {
                             .drawBackdrop(
                                 backdrop,
                                 glassShape,
+                                layerBlock = glassLayer,
                                 highlight = glassHighlight,
                                 shadow = null,
                                 onDrawSurface = glassSurface,
@@ -265,6 +281,8 @@ fun ControlCenterContent() {
                             .size(itemTwoSpanSize)
                     )
                 }
+
+                Spacer(spacerLayoutModifier)
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(itemSpacing, Alignment.CenterHorizontally),
@@ -282,6 +300,7 @@ fun ControlCenterContent() {
                                     .drawBackdrop(
                                         backdrop,
                                         glassShape,
+                                        layerBlock = glassLayer,
                                         highlight = glassHighlight,
                                         shadow = null,
                                         onDrawSurface = glassSurface,
@@ -296,6 +315,7 @@ fun ControlCenterContent() {
                                     .drawBackdrop(
                                         backdrop,
                                         glassShape,
+                                        layerBlock = glassLayer,
                                         highlight = glassHighlight,
                                         shadow = null,
                                         onDrawSurface = glassSurface,
@@ -311,6 +331,7 @@ fun ControlCenterContent() {
                                 .drawBackdrop(
                                     backdrop,
                                     glassShape,
+                                    layerBlock = glassLayer,
                                     highlight = glassHighlight,
                                     shadow = null,
                                     onDrawSurface = glassSurface,
@@ -329,6 +350,7 @@ fun ControlCenterContent() {
                                 .drawBackdrop(
                                     backdrop,
                                     glassShape,
+                                    layerBlock = glassLayer,
                                     highlight = glassHighlight,
                                     shadow = null,
                                     onDrawSurface = glassSurface,
@@ -341,6 +363,7 @@ fun ControlCenterContent() {
                                 .drawBackdrop(
                                     backdrop,
                                     glassShape,
+                                    layerBlock = glassLayer,
                                     highlight = glassHighlight,
                                     shadow = null,
                                     onDrawSurface = glassSurface,
@@ -351,6 +374,8 @@ fun ControlCenterContent() {
                     }
                 }
 
+                Spacer(spacerLayoutModifier)
+
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(itemSpacing),
                     verticalAlignment = Alignment.CenterVertically
@@ -360,6 +385,7 @@ fun ControlCenterContent() {
                             .drawBackdrop(
                                 backdrop,
                                 glassShape,
+                                layerBlock = glassLayer,
                                 highlight = glassHighlight,
                                 shadow = null,
                                 onDrawSurface = glassSurface,
@@ -380,6 +406,7 @@ fun ControlCenterContent() {
                                     .drawBackdrop(
                                         backdrop,
                                         glassShape,
+                                        layerBlock = glassLayer,
                                         highlight = glassHighlight,
                                         shadow = null,
                                         onDrawSurface = glassSurface,
@@ -394,6 +421,7 @@ fun ControlCenterContent() {
                                     .drawBackdrop(
                                         backdrop,
                                         glassShape,
+                                        layerBlock = glassLayer,
                                         highlight = glassHighlight,
                                         shadow = null,
                                         onDrawSurface = glassSurface,
@@ -413,6 +441,7 @@ fun ControlCenterContent() {
                                     .drawBackdrop(
                                         backdrop,
                                         glassShape,
+                                        layerBlock = glassLayer,
                                         highlight = glassHighlight,
                                         shadow = null,
                                         onDrawSurface = glassSurface,

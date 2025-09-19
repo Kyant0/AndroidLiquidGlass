@@ -144,8 +144,6 @@ half4 main(float2 coord) {
 
 @Language("AGSL")
 internal const val DynamicHighlightShaderString = """
-uniform shader image;
-
 uniform float2 size;
 uniform float angle;
 uniform float falloff;
@@ -170,5 +168,5 @@ half4 main(float2 coord) {
     float2 normal = float2(-cos(angle), -sin(angle));
     float intensity = pow(abs(dot(normal, grad)), falloff);
     
-    return image.eval(coord) * intensity;
+    return half4(intensity);
 }"""

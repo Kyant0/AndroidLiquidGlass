@@ -100,7 +100,6 @@ internal class ShadowNode(
         }
 
         val size = size
-        val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)
         val elevation = shadow.elevation.toPx()
         val offset = Offset(shadow.offset.x.toPx(), shadow.offset.y.toPx())
 
@@ -118,7 +117,7 @@ internal class ShadowNode(
             val canvas = drawContext.canvas.nativeCanvas
             canvas.translate(elevation - offset.x, elevation - offset.y)
 
-            when (outline) {
+            when (val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)) {
                 is Outline.Rectangle -> {
                     val rect = RectF(0f, 0f, size.width, size.height)
                     canvas.drawRect(rect, shadowPaint)

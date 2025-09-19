@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 
-interface BackdropEffectScope : Density {
+interface BackdropEffectScope : Density, RuntimeShaderCacheScope {
 
     val size: Size
 
@@ -23,20 +23,17 @@ interface BackdropEffectScope : Density {
     val shape: Shape
 
     var renderEffect: RenderEffect?
-
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun obtainRuntimeShader(key: String, string: String): RuntimeShader
 }
 
 internal abstract class BackdropEffectScopeImpl : BackdropEffectScope {
-
-    private val runtimeShaders = mutableMapOf<String, RuntimeShader>()
 
     override var density: Float by mutableFloatStateOf(1f)
     override var fontScale: Float by mutableFloatStateOf(1f)
     override var size: Size by mutableStateOf(Size.Unspecified)
     override var layoutDirection: LayoutDirection by mutableStateOf(LayoutDirection.Ltr)
     override var renderEffect: RenderEffect? = null
+
+    private val runtimeShaders = mutableMapOf<String, RuntimeShader>()
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun obtainRuntimeShader(key: String, string: String): RuntimeShader {
