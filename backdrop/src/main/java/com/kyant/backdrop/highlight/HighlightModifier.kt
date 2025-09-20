@@ -182,8 +182,6 @@ internal class HighlightNode(
                 canvas.drawPath(path, paint)
             }
         }
-
-        bitmap.prepareToDraw()
     }
 
     override fun ContentDrawScope.draw() {

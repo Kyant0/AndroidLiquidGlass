@@ -170,7 +170,6 @@ internal class ShadowNode(
         }
 
         canvas.translate(-dx, -dy)
-        bitmap.prepareToDraw()
     }
 
     override fun ContentDrawScope.draw() {
