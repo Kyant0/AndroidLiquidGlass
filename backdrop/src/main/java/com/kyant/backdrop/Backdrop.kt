@@ -49,8 +49,8 @@ class Backdrop internal constructor(
         val offset = backdropCoordinates.localPositionOf(coordinates)
         val layerBlock = layerBlock
         if (layerBlock != null) {
-            val layerScope = layerScope ?: SimpleGraphicsLayerScope().also { layerScope = it }
             withTransform({
+                val layerScope = layerScope ?: SimpleGraphicsLayerScope().also { layerScope = it }
                 with(layerScope) { inverseTransform(this@drawBackdrop, layerBlock) }
                 translate(-offset.x, -offset.y)
             }) {
