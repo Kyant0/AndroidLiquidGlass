@@ -7,4 +7,6 @@ enum class CatalogDestination {
     BottomTabs,
     IconButton,
     Dialog,
+    ScrollContainer,
+    LazyScrollContainer,
 }

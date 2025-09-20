@@ -73,6 +73,22 @@ fun HomeContent(onNavigate: (CatalogDestination) -> Unit) {
                     .padding(16f.dp)
                     .fillMaxWidth()
             )
+            Text(
+                "Scroll container",
+                TextStyles.body,
+                Modifier
+                    .clickable { onNavigate(CatalogDestination.ScrollContainer) }
+                    .padding(16f.dp)
+                    .fillMaxWidth()
+            )
+            Text(
+                "Lazy scroll container",
+                TextStyles.body,
+                Modifier
+                    .clickable { onNavigate(CatalogDestination.LazyScrollContainer) }
+                    .padding(16f.dp)
+                    .fillMaxWidth()
+            )
         }
     }
 }
