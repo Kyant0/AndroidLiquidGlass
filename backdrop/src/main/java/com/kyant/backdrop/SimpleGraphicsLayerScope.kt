@@ -1,5 +1,6 @@
 package com.kyant.backdrop
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -12,10 +13,9 @@ import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.DrawTransform
 
 internal class SimpleGraphicsLayerScope : GraphicsLayerScope {
-
-    val matrix = Matrix()
 
     override var size: Size = Size.Unspecified
     override var density: Float = 1f
@@ -41,20 +41,31 @@ internal class SimpleGraphicsLayerScope : GraphicsLayerScope {
     override var blendMode: BlendMode = BlendMode.SrcOver
     override var colorFilter: ColorFilter? = null
 
-    fun apply(scope: DrawScope, layerBlock: GraphicsLayerScope.() -> Unit) {
-        size = scope.size
+    private var matrix: Matrix? = null
+
+    fun DrawTransform.inverseTransform(
+        scope: DrawScope,
+        layerBlock: GraphicsLayerScope.() -> Unit
+    ) {
+        this@SimpleGraphicsLayerScope.size = scope.size
         density = scope.density
         fontScale = scope.fontScale
 
         layerBlock()
 
-        matrix.resetToPivotedTransform(
-            rotationX = rotationX,
-            rotationY = rotationY,
-            rotationZ = rotationZ,
-            scaleX = scaleX,
-            scaleY = scaleY
-        )
-        matrix.invert()
+        if (rotationX == 0f && rotationY == 0f && rotationZ == 0f) {
+            scale(1f / scaleX, 1f / scaleY, Offset.Zero)
+        } else {
+            val matrix = matrix ?: Matrix().also { matrix = it }
+            matrix.resetToPivotedTransform(
+                rotationX = rotationX,
+                rotationY = rotationY,
+                rotationZ = rotationZ,
+                scaleX = scaleX,
+                scaleY = scaleY
+            )
+            matrix.invert()
+            transform(matrix)
+        }
     }
 }

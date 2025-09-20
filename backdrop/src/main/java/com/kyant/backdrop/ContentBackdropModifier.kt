@@ -205,8 +205,9 @@ private class ContentBackdropNode(
             val layerBlock = layerBlock
             if (layerBlock != null) {
                 val layerScope = layerScope ?: SimpleGraphicsLayerScope().also { layerScope = it }
-                layerScope.apply(this, layerBlock)
-                withTransform({ transform(layerScope.matrix) }) {
+                withTransform({
+                    with(layerScope) { inverseTransform(this@draw, layerBlock) }
+                }) {
                     drawLayer(layer)
                 }
             } else {

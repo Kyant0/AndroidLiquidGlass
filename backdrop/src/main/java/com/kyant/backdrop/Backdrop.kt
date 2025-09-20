@@ -50,9 +50,8 @@ class Backdrop internal constructor(
         val layerBlock = layerBlock
         if (layerBlock != null) {
             val layerScope = layerScope ?: SimpleGraphicsLayerScope().also { layerScope = it }
-            layerScope.apply(this, layerBlock)
             withTransform({
-                transform(layerScope.matrix)
+                with(layerScope) { inverseTransform(this@drawBackdrop, layerBlock) }
                 translate(-offset.x, -offset.y)
             }) {
                 drawLayer(graphicsLayer)
