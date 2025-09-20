@@ -1,23 +1,34 @@
 package com.kyant.backdrop.effects
 
+import android.graphics.ColorFilter
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.RenderEffect
 import android.os.Build
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.ColorMatrixColorFilter
 import androidx.compose.ui.graphics.asAndroidColorFilter
 import com.kyant.backdrop.BackdropEffectScope
 
 fun BackdropEffectScope.colorFilter(colorFilter: ColorFilter) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
 
-    val filter = colorFilter.asAndroidColorFilter()
     val currentEffect = renderEffect
     renderEffect =
         if (currentEffect != null) {
-            RenderEffect.createColorFilterEffect(filter, currentEffect)
+            RenderEffect.createColorFilterEffect(colorFilter, currentEffect)
         } else {
-            RenderEffect.createColorFilterEffect(filter)
+            RenderEffect.createColorFilterEffect(colorFilter)
+        }
+}
+
+fun BackdropEffectScope.colorFilter(colorFilter: androidx.compose.ui.graphics.ColorFilter) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+
+    val currentEffect = renderEffect
+    renderEffect =
+        if (currentEffect != null) {
+            RenderEffect.createColorFilterEffect(colorFilter.asAndroidColorFilter(), currentEffect)
+        } else {
+            RenderEffect.createColorFilterEffect(colorFilter.asAndroidColorFilter())
         }
 }
 

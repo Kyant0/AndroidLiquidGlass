@@ -77,13 +77,16 @@ internal class ShadowNode(
 
     private var bitmap: Bitmap? = null
     private var canvas: Canvas? = null
-    private val paint = Paint()
+    private val paint =
+        Paint().apply {
+            color = Color.TRANSPARENT
+        }
     private val maskPaint =
         Paint().apply {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                blendMode = BlendMode.DST_OUT
+                blendMode = BlendMode.CLEAR
             } else {
-                xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
             }
         }
     private val drawPaint = Paint()

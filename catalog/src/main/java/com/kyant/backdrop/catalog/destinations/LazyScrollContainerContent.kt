@@ -56,7 +56,7 @@ fun LazyScrollContainerContent() {
                             { ContinuousRoundedRectangle(32f.dp) }
                         ) {
                             saturation()
-                            refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
+                            refraction(16f.dp.toPx(), 32f.dp.toPx())
                         }
                         .height(160f.dp)
                         .fillMaxWidth()

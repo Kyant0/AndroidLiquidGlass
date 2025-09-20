@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -334,7 +335,10 @@ fun ControlCenterContent() {
                                     layerBlock = glassLayer,
                                     highlight = glassHighlight,
                                     shadow = null,
-                                    onDrawSurface = glassSurface,
+                                    onDrawSurface = {
+                                        drawRect(accentColor, blendMode = BlendMode.Hue)
+                                        drawRect(accentColor.copy(0.6f))
+                                    },
                                     effects = glassEffects
                                 )
                                 .size(itemTwoSpanSize, itemSize)

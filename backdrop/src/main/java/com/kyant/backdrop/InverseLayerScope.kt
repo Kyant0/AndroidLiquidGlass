@@ -12,8 +12,8 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.DrawTransform
+import androidx.compose.ui.unit.Density
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -47,12 +47,12 @@ internal class InverseLayerScope : GraphicsLayerScope {
     private var matrix: Matrix? = null
 
     fun DrawTransform.inverseTransform(
-        scope: DrawScope,
+        density: Density,
         layerBlock: GraphicsLayerScope.() -> Unit
     ) {
-        this@InverseLayerScope.size = scope.size
-        density = scope.density
-        fontScale = scope.fontScale
+        this@InverseLayerScope.size = size
+        this@InverseLayerScope.density = density.density
+        fontScale = density.fontScale
 
         layerBlock()
 

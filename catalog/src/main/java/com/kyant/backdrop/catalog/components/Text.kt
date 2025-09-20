@@ -5,6 +5,7 @@ import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorProducer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import com.kyant.backdrop.catalog.theme.LocalContentColor
@@ -33,6 +34,31 @@ fun Text(
         maxLines = maxLines,
         minLines = minLines,
         color = { color },
+        autoSize = autoSize
+    )
+}
+
+@Composable
+fun Text(
+    text: () -> String,
+    style: TextStyle,
+    color: ColorProducer,
+    modifier: Modifier = Modifier,
+    overflow: TextOverflow = TextOverflow.Ellipsis,
+    softWrap: Boolean = true,
+    maxLines: Int = Int.MAX_VALUE,
+    minLines: Int = 1,
+    autoSize: TextAutoSize? = null,
+) {
+    BasicText(
+        text = text(),
+        modifier = modifier,
+        style = style,
+        overflow = overflow,
+        softWrap = softWrap,
+        maxLines = maxLines,
+        minLines = minLines,
+        color = color,
         autoSize = autoSize
     )
 }

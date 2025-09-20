@@ -24,7 +24,7 @@ interface HighlightStyle {
     @Immutable
     data class Dynamic(
         val angle: Float = 45f,
-        @param:FloatRange(from = 0.0) val falloff: Float = 2f
+        @param:FloatRange(from = 0.0) val falloff: Float = 1f
     ) : HighlightStyle {
 
         override fun RuntimeShaderCacheScope.createShader(size: Size): Shader? {

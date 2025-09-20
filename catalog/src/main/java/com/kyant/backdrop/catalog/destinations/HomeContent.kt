@@ -42,6 +42,14 @@ fun HomeContent(onNavigate: (CatalogDestination) -> Unit) {
                     .fillMaxWidth()
             )
             Text(
+                "Adaptive luminance glass",
+                TextStyles.body,
+                Modifier
+                    .clickable { onNavigate(CatalogDestination.AdaptiveLuminanceGlass) }
+                    .padding(16f.dp)
+                    .fillMaxWidth()
+            )
+            Text(
                 "Control center",
                 TextStyles.body,
                 Modifier

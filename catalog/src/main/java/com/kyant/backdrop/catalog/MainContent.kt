@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.kyant.backdrop.catalog.destinations.AdaptiveLuminanceGlassContent
 import com.kyant.backdrop.catalog.destinations.BottomTabsContent
 import com.kyant.backdrop.catalog.destinations.ControlCenterContent
 import com.kyant.backdrop.catalog.destinations.DialogContent
@@ -26,6 +27,7 @@ fun MainContent() {
     when (destination) {
         CatalogDestination.Home -> HomeContent(onNavigate = { destination = it })
         CatalogDestination.GlassPlayground -> GlassPlaygroundContent()
+        CatalogDestination.AdaptiveLuminanceGlass -> AdaptiveLuminanceGlassContent()
         CatalogDestination.ControlCenter -> ControlCenterContent()
         CatalogDestination.BottomTabs -> BottomTabsContent()
         CatalogDestination.IconButton -> IconButtonContent()

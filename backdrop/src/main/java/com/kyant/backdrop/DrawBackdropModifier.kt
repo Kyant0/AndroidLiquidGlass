@@ -27,6 +27,7 @@ import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.toIntSize
 import com.kyant.backdrop.highlight.Highlight
@@ -202,6 +203,13 @@ private class DrawBackdropNode(
         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
     }
 
+    private val mutableDensity = object : Density {
+
+        override var density: Float = 1f
+
+        override var fontScale: Float = 1f
+    }
+
     override fun MeasureScope.measure(
         measurable: Measurable,
         constraints: Constraints
@@ -225,10 +233,12 @@ private class DrawBackdropNode(
         val layer = graphicsLayer
         val recordBlock = recordBlock
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && layer != null && recordBlock != null) {
+            mutableDensity.density = density
+            mutableDensity.fontScale = fontScale
             layer.record(
-                density = this,
+                density = mutableDensity,
                 layoutDirection = layoutDirection,
-                size = size.toIntSize(),
+                size = this@draw.size.toIntSize(),
                 block = recordBlock
             )
             drawLayer(layer)
@@ -247,6 +257,7 @@ private class DrawBackdropNode(
                 onDrawBackdrop {
                     with(backdrop) {
                         drawBackdrop(
+                            density = mutableDensity,
                             coordinates = coordinates,
                             layerBlock = layerBlock
                         )

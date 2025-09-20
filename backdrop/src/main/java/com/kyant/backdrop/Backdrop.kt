@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.unit.Density
 
 private val DefaultDrawLayer: ContentDrawScope.() -> Unit = { drawContent() }
 
@@ -42,6 +43,7 @@ class Backdrop internal constructor(
     private var inverseLayerScope: InverseLayerScope? = null
 
     internal fun DrawScope.drawBackdrop(
+        density: Density,
         coordinates: LayoutCoordinates,
         layerBlock: (GraphicsLayerScope.() -> Unit)?
     ) {
@@ -51,7 +53,7 @@ class Backdrop internal constructor(
         if (layerBlock != null) {
             withTransform({
                 val inverseLayerScope = inverseLayerScope ?: InverseLayerScope().also { inverseLayerScope = it }
-                with(inverseLayerScope) { inverseTransform(scope = this@drawBackdrop, layerBlock = layerBlock) }
+                with(inverseLayerScope) { inverseTransform(density = density, layerBlock = layerBlock) }
                 translate(-offset.x, -offset.y)
             }) {
                 drawLayer(graphicsLayer)
