@@ -116,8 +116,8 @@ internal class HighlightNode(
         val graphicsLayer = graphicsLayer
         val size = size
         if (highlight == null || graphicsLayer == null ||
-            highlight.width.value <= 0f || highlight.color.isUnspecified
-            || size.width < 0.5f || size.height < 0.5f
+            highlight.width.value <= 0f || highlight.color.isUnspecified ||
+            size.width < 0.5f || size.height < 0.5f
         ) {
             _highlight = null
             return@cacheDrawBlock
@@ -138,18 +138,20 @@ internal class HighlightNode(
         }
 
         @Suppress("UseKtx")
-        val bitmap = bitmap ?: Bitmap.createBitmap(
-            ceil(size.width).toInt(),
-            ceil(size.height).toInt(),
-            Bitmap.Config.ARGB_8888
-        ).also { bitmap = it }
-        val canvas = canvas?.apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                drawColor(Color.TRANSPARENT, BlendMode.CLEAR)
-            } else {
-                drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-            }
-        } ?: Canvas(bitmap).also { canvas = it }
+        val bitmap =
+            bitmap ?: Bitmap.createBitmap(
+                ceil(size.width).toInt(),
+                ceil(size.height).toInt(),
+                Bitmap.Config.ARGB_8888
+            ).also { bitmap = it }
+        val canvas =
+            canvas?.apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    drawColor(Color.TRANSPARENT, BlendMode.CLEAR)
+                } else {
+                    drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+                }
+            } ?: Canvas(bitmap).also { canvas = it }
 
         when (val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)) {
             is Outline.Rectangle -> {
