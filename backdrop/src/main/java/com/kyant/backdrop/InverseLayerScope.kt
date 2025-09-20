@@ -18,7 +18,7 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
-internal class SimpleGraphicsLayerScope : GraphicsLayerScope {
+internal class InverseLayerScope : GraphicsLayerScope {
 
     override var size: Size = Size.Unspecified
     override var density: Float = 1f
@@ -50,7 +50,7 @@ internal class SimpleGraphicsLayerScope : GraphicsLayerScope {
         scope: DrawScope,
         layerBlock: GraphicsLayerScope.() -> Unit
     ) {
-        this@SimpleGraphicsLayerScope.size = scope.size
+        this@InverseLayerScope.size = scope.size
         density = scope.density
         fontScale = scope.fontScale
 
@@ -88,8 +88,8 @@ internal class SimpleGraphicsLayerScope : GraphicsLayerScope {
         val a11 = rcz * scaleY
 
         val det = a00 * a11 - a01 * a10
-        if (det == 0.0f) return
-        val invDet = 1.0f / det
+        if (det == 0f) return
+        val invDet = 1f / det
         matrix[0, 0] = a11 * invDet
         matrix[0, 1] = -a01 * invDet
         matrix[1, 0] = -a10 * invDet

@@ -39,7 +39,7 @@ class Backdrop internal constructor(
 
     internal var backdropCoordinates: LayoutCoordinates? by mutableStateOf(null)
 
-    private var layerScope: SimpleGraphicsLayerScope? = null
+    private var inverseLayerScope: InverseLayerScope? = null
 
     internal fun DrawScope.drawBackdrop(
         coordinates: LayoutCoordinates,
@@ -50,8 +50,8 @@ class Backdrop internal constructor(
         val layerBlock = layerBlock
         if (layerBlock != null) {
             withTransform({
-                val layerScope = layerScope ?: SimpleGraphicsLayerScope().also { layerScope = it }
-                with(layerScope) { inverseTransform(this@drawBackdrop, layerBlock) }
+                val inverseLayerScope = inverseLayerScope ?: InverseLayerScope().also { inverseLayerScope = it }
+                with(inverseLayerScope) { inverseTransform(scope = this@drawBackdrop, layerBlock = layerBlock) }
                 translate(-offset.x, -offset.y)
             }) {
                 drawLayer(graphicsLayer)

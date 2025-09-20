@@ -174,7 +174,7 @@ private class ContentBackdropNode(
         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
     }
 
-    private var layerScope: SimpleGraphicsLayerScope? = null
+    private var inverseLayerScope: InverseLayerScope? = null
 
     override fun MeasureScope.measure(
         measurable: Measurable,
@@ -205,8 +205,8 @@ private class ContentBackdropNode(
             val layerBlock = layerBlock
             if (layerBlock != null) {
                 withTransform({
-                    val layerScope = layerScope ?: SimpleGraphicsLayerScope().also { layerScope = it }
-                    with(layerScope) { inverseTransform(this@draw, layerBlock) }
+                    val inverseLayerScope = inverseLayerScope ?: InverseLayerScope().also { inverseLayerScope = it }
+                    with(inverseLayerScope) { inverseTransform(scope = this@draw, layerBlock = layerBlock) }
                 }) {
                     drawLayer(layer)
                 }
