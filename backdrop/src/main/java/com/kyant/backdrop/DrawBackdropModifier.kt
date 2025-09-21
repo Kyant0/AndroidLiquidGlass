@@ -40,7 +40,7 @@ internal val DefaultShadow = { Shadow() }
 private val DefaultOnDrawBackdrop: DrawScope.(DrawScope.() -> Unit) -> Unit = { it() }
 
 fun Modifier.drawBackdrop(
-    backdrop: Backdrop,
+    backdrop: BackdropDrawer,
     shape: () -> Shape,
     highlight: (() -> Highlight?)? = DefaultHighlight,
     shadow: (() -> Shadow?)? = DefaultShadow,
@@ -95,7 +95,7 @@ fun Modifier.drawBackdrop(
 }
 
 private class DrawBackdropElement(
-    val backdrop: Backdrop,
+    val backdrop: BackdropDrawer,
     val shapeProvider: BackdropShapeProvider,
     val layerBlock: (GraphicsLayerScope.() -> Unit)?,
     val onDrawBehind: (DrawScope.() -> Unit)?,
@@ -172,7 +172,7 @@ private class DrawBackdropElement(
 }
 
 private class DrawBackdropNode(
-    var backdrop: Backdrop,
+    var backdrop: BackdropDrawer,
     var shapeProvider: BackdropShapeProvider,
     var layerBlock: (GraphicsLayerScope.() -> Unit)?,
     var onDrawBehind: (DrawScope.() -> Unit)?,

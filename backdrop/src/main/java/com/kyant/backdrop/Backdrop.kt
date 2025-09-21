@@ -33,16 +33,16 @@ fun rememberBackdrop(
 }
 
 @Stable
-class Backdrop internal constructor(
+open class Backdrop internal constructor(
     val graphicsLayer: GraphicsLayer,
     internal val drawLayer: ContentDrawScope.() -> Unit
-) {
+) : BackdropDrawer {
 
     internal var backdropCoordinates: LayoutCoordinates? by mutableStateOf(null)
 
     private var inverseLayerScope: InverseLayerScope? = null
 
-    internal fun DrawScope.drawBackdrop(
+    override fun DrawScope.drawBackdrop(
         density: Density,
         coordinates: LayoutCoordinates,
         layerBlock: (GraphicsLayerScope.() -> Unit)?
