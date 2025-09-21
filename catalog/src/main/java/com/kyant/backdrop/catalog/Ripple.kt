@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.kyant.backdrop.catalog.theme
+package com.kyant.backdrop.catalog
 
 import androidx.compose.foundation.IndicationNodeFactory
 import androidx.compose.foundation.interaction.InteractionSource
@@ -24,12 +24,10 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorProducer
-import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DelegatingNode
 import androidx.compose.ui.node.ObserverModifierNode
-import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.unit.Dp
 
@@ -100,6 +98,7 @@ private constructor(
     private val colorProducer: ColorProducer?,
     private val color: Color
 ) : IndicationNodeFactory {
+
     constructor(
         bounded: Boolean,
         radius: Dp,
@@ -138,6 +137,7 @@ private class DelegatingThemeAwareRippleNode(
     private val radius: Dp,
     private val color: ColorProducer,
 ) : DelegatingNode(), CompositionLocalConsumerModifierNode, ObserverModifierNode {
+
     private var rippleNode: DelegatableNode? = null
 
     override fun onAttach() {
@@ -157,25 +157,14 @@ private class DelegatingThemeAwareRippleNode(
     }
 
     private fun attachNewRipple() {
-        val calculateColor = ColorProducer {
-            val userDefinedColor = color()
-            if (userDefinedColor.isSpecified) {
-                userDefinedColor
-            } else {
-                currentValueOf(LocalContentColor)
-            }
-        }
-
-        val calculateRippleAlpha = { RippleDefaults.RippleAlpha }
-
         rippleNode =
             delegate(
                 createRippleModifierNode(
-                    interactionSource,
-                    bounded,
-                    radius,
-                    calculateColor,
-                    calculateRippleAlpha
+                    interactionSource = interactionSource,
+                    bounded = bounded,
+                    radius = radius,
+                    color = color,
+                    rippleAlpha = { RippleDefaults.RippleAlpha }
                 )
             )
     }

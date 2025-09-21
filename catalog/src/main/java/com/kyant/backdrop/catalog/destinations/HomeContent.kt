@@ -1,6 +1,7 @@
 package com.kyant.backdrop.catalog.destinations
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.displayCutoutPadding
@@ -9,16 +10,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.catalog.CatalogDestination
-import com.kyant.backdrop.catalog.components.Text
-import com.kyant.backdrop.catalog.theme.TextStyles
 
 @Composable
 fun HomeContent(onNavigate: (CatalogDestination) -> Unit) {
+    val isLightTheme = !isSystemInDarkTheme()
+    val contentColor = if (isLightTheme) Color.Black else Color.White
+
     Column(
         Modifier
             .verticalScroll(rememberScrollState())
@@ -27,76 +34,55 @@ fun HomeContent(onNavigate: (CatalogDestination) -> Unit) {
             .fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16f.dp)
     ) {
-        Text(
+        BasicText(
             "Backdrop Catalog",
-            TextStyles.headline,
-            Modifier.padding(16f.dp, 40f.dp, 16f.dp, 16f.dp)
+            Modifier.padding(16f.dp, 40f.dp, 16f.dp, 16f.dp),
+            style = TextStyle(contentColor, 28f.sp, FontWeight.Medium)
         )
+
         Column {
-            Text(
-                "Glass playground",
-                TextStyles.body,
-                Modifier
-                    .clickable { onNavigate(CatalogDestination.GlassPlayground) }
-                    .padding(16f.dp)
-                    .fillMaxWidth()
-            )
-            Text(
-                "Adaptive luminance glass",
-                TextStyles.body,
-                Modifier
-                    .clickable { onNavigate(CatalogDestination.AdaptiveLuminanceGlass) }
-                    .padding(16f.dp)
-                    .fillMaxWidth()
-            )
-            Text(
-                "Control center",
-                TextStyles.body,
-                Modifier
-                    .clickable { onNavigate(CatalogDestination.ControlCenter) }
-                    .padding(16f.dp)
-                    .fillMaxWidth()
-            )
-            Text(
-                "Bottom tabs",
-                TextStyles.body,
-                Modifier
-                    .clickable { onNavigate(CatalogDestination.BottomTabs) }
-                    .padding(16f.dp)
-                    .fillMaxWidth()
-            )
-            Text(
-                "Icon button",
-                TextStyles.body,
-                Modifier
-                    .clickable { onNavigate(CatalogDestination.IconButton) }
-                    .padding(16f.dp)
-                    .fillMaxWidth()
-            )
-            Text(
-                "Dialog",
-                TextStyles.body,
-                Modifier
-                    .clickable { onNavigate(CatalogDestination.Dialog) }
-                    .padding(16f.dp)
-                    .fillMaxWidth()
-            )
-            Text(
-                "Scroll container",
-                TextStyles.body,
-                Modifier
-                    .clickable { onNavigate(CatalogDestination.ScrollContainer) }
-                    .padding(16f.dp)
-                    .fillMaxWidth()
-            )
-            Text(
-                "Lazy scroll container",
-                TextStyles.body,
-                Modifier
-                    .clickable { onNavigate(CatalogDestination.LazyScrollContainer) }
-                    .padding(16f.dp)
-                    .fillMaxWidth()
-            )
+            Subtitle("Liquid glass components")
+            ListItem({ onNavigate(CatalogDestination.Buttons) }, "Buttons")
+            ListItem({ onNavigate(CatalogDestination.BottomTabs) }, "Bottom tabs")
+            ListItem({ onNavigate(CatalogDestination.Dialog) }, "Dialog")
+
+            Subtitle("System UIs")
+            ListItem({ onNavigate(CatalogDestination.ControlCenter) }, "Control center")
+
+            Subtitle("Experiments")
+            ListItem({ onNavigate(CatalogDestination.GlassPlayground) }, "Glass playground")
+            ListItem({ onNavigate(CatalogDestination.AdaptiveLuminanceGlass) }, "Adaptive luminance glass")
+            ListItem({ onNavigate(CatalogDestination.ScrollContainer) }, "Scroll container")
+            ListItem({ onNavigate(CatalogDestination.LazyScrollContainer) }, "Lazy scroll container")
         }
     }
+}
+
+@Composable
+private fun Subtitle(label: String) {
+    BasicText(
+        label,
+        Modifier
+            .padding(16f.dp, 24f.dp, 16f.dp, 8f.dp)
+            .fillMaxWidth(),
+        style = TextStyle(Color(0xFF0088FF), 15f.sp, FontWeight.Medium)
+    )
+}
+
+@Composable
+private fun ListItem(
+    onClick: () -> Unit,
+    label: String
+) {
+    val isLightTheme = !isSystemInDarkTheme()
+    val contentColor = if (isLightTheme) Color.Black else Color.White
+
+    BasicText(
+        label,
+        Modifier
+            .clickable(onClick = onClick)
+            .padding(16f.dp)
+            .fillMaxWidth(),
+        style = TextStyle(contentColor, 17f.sp)
+    )
 }

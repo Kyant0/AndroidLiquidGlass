@@ -2,7 +2,6 @@ package com.kyant.backdrop.catalog.destinations
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
@@ -13,11 +12,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -35,7 +34,6 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -49,13 +47,12 @@ import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.R
-import com.kyant.backdrop.catalog.components.Text
-import com.kyant.backdrop.catalog.theme.LocalContentColor
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.dispersion
 import com.kyant.backdrop.effects.refraction
-import com.kyant.backdrop.effects.refractionWithDispersion
 import com.kyant.backdrop.effects.saturation
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.rememberBackdrop
@@ -66,6 +63,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun BottomTabsContent() {
     val isLightTheme = !isSystemInDarkTheme()
+    val contentColor = if (isLightTheme) Color.Black else Color.White
     val accentColor =
         if (isLightTheme) Color(0xFF0088FF)
         else Color(0xFF0091FF)
@@ -74,9 +72,8 @@ fun BottomTabsContent() {
         else Color(0xFF121212).copy(0.4f)
 
     val airplaneModeIcon = painterResource(R.drawable.flight_40px)
-    val iconColorFilter = ColorFilter.tint(LocalContentColor.current)
+    val iconColorFilter = ColorFilter.tint(contentColor)
 
-    val backdrop = rememberBackdrop()
     val tabsBackdrop = rememberBackdrop()
     val tabsLayer =
         rememberGraphicsLayer().apply {
@@ -89,20 +86,9 @@ fun BottomTabsContent() {
     val scaleYAnimation = remember { Animatable(0f) }
     val tabOffsetAnimation = remember { Animatable(0f) }
 
-    Box(Modifier.fillMaxSize()) {
-        Image(
-            painterResource(R.drawable.system_home_screen_light),
-            null,
-            Modifier
-                .backdrop(backdrop)
-                .fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
-
+    BackdropDemoScaffold { backdrop ->
         Box(
-            Modifier
-                .padding(40f.dp)
-                .align(Alignment.Center),
+            Modifier.padding(40f.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             Box(
@@ -131,7 +117,7 @@ fun BottomTabsContent() {
                         .drawBackdrop(
                             backdrop,
                             { ContinuousCapsule },
-                            layerBlock = {
+                            layer = {
                                 val progress = pressAnimation.value
                                 val scale = lerp(1f, 1f + 2f.dp.toPx() / size.height, progress)
                                 scaleX = scale
@@ -167,9 +153,9 @@ fun BottomTabsContent() {
                                     .size(28f.dp)
                                     .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                             )
-                            Text(
+                            BasicText(
                                 "Tab ${index + 1}",
-                                TextStyle(fontSize = 12f.sp)
+                                style = TextStyle(contentColor, 12f.sp)
                             )
                         }
                     }
@@ -263,7 +249,7 @@ fun BottomTabsContent() {
                                 offset = DpOffset(0f.dp, 4f.dp * progress)
                             )
                         },
-                        layerBlock = {
+                        layer = {
                             translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * 3)
                             scaleX = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleXAnimation.value)
                             scaleY = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleYAnimation.value)
@@ -278,9 +264,13 @@ fun BottomTabsContent() {
                         }
                     ) {
                         val progress = pressAnimation.value
-                        refractionWithDispersion(
+                        refraction(
                             12f.dp.toPx() * progress,
                             12f.dp.toPx() * progress
+                        )
+                        dispersion(
+                            12f.dp.toPx() * progress,
+                            24f.dp.toPx() * progress
                         )
                     }
                     .draggable(

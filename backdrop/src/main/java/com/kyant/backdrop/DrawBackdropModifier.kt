@@ -41,20 +41,21 @@ private val DefaultOnDrawBackdrop: DrawScope.(DrawScope.() -> Unit) -> Unit = { 
 
 fun Modifier.drawBackdrop(
     backdrop: Backdrop,
-    shapeProvider: () -> Shape,
+    shape: () -> Shape,
     highlight: (() -> Highlight?)? = DefaultHighlight,
     shadow: (() -> Shadow?)? = DefaultShadow,
-    layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
+    layer: (GraphicsLayerScope.() -> Unit)? = null,
     onDrawBehind: (DrawScope.() -> Unit)? = null,
     onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdrop,
     onDrawSurface: (DrawScope.() -> Unit)? = null,
+    onDrawFront: (DrawScope.() -> Unit)? = null,
     effects: BackdropEffectScope.() -> Unit
 ): Modifier {
-    val shapeProvider = CachedBackdropShapeProvider(shapeProvider)
+    val shapeProvider = CachedBackdropShapeProvider(shape)
     return this
         .then(
-            if (layerBlock != null) {
-                Modifier.graphicsLayer(layerBlock)
+            if (layer != null) {
+                Modifier.graphicsLayer(layer)
             } else {
                 Modifier
             }
@@ -83,10 +84,11 @@ fun Modifier.drawBackdrop(
             DrawBackdropElement(
                 backdrop = backdrop,
                 shapeProvider = shapeProvider,
-                layerBlock = layerBlock,
+                layerBlock = layer,
                 onDrawBehind = onDrawBehind,
                 onDrawBackdrop = onDrawBackdrop,
                 onDrawSurface = onDrawSurface,
+                onDrawFront = onDrawFront,
                 effects = effects
             )
         )
@@ -99,6 +101,7 @@ private class DrawBackdropElement(
     val onDrawBehind: (DrawScope.() -> Unit)?,
     val onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     val onDrawSurface: (DrawScope.() -> Unit)?,
+    val onDrawFront: (DrawScope.() -> Unit)?,
     val effects: BackdropEffectScope.() -> Unit
 ) : ModifierNodeElement<DrawBackdropNode>() {
 
@@ -110,6 +113,7 @@ private class DrawBackdropElement(
             onDrawBehind = onDrawBehind,
             onDrawBackdrop = onDrawBackdrop,
             onDrawSurface = onDrawSurface,
+            onDrawFront = onDrawFront,
             effects = effects
         )
     }
@@ -121,6 +125,7 @@ private class DrawBackdropElement(
         node.onDrawBehind = onDrawBehind
         node.onDrawBackdrop = onDrawBackdrop
         node.onDrawSurface = onDrawSurface
+        node.onDrawFront = onDrawFront
         node.effects = effects
         node.invalidateDrawCache()
     }
@@ -133,6 +138,7 @@ private class DrawBackdropElement(
         properties["onDrawBehind"] = onDrawBehind
         properties["onDrawBackdrop"] = onDrawBackdrop
         properties["onDrawSurface"] = onDrawSurface
+        properties["onDrawFront"] = onDrawFront
         properties["effects"] = effects
     }
 
@@ -146,6 +152,7 @@ private class DrawBackdropElement(
         if (onDrawBehind != other.onDrawBehind) return false
         if (onDrawBackdrop != other.onDrawBackdrop) return false
         if (onDrawSurface != other.onDrawSurface) return false
+        if (onDrawFront != other.onDrawFront) return false
         if (effects != other.effects) return false
 
         return true
@@ -158,6 +165,7 @@ private class DrawBackdropElement(
         result = 31 * result + (onDrawBehind?.hashCode() ?: 0)
         result = 31 * result + onDrawBackdrop.hashCode()
         result = 31 * result + (onDrawSurface?.hashCode() ?: 0)
+        result = 31 * result + (onDrawFront?.hashCode() ?: 0)
         result = 31 * result + effects.hashCode()
         return result
     }
@@ -170,6 +178,7 @@ private class DrawBackdropNode(
     var onDrawBehind: (DrawScope.() -> Unit)?,
     var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     var onDrawSurface: (DrawScope.() -> Unit)?,
+    var onDrawFront: (DrawScope.() -> Unit)?,
     var effects: BackdropEffectScope.() -> Unit
 ) : LayoutModifierNode, DrawModifierNode, GlobalPositionAwareModifierNode, ObserverModifierNode, Modifier.Node() {
 
@@ -249,6 +258,8 @@ private class DrawBackdropNode(
         onDrawSurface?.invoke(this)
 
         drawContent()
+
+        onDrawFront?.invoke(this)
     }
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {

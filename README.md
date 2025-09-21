@@ -4,11 +4,11 @@
 
 Apple's Liquid Glass effect for Android Jetpack Compose.
 
-⚠️ The library is in alpha stage, every API may be changed, use it on your own risk.
-
 ## Docs
 
 [![JitPack Release](https://jitpack.io/v/Kyant0/AndroidLiquidGlass.svg)](https://jitpack.io/#Kyant0/AndroidLiquidGlass)
+
+⚠️ The library is in alpha stage, every API may be changed, use it on your own risk.
 
 [Latest docs](https://kyant.gitbook.io/backdrop)
 
@@ -16,17 +16,15 @@ Apple's Liquid Glass effect for Android Jetpack Compose.
 
 ## Demos
 
+- [Catalog](./catalog/release/catalog-release.apk)
+
+![Catalog screenshot](artworks/catalog.jpg)
+
 - [Playground app](./app/release/app-release.apk), Android 13 and above is required.
 
 ![Playground screenshot](artworks/playground_app.jpg)
 
-- [Catalog](./catalog/release/catalog-release.apk)
-
-|                                                                                   |                                                                             |
-|:---------------------------------------------------------------------------------:|:---------------------------------------------------------------------------:|
-| <img alt="Control center" width="200" src="artworks/catalog_control_center.jpg"/> | <img alt="Bottom tabs" width="200" src="artworks/catalog_bottom_tabs.jpg"/> |
-
-## Comparing with iOS
+## Comparing effects with iOS
 
 iOS device: iPhone 16 Pro Max (emulator), using [GlassExplorer](https://github.com/ktiays/GlassExplorer)
 

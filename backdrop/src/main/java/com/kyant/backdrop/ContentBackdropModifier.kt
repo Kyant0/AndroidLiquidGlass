@@ -30,19 +30,19 @@ import com.kyant.backdrop.shadow.Shadow
 import com.kyant.backdrop.shadow.ShadowElement
 
 fun Modifier.contentBackdrop(
-    shapeProvider: () -> Shape,
+    shape: () -> Shape,
     highlight: (() -> Highlight?)? = DefaultHighlight,
     shadow: (() -> Shadow?)? = DefaultShadow,
-    layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
+    layer: (GraphicsLayerScope.() -> Unit)? = null,
     onDrawBehind: (DrawScope.() -> Unit)? = null,
     onDrawSurface: (DrawScope.() -> Unit)? = null,
     effects: BackdropEffectScope.() -> Unit
 ): Modifier {
-    val shapeProvider = CachedBackdropShapeProvider(shapeProvider)
+    val shapeProvider = CachedBackdropShapeProvider(shape)
     return this
         .then(
-            if (layerBlock != null) {
-                Modifier.graphicsLayer(layerBlock)
+            if (layer != null) {
+                Modifier.graphicsLayer(layer)
             } else {
                 Modifier
             }
@@ -70,7 +70,7 @@ fun Modifier.contentBackdrop(
         .then(
             ContentBackdropElement(
                 shapeProvider = shapeProvider,
-                layerBlock = layerBlock,
+                layerBlock = layer,
                 onDrawBehind = onDrawBehind,
                 onDrawSurface = onDrawSurface,
                 effects = effects

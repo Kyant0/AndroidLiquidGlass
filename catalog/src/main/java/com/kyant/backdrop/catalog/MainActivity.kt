@@ -8,8 +8,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
-import com.kyant.backdrop.catalog.theme.LocalContentColor
-import com.kyant.backdrop.catalog.theme.ripple
 
 class MainActivity : ComponentActivity() {
 
@@ -21,8 +19,7 @@ class MainActivity : ComponentActivity() {
             val isLightTheme = !isSystemInDarkTheme()
 
             CompositionLocalProvider(
-                LocalContentColor provides if (isLightTheme) Color.Black else Color.White,
-                LocalIndication provides ripple()
+                LocalIndication provides ripple(color = if (isLightTheme) Color.Black else Color.White)
             ) {
                 MainContent()
             }

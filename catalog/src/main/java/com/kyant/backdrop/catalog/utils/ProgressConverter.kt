@@ -1,4 +1,4 @@
-package com.kyant.backdrop.catalog
+package com.kyant.backdrop.catalog.utils
 
 import kotlin.math.abs
 import kotlin.math.exp

@@ -2,16 +2,13 @@ package com.kyant.backdrop.catalog.destinations
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.geometry.Offset
@@ -19,15 +16,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.saturation
-import com.kyant.backdrop.rememberBackdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -41,29 +36,18 @@ fun GlassPlaygroundContent() {
         if (isLightTheme) Color(0xFF0088FF)
         else Color(0xFF0091FF)
 
-    val backdrop = rememberBackdrop()
-
     val animationScope = rememberCoroutineScope()
     val offsetAnimation = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
     val zoomAnimation = remember { Animatable(1f) }
     val rotationAnimation = remember { Animatable(0f) }
 
-    Box(Modifier.fillMaxSize()) {
-        Image(
-            painterResource(R.drawable.wallpaper_light),
-            null,
-            Modifier
-                .backdrop(backdrop)
-                .fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
-
+    BackdropDemoScaffold { backdrop ->
         Box(
             Modifier
                 .drawBackdrop(
                     backdrop,
                     { ContinuousRoundedRectangle(48f.dp) },
-                    layerBlock = {
+                    layer = {
                         val offset = offsetAnimation.value
                         val zoom = zoomAnimation.value
                         val rotation = rotationAnimation.value
@@ -107,7 +91,6 @@ fun GlassPlaygroundContent() {
                     colorFilter = ColorFilter.tint(accentColor)
                 )
                 .size(256f.dp)
-                .align(Alignment.Center)
         )
     }
 }

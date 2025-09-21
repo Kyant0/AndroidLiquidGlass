@@ -48,7 +48,7 @@ fun Modifier.liquidGlass(
     this
         .drawBackdrop(
             backdrop = backdrop,
-            shapeProvider = { style().shape },
+            shape = { style().shape },
             highlight = {
                 style().highlight?.let {
                     Highlight(

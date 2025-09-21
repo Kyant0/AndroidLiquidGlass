@@ -1,4 +1,4 @@
-package com.kyant.backdrop.catalog
+package com.kyant.backdrop.catalog.utils
 
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown

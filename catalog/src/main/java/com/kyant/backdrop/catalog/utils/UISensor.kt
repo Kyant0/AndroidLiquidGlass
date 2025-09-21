@@ -1,4 +1,4 @@
-package com.kyant.backdrop.catalog
+package com.kyant.backdrop.catalog.utils
 
 import android.content.Context
 import android.hardware.Sensor

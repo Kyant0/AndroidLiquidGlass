@@ -3,7 +3,6 @@ package com.kyant.backdrop.catalog.destinations
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -21,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -32,7 +30,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -40,7 +37,6 @@ import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -49,18 +45,16 @@ import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.backdrop
-import com.kyant.backdrop.catalog.ProgressConverter
+import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.R
-import com.kyant.backdrop.catalog.rememberUISensor
-import com.kyant.backdrop.catalog.theme.LocalContentColor
+import com.kyant.backdrop.catalog.utils.ProgressConverter
+import com.kyant.backdrop.catalog.utils.rememberUISensor
 import com.kyant.backdrop.contentBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.saturation
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightStyle
-import com.kyant.backdrop.rememberBackdrop
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
@@ -104,7 +98,6 @@ fun ControlCenterContent() {
     }
     val maxDragHeight = 1000f
 
-    val backdrop = rememberBackdrop()
     val uiSensor = rememberUISensor()
     val glassShape = { itemShape }
     val glassHighlight = { Highlight { HighlightStyle.Dynamic(angle = uiSensor.gravityAngle) } }
@@ -134,217 +127,154 @@ fun ControlCenterContent() {
         }
     }
 
-    CompositionLocalProvider(LocalContentColor provides Color.White) {
-        Box(
+    val backdropModifier = Modifier
+        .draggable(
+            rememberDraggableState { delta ->
+                val targetProgress = enterProgressAnimation.value + delta / maxDragHeight
+                animationScope.launch {
+                    launch {
+                        enterProgressAnimation.snapTo(targetProgress)
+                    }
+                    launch {
+                        safeEnterProgressAnimation.snapTo(targetProgress.fastCoerceIn(0f, 1f))
+                    }
+                }
+            },
+            Orientation.Vertical,
+            onDragStopped = { velocity ->
+                val targetProgress = when {
+                    velocity < 0f -> 0f
+                    velocity > 0f -> 1f
+                    else -> if (enterProgressAnimation.value < 0.5f) 0f else 1f
+                }
+                animationScope.launch {
+                    launch {
+                        enterProgressAnimation.animateTo(
+                            targetProgress,
+                            if (targetProgress > 0.5f) {
+                                spring(0.5f, 300f, 0.5f / maxDragHeight)
+                            } else {
+                                spring(1f, 300f, 0.01f)
+                            },
+                            velocity / maxDragHeight
+                        )
+                    }
+                    launch {
+                        safeEnterProgressAnimation.animateTo(
+                            targetProgress,
+                            spring(1f, 300f, 0.01f)
+                        )
+                    }
+                }
+            }
+        )
+        .drawWithContent {
+            val progress = safeEnterProgressAnimation.value
+
+            drawContent()
+            drawRect(dimColor.copy(dimColor.alpha * progress))
+        }
+        .graphicsLayer {
+            val progress = safeEnterProgressAnimation.value
+
+            val blurRadius = 4f.dp.toPx() * progress
+            if (blurRadius > 0f) {
+                renderEffect = BlurEffect(blurRadius, blurRadius)
+            }
+        }
+
+    BackdropDemoScaffold(
+        backdropModifier,
+        initialPainterResId = R.drawable.system_home_screen_light
+    ) { backdrop ->
+        Column(
             Modifier
-                .draggable(
-                    rememberDraggableState { delta ->
-                        val targetProgress = enterProgressAnimation.value + delta / maxDragHeight
-                        animationScope.launch {
-                            launch {
-                                enterProgressAnimation.snapTo(targetProgress)
-                            }
-                            launch {
-                                safeEnterProgressAnimation.snapTo(targetProgress.fastCoerceIn(0f, 1f))
-                            }
-                        }
-                    },
-                    Orientation.Vertical,
-                    onDragStopped = { velocity ->
-                        val targetProgress = when {
-                            velocity < 0f -> 0f
-                            velocity > 0f -> 1f
-                            else -> if (enterProgressAnimation.value < 0.5f) 0f else 1f
-                        }
-                        animationScope.launch {
-                            launch {
-                                enterProgressAnimation.animateTo(
-                                    targetProgress,
-                                    if (targetProgress > 0.5f) {
-                                        spring(0.5f, 300f, 0.5f / maxDragHeight)
-                                    } else {
-                                        spring(1f, 300f, 0.01f)
-                                    },
-                                    velocity / maxDragHeight
-                                )
-                            }
-                            launch {
-                                safeEnterProgressAnimation.animateTo(
-                                    targetProgress,
-                                    spring(1f, 300f, 0.01f)
-                                )
-                            }
-                        }
-                    }
-                )
-                .fillMaxSize()
+                .padding(top = 80f.dp)
+                .systemBarsPadding()
+                .displayCutoutPadding()
+                .fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Image(
-                painterResource(R.drawable.system_home_screen_light),
-                null,
-                Modifier
-                    .backdrop(backdrop)
-                    .drawWithContent {
-                        val progress = safeEnterProgressAnimation.value
-
-                        drawContent()
-                        drawRect(dimColor.copy(dimColor.alpha * progress))
-                    }
-                    .graphicsLayer {
-                        val progress = safeEnterProgressAnimation.value
-
-                        val blurRadius = 4f.dp.toPx() * progress
-                        if (blurRadius > 0f) {
-                            renderEffect = BlurEffect(blurRadius, blurRadius)
-                        }
-                    }
-                    .fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-
-            Column(
-                Modifier
-                    .padding(top = 80f.dp)
-                    .systemBarsPadding()
-                    .displayCutoutPadding()
-                    .fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(itemSpacing),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(itemSpacing),
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    Modifier
+                        .drawBackdrop(
+                            backdrop,
+                            { ContinuousRoundedRectangle(40f.dp) },
+                            layer = glassLayer,
+                            highlight = null,
+                            shadow = null,
+                            onDrawSurface = glassSurface,
+                            effects = glassEffects
+                        )
+                        .contentBackdrop(
+                            { ContinuousRoundedRectangle(40f.dp) },
+                            highlight = glassHighlight,
+                            shadow = null
+                        ) {
+                            refraction(12f.dp.toPx(), size.minDimension / 4f, true)
+                        }
+                        .size(itemTwoSpanSize)
+                        .padding(itemSpacing)
                 ) {
                     Box(
                         Modifier
-                            .drawBackdrop(
-                                backdrop,
-                                { ContinuousRoundedRectangle(40f.dp) },
-                                layerBlock = {
-                                    glassLayer()
-                                },
-                                highlight = null,
-                                shadow = null,
-                                onDrawSurface = glassSurface,
-                                effects = glassEffects
-                            )
-                            .contentBackdrop(
-                                { ContinuousRoundedRectangle(40f.dp) },
-                                highlight = glassHighlight,
-                                shadow = null
-                            ) {
-                                refraction(12f.dp.toPx(), size.minDimension / 4f, true)
-                            }
-                            .size(itemTwoSpanSize)
-                            .padding(itemSpacing)
-                    ) {
-                        Box(
-                            Modifier
-                                .clip(innerItemShape)
-                                .background(inactiveItemColor)
-                                .clickable {}
-                                .scale(innerItemIconScale)
-                                .paint(airplaneModeIcon, colorFilter = iconColorFilter)
-                                .size(innerItemSize)
-                                .align(Alignment.TopStart)
-                        )
-                        Box(
-                            Modifier
-                                .clip(innerItemShape)
-                                .background(activeItemColor)
-                                .clickable {}
-                                .scale(innerItemIconScale)
-                                .paint(airplaneModeIcon, colorFilter = iconColorFilter)
-                                .size(innerItemSize)
-                                .align(Alignment.TopEnd)
-                        )
-                        Box(
-                            Modifier
-                                .clip(innerItemShape)
-                                .background(activeItemColor)
-                                .clickable {}
-                                .scale(innerItemIconScale)
-                                .paint(airplaneModeIcon, colorFilter = iconColorFilter)
-                                .size(innerItemSize)
-                                .align(Alignment.BottomStart)
-                        )
-                    }
+                            .clip(innerItemShape)
+                            .background(inactiveItemColor)
+                            .clickable {}
+                            .scale(innerItemIconScale)
+                            .paint(airplaneModeIcon, colorFilter = iconColorFilter)
+                            .size(innerItemSize)
+                            .align(Alignment.TopStart)
+                    )
                     Box(
                         Modifier
-                            .drawBackdrop(
-                                backdrop,
-                                glassShape,
-                                layerBlock = glassLayer,
-                                highlight = glassHighlight,
-                                shadow = null,
-                                onDrawSurface = glassSurface,
-                                effects = glassEffects
-                            )
-                            .size(itemTwoSpanSize)
+                            .clip(innerItemShape)
+                            .background(activeItemColor)
+                            .clickable {}
+                            .scale(innerItemIconScale)
+                            .paint(airplaneModeIcon, colorFilter = iconColorFilter)
+                            .size(innerItemSize)
+                            .align(Alignment.TopEnd)
+                    )
+                    Box(
+                        Modifier
+                            .clip(innerItemShape)
+                            .background(activeItemColor)
+                            .clickable {}
+                            .scale(innerItemIconScale)
+                            .paint(airplaneModeIcon, colorFilter = iconColorFilter)
+                            .size(innerItemSize)
+                            .align(Alignment.BottomStart)
                     )
                 }
-
-                Spacer(spacerLayoutModifier)
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(itemSpacing, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(itemSpacing)
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(itemSpacing),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                Modifier
-                                    .drawBackdrop(
-                                        backdrop,
-                                        glassShape,
-                                        layerBlock = glassLayer,
-                                        highlight = glassHighlight,
-                                        shadow = null,
-                                        onDrawSurface = glassSurface,
-                                        effects = glassEffects
-                                    )
-                                    .clickable {}
-                                    .paint(airplaneModeIcon, colorFilter = iconColorFilter)
-                                    .size(itemSize)
-                            )
-                            Box(
-                                Modifier
-                                    .drawBackdrop(
-                                        backdrop,
-                                        glassShape,
-                                        layerBlock = glassLayer,
-                                        highlight = glassHighlight,
-                                        shadow = null,
-                                        onDrawSurface = glassSurface,
-                                        effects = glassEffects
-                                    )
-                                    .clickable {}
-                                    .paint(airplaneModeIcon, colorFilter = iconColorFilter)
-                                    .size(itemSize)
-                            )
-                        }
-                        Box(
-                            Modifier
-                                .drawBackdrop(
-                                    backdrop,
-                                    glassShape,
-                                    layerBlock = glassLayer,
-                                    highlight = glassHighlight,
-                                    shadow = null,
-                                    onDrawSurface = {
-                                        drawRect(accentColor, blendMode = BlendMode.Hue)
-                                        drawRect(accentColor.copy(0.6f))
-                                    },
-                                    effects = glassEffects
-                                )
-                                .size(itemTwoSpanSize, itemSize)
+                Box(
+                    Modifier
+                        .drawBackdrop(
+                            backdrop,
+                            glassShape,
+                            layer = glassLayer,
+                            highlight = glassHighlight,
+                            shadow = null,
+                            onDrawSurface = glassSurface,
+                            effects = glassEffects
                         )
-                    }
+                        .size(itemTwoSpanSize)
+                )
+            }
 
+            Spacer(spacerLayoutModifier)
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(itemSpacing, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(itemSpacing)
+                ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(itemSpacing),
                         verticalAlignment = Alignment.CenterVertically
@@ -354,31 +284,45 @@ fun ControlCenterContent() {
                                 .drawBackdrop(
                                     backdrop,
                                     glassShape,
-                                    layerBlock = glassLayer,
+                                    layer = glassLayer,
                                     highlight = glassHighlight,
                                     shadow = null,
                                     onDrawSurface = glassSurface,
                                     effects = glassEffects
                                 )
-                                .size(itemSize, itemTwoSpanSize)
+                                .clickable {}
+                                .paint(airplaneModeIcon, colorFilter = iconColorFilter)
+                                .size(itemSize)
                         )
                         Box(
                             Modifier
                                 .drawBackdrop(
                                     backdrop,
                                     glassShape,
-                                    layerBlock = glassLayer,
+                                    layer = glassLayer,
                                     highlight = glassHighlight,
                                     shadow = null,
                                     onDrawSurface = glassSurface,
                                     effects = glassEffects
                                 )
-                                .size(itemSize, itemTwoSpanSize)
+                                .clickable {}
+                                .paint(airplaneModeIcon, colorFilter = iconColorFilter)
+                                .size(itemSize)
                         )
                     }
+                    Box(
+                        Modifier
+                            .drawBackdrop(
+                                backdrop,
+                                glassShape,
+                                layer = glassLayer,
+                                highlight = glassHighlight,
+                                shadow = null,
+                                effects = glassEffects
+                            )
+                            .size(itemTwoSpanSize, itemSize)
+                    )
                 }
-
-                Spacer(spacerLayoutModifier)
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(itemSpacing),
@@ -389,73 +333,107 @@ fun ControlCenterContent() {
                             .drawBackdrop(
                                 backdrop,
                                 glassShape,
-                                layerBlock = glassLayer,
+                                layer = glassLayer,
                                 highlight = glassHighlight,
                                 shadow = null,
                                 onDrawSurface = glassSurface,
                                 effects = glassEffects
                             )
-                            .size(itemTwoSpanSize)
+                            .size(itemSize, itemTwoSpanSize)
                     )
+                    Box(
+                        Modifier
+                            .drawBackdrop(
+                                backdrop,
+                                glassShape,
+                                layer = glassLayer,
+                                highlight = glassHighlight,
+                                shadow = null,
+                                onDrawSurface = glassSurface,
+                                effects = glassEffects
+                            )
+                            .size(itemSize, itemTwoSpanSize)
+                    )
+                }
+            }
 
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(itemSpacing)
+            Spacer(spacerLayoutModifier)
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(itemSpacing),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .drawBackdrop(
+                            backdrop,
+                            glassShape,
+                            layer = glassLayer,
+                            highlight = glassHighlight,
+                            shadow = null,
+                            onDrawSurface = glassSurface,
+                            effects = glassEffects
+                        )
+                        .size(itemTwoSpanSize)
+                )
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(itemSpacing)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(itemSpacing),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(itemSpacing),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                Modifier
-                                    .drawBackdrop(
-                                        backdrop,
-                                        glassShape,
-                                        layerBlock = glassLayer,
-                                        highlight = glassHighlight,
-                                        shadow = null,
-                                        onDrawSurface = glassSurface,
-                                        effects = glassEffects
-                                    )
-                                    .clickable {}
-                                    .paint(airplaneModeIcon, colorFilter = iconColorFilter)
-                                    .size(itemSize)
-                            )
-                            Box(
-                                Modifier
-                                    .drawBackdrop(
-                                        backdrop,
-                                        glassShape,
-                                        layerBlock = glassLayer,
-                                        highlight = glassHighlight,
-                                        shadow = null,
-                                        onDrawSurface = glassSurface,
-                                        effects = glassEffects
-                                    )
-                                    .clickable {}
-                                    .paint(airplaneModeIcon, colorFilter = iconColorFilter)
-                                    .size(itemSize)
-                            )
-                        }
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(itemSpacing),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                Modifier
-                                    .drawBackdrop(
-                                        backdrop,
-                                        glassShape,
-                                        layerBlock = glassLayer,
-                                        highlight = glassHighlight,
-                                        shadow = null,
-                                        onDrawSurface = glassSurface,
-                                        effects = glassEffects
-                                    )
-                                    .clickable {}
-                                    .paint(airplaneModeIcon, colorFilter = iconColorFilter)
-                                    .size(itemSize)
-                            )
-                        }
+                        Box(
+                            Modifier
+                                .drawBackdrop(
+                                    backdrop,
+                                    glassShape,
+                                    layer = glassLayer,
+                                    highlight = glassHighlight,
+                                    shadow = null,
+                                    onDrawSurface = glassSurface,
+                                    effects = glassEffects
+                                )
+                                .clickable {}
+                                .paint(airplaneModeIcon, colorFilter = iconColorFilter)
+                                .size(itemSize)
+                        )
+                        Box(
+                            Modifier
+                                .drawBackdrop(
+                                    backdrop,
+                                    glassShape,
+                                    layer = glassLayer,
+                                    highlight = glassHighlight,
+                                    shadow = null,
+                                    onDrawSurface = glassSurface,
+                                    effects = glassEffects
+                                )
+                                .clickable {}
+                                .paint(airplaneModeIcon, colorFilter = iconColorFilter)
+                                .size(itemSize)
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(itemSpacing),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier
+                                .drawBackdrop(
+                                    backdrop,
+                                    glassShape,
+                                    layer = glassLayer,
+                                    highlight = glassHighlight,
+                                    shadow = null,
+                                    onDrawSurface = glassSurface,
+                                    effects = glassEffects
+                                )
+                                .clickable {}
+                                .paint(airplaneModeIcon, colorFilter = iconColorFilter)
+                                .size(itemSize)
+                        )
                     }
                 }
             }

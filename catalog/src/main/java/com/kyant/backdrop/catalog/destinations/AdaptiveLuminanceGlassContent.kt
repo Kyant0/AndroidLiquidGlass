@@ -11,6 +11,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -25,14 +26,15 @@ import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.core.graphics.scale
 import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.catalog.Block
 import com.kyant.backdrop.catalog.R
-import com.kyant.backdrop.catalog.components.Text
-import com.kyant.backdrop.catalog.theme.TextStyles
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorFilter
@@ -112,7 +114,7 @@ fun AdaptiveLuminanceGlassContent() {
                 .drawBackdrop(
                     backdrop,
                     { ContinuousRoundedRectangle(24f.dp) },
-                    layerBlock = {
+                    layer = {
                         val offset = offsetAnimation.value
                         val zoom = zoomAnimation.value
                         val rotation = rotationAnimation.value
@@ -172,11 +174,13 @@ fun AdaptiveLuminanceGlassContent() {
                 .align(Alignment.Center),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                { "luminance:\n${"%.2f".format(luminanceAnimation.value)}" },
-                TextStyles.body.copy(textAlign = TextAlign.Center),
-                color = { contentColorAnimation.value }
-            )
+            Block {
+                BasicText(
+                    "luminance:\n${"%.2f".format(luminanceAnimation.value)}",
+                    style = TextStyle(Color.Unspecified, 16f.sp, textAlign = TextAlign.Center),
+                    color = { contentColorAnimation.value }
+                )
+            }
         }
     }
 }
