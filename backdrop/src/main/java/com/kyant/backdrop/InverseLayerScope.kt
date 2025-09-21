@@ -6,6 +6,8 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.DefaultCameraDistance
+import androidx.compose.ui.graphics.DefaultShadowColor
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.RectangleShape
@@ -33,13 +35,13 @@ internal class InverseLayerScope : GraphicsLayerScope {
     override var rotationX: Float = 0f
     override var rotationY: Float = 0f
     override var rotationZ: Float = 0f
-    override var cameraDistance: Float = 8f
+    override var cameraDistance: Float = DefaultCameraDistance
     override var transformOrigin: TransformOrigin = TransformOrigin.Center
     override var shape: Shape = RectangleShape
     override var clip: Boolean = false
     override var renderEffect: RenderEffect? = null
-    override var ambientShadowColor: Color = Color.Unspecified
-    override var spotShadowColor: Color = Color.Unspecified
+    override var ambientShadowColor: Color = DefaultShadowColor
+    override var spotShadowColor: Color = DefaultShadowColor
     override var compositingStrategy: CompositingStrategy = CompositingStrategy.Auto
     override var blendMode: BlendMode = BlendMode.SrcOver
     override var colorFilter: ColorFilter? = null
@@ -61,6 +63,16 @@ internal class InverseLayerScope : GraphicsLayerScope {
             scaleX = scaleX,
             scaleY = scaleY
         )
+    }
+
+    fun reset() {
+        scaleX = 1f
+        scaleY = 1f
+        translationX = 0f
+        translationY = 0f
+        rotationX = 0f
+        rotationY = 0f
+        rotationZ = 0f
     }
 
     private fun DrawTransform.inverseTransformAtTopLeft(
