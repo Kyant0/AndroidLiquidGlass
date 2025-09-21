@@ -20,7 +20,7 @@ Apple's Liquid Glass effect for Android Jetpack Compose.
 
 ![Catalog screenshot](artworks/catalog.jpg)
 
-- [Playground app](./app/release/app-release.apk), Android 13 and above is required.
+- **(Deprecated)** [Playground app](./app/release/app-release.apk), Android 13 and above is required.
 
 ![Playground screenshot](artworks/playground_app.jpg)
 
