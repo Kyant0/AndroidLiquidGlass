@@ -56,6 +56,7 @@ import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.saturation
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.rememberBackdrop
+import com.kyant.backdrop.rememberCombinedBackdropDrawer
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.launch
@@ -86,7 +87,9 @@ fun BottomTabsContent() {
     val scaleYAnimation = remember { Animatable(0f) }
     val tabOffsetAnimation = remember { Animatable(0f) }
 
-    BackdropDemoScaffold { backdrop ->
+    BackdropDemoScaffold(
+        initialPainterResId = R.drawable.system_home_screen_light
+    ) { backdrop ->
         Box(
             Modifier.padding(40f.dp),
             contentAlignment = Alignment.CenterStart
@@ -236,7 +239,7 @@ fun BottomTabsContent() {
                         }
                     }
                     .drawBackdrop(
-                        tabsBackdrop,
+                        rememberCombinedBackdropDrawer(backdrop, tabsBackdrop),
                         { ContinuousCapsule },
                         highlight = {
                             val progress = pressAnimation.value

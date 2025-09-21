@@ -33,7 +33,7 @@ fun rememberBackdrop(
 }
 
 @Stable
-open class Backdrop internal constructor(
+class Backdrop internal constructor(
     val graphicsLayer: GraphicsLayer,
     internal val drawLayer: ContentDrawScope.() -> Unit
 ) : BackdropDrawer {

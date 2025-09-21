@@ -58,7 +58,7 @@ fun LiquidButton(
     content: @Composable RowScope.() -> Unit
 ) {
     val animationScope = rememberCoroutineScope()
-    val scaleProgressAnimation = remember { Animatable(0f) }
+    val progressAnimation = remember { Animatable(0f) }
     var pressStartPosition by remember { mutableStateOf(Offset.Zero) }
     val offsetAnimation = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
 
@@ -93,9 +93,9 @@ half4 main(float2 coord) {
                         val width = size.width
                         val height = size.height
 
-                        val scaleProgress = scaleProgressAnimation.value
+                        val progress = progressAnimation.value
                         val maxScale = 0.1f
-                        val scale = lerp(1f, 1f + maxScale, scaleProgress)
+                        val scale = lerp(1f, 1f + maxScale, progress)
 
                         val maxOffset = size.minDimension
                         val initialDerivative = 0.05f
@@ -128,7 +128,7 @@ half4 main(float2 coord) {
                 },
                 onDrawFront = if (isInteractive) {
                     {
-                        val progress = scaleProgressAnimation.value.fastCoerceIn(0f, 1f)
+                        val progress = progressAnimation.value.fastCoerceIn(0f, 1f)
                         if (progress > 0f) {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && interactiveHighlightShader != null) {
                                 drawRect(
@@ -179,7 +179,7 @@ half4 main(float2 coord) {
                         val offsetAnimationSpec = spring(1f, 300f, Offset.VisibilityThreshold)
                         val onDragStop: () -> Unit = {
                             animationScope.launch {
-                                launch { scaleProgressAnimation.animateTo(0f, progressAnimationSpec) }
+                                launch { progressAnimation.animateTo(0f, progressAnimationSpec) }
                                 launch { offsetAnimation.animateTo(Offset.Zero, offsetAnimationSpec) }
                             }
                         }
@@ -187,7 +187,7 @@ half4 main(float2 coord) {
                             onDragStart = { down ->
                                 pressStartPosition = down.position
                                 animationScope.launch {
-                                    launch { scaleProgressAnimation.animateTo(1f, progressAnimationSpec) }
+                                    launch { progressAnimation.animateTo(1f, progressAnimationSpec) }
                                     launch { offsetAnimation.snapTo(Offset.Zero) }
                                 }
                             },

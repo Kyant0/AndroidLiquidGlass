@@ -2,12 +2,16 @@ package com.kyant.backdrop.catalog
 
 enum class CatalogDestination {
     Home,
+
     Buttons,
+    Slider,
+    BottomTabs,
+
+    ControlCenter,
     Dialog,
+
     GlassPlayground,
     AdaptiveLuminanceGlass,
-    ControlCenter,
-    BottomTabs,
     ScrollContainer,
     LazyScrollContainer,
 }

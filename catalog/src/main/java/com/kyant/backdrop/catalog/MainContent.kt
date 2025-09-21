@@ -15,6 +15,7 @@ import com.kyant.backdrop.catalog.destinations.GlassPlaygroundContent
 import com.kyant.backdrop.catalog.destinations.HomeContent
 import com.kyant.backdrop.catalog.destinations.LazyScrollContainerContent
 import com.kyant.backdrop.catalog.destinations.ScrollContainerContent
+import com.kyant.backdrop.catalog.destinations.SliderContent
 
 @Composable
 fun MainContent() {
@@ -28,10 +29,11 @@ fun MainContent() {
         CatalogDestination.Home -> HomeContent(onNavigate = { destination = it })
 
         CatalogDestination.Buttons -> ButtonsContent()
+        CatalogDestination.Slider -> SliderContent()
         CatalogDestination.BottomTabs -> BottomTabsContent()
-        CatalogDestination.Dialog -> DialogContent()
 
         CatalogDestination.ControlCenter -> ControlCenterContent()
+        CatalogDestination.Dialog -> DialogContent()
 
         CatalogDestination.GlassPlayground -> GlassPlaygroundContent()
         CatalogDestination.AdaptiveLuminanceGlass -> AdaptiveLuminanceGlassContent()
