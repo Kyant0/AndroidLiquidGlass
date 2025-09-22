@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -38,7 +39,7 @@ import com.kyant.backdrop.rememberBackdrop
 fun BackdropDemoScaffold(
     modifier: Modifier = Modifier,
     @DrawableRes initialPainterResId: Int = R.drawable.wallpaper_light,
-    content: @Composable (backdrop: Backdrop) -> Unit
+    content: @Composable BoxScope.(backdrop: Backdrop) -> Unit
 ) {
     Box(
         Modifier.fillMaxSize(),

@@ -27,7 +27,7 @@ fun SliderContent() {
                 onValueChange = { value = it },
                 valueRange = 0f..100f,
                 backdrop = backdrop,
-                Modifier.padding(horizontal = 16f.dp)
+                Modifier.padding(horizontal = 32f.dp)
             )
         }
     }

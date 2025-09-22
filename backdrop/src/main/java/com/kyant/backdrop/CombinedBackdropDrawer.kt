@@ -9,14 +9,14 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.unit.Density
 
 @Composable
-fun rememberCombinedBackdropDrawer(backdrop1: Backdrop, backdrop2: Backdrop): BackdropDrawer {
+fun rememberCombinedBackdropDrawer(backdrop1: BackdropDrawer, backdrop2: BackdropDrawer): BackdropDrawer {
     return remember(backdrop1, backdrop2) {
         CombinedBackdropDrawer(backdrop1, backdrop2)
     }
 }
 
 @Composable
-fun rememberCombinedBackdropDrawer(vararg backdrops: Backdrop): BackdropDrawer {
+fun rememberCombinedBackdropDrawer(vararg backdrops: BackdropDrawer): BackdropDrawer {
     return remember(*backdrops) {
         CombinedBackdropsDrawer(*backdrops)
     }
@@ -24,8 +24,8 @@ fun rememberCombinedBackdropDrawer(vararg backdrops: Backdrop): BackdropDrawer {
 
 @Stable
 private class CombinedBackdropDrawer(
-    val backdrop1: Backdrop,
-    val backdrop2: Backdrop
+    val backdrop1: BackdropDrawer,
+    val backdrop2: BackdropDrawer
 ) : BackdropDrawer {
 
     override fun DrawScope.drawBackdrop(
@@ -40,7 +40,7 @@ private class CombinedBackdropDrawer(
 
 @Stable
 private class CombinedBackdropsDrawer(
-    vararg val backdrops: Backdrop
+    vararg val backdrops: BackdropDrawer
 ) : BackdropDrawer {
 
     override fun DrawScope.drawBackdrop(

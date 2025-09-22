@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -37,7 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
-import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.BackdropDrawer
 import com.kyant.backdrop.backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.refractionWithDispersion
@@ -53,7 +52,7 @@ fun LiquidSlider(
     value: () -> Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
-    backdrop: Backdrop,
+    backdrop: BackdropDrawer,
     modifier: Modifier = Modifier
 ) {
     val isLightTheme = !isSystemInDarkTheme()
@@ -82,9 +81,7 @@ fun LiquidSlider(
         }
 
     BoxWithConstraints(
-        modifier
-            .padding(horizontal = 16f.dp)
-            .fillMaxWidth(),
+        modifier.fillMaxWidth(),
         contentAlignment = Alignment.CenterStart
     ) {
         val density = LocalDensity.current
