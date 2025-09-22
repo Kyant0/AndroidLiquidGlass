@@ -35,8 +35,8 @@ import com.kyant.backdrop.highlight.HighlightElement
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.backdrop.shadow.ShadowElement
 
-internal val DefaultHighlight = { Highlight() }
-internal val DefaultShadow = { Shadow() }
+internal val DefaultHighlight = { Highlight.Default }
+internal val DefaultShadow = { Shadow.Default }
 private val DefaultOnDrawBackdrop: DrawScope.(DrawScope.() -> Unit) -> Unit = { it() }
 
 fun Modifier.drawBackdrop(
@@ -51,7 +51,7 @@ fun Modifier.drawBackdrop(
     onDrawFront: (DrawScope.() -> Unit)? = null,
     effects: BackdropEffectScope.() -> Unit
 ): Modifier {
-    val shapeProvider = CachedBackdropShapeProvider(shape)
+    val shapeProvider = ShapeProvider(shape)
     return this
         .then(
             if (layer != null) {
@@ -96,7 +96,7 @@ fun Modifier.drawBackdrop(
 
 private class DrawBackdropElement(
     val backdrop: BackdropDrawer,
-    val shapeProvider: BackdropShapeProvider,
+    val shapeProvider: ShapeProvider,
     val layerBlock: (GraphicsLayerScope.() -> Unit)?,
     val onDrawBehind: (DrawScope.() -> Unit)?,
     val onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
@@ -173,7 +173,7 @@ private class DrawBackdropElement(
 
 private class DrawBackdropNode(
     var backdrop: BackdropDrawer,
-    var shapeProvider: BackdropShapeProvider,
+    var shapeProvider: ShapeProvider,
     var layerBlock: (GraphicsLayerScope.() -> Unit)?,
     var onDrawBehind: (DrawScope.() -> Unit)?,
     var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,

@@ -5,11 +5,9 @@ import androidx.compose.animation.Animatable
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -24,22 +22,18 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.core.graphics.scale
-import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.Block
-import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorFilter
 import com.kyant.backdrop.effects.refraction
-import com.kyant.backdrop.rememberBackdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
@@ -55,7 +49,6 @@ import kotlin.math.sin
 fun AdaptiveLuminanceGlassContent() {
     val isLightTheme = !isSystemInDarkTheme()
 
-    val backdrop = rememberBackdrop()
     val layer = rememberGraphicsLayer()
     val luminanceAnimation = remember { Animatable(if (isLightTheme) 1f else 0f) }
     val contentColorAnimation = remember {
@@ -99,16 +92,7 @@ fun AdaptiveLuminanceGlassContent() {
     val zoomAnimation = remember { Animatable(1f) }
     val rotationAnimation = remember { Animatable(0f) }
 
-    Box(Modifier.fillMaxSize()) {
-        Image(
-            painterResource(R.drawable.system_home_screen_light),
-            null,
-            Modifier
-                .backdrop(backdrop)
-                .fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
-
+    BackdropDemoScaffold { backdrop ->
         Box(
             Modifier
                 .drawBackdrop(
@@ -144,7 +128,7 @@ fun AdaptiveLuminanceGlassContent() {
                         if (l > 0f) lerp(8f.dp.toPx(), 16f.dp.toPx(), l)
                         else lerp(8f.dp.toPx(), 2f.dp.toPx(), -l)
                     )
-                    refraction(24f.dp.toPx(), size.minDimension / 2f)
+                    refraction(24f.dp.toPx(), size.minDimension / 2f, true)
                 }
                 .pointerInput(animationScope) {
                     fun Offset.rotateBy(angle: Float): Offset {
@@ -170,8 +154,7 @@ fun AdaptiveLuminanceGlassContent() {
                         }
                     }
                 }
-                .size(160f.dp)
-                .align(Alignment.Center),
+                .size(160f.dp),
             contentAlignment = Alignment.Center
         ) {
             Block {

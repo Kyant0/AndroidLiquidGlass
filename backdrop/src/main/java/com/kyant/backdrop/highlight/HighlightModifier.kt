@@ -1,6 +1,7 @@
 package com.kyant.backdrop.highlight
 
 import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.BlendMode
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
@@ -8,21 +9,19 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.graphics.RuntimeShader
+import android.graphics.Shader
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asComposePaint
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.isUnspecified
-import androidx.compose.ui.graphics.layer.CompositingStrategy
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.node.DrawModifierNode
@@ -30,15 +29,14 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.ObserverModifierNode
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.observeReads
-import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.util.fastCoerceAtMost
-import com.kyant.backdrop.BackdropShapeProvider
 import com.kyant.backdrop.RuntimeShaderCacheScope
+import com.kyant.backdrop.ShapeProvider
 import kotlin.math.ceil
 
 internal class HighlightElement(
-    val shapeProvider: BackdropShapeProvider,
+    val shapeProvider: ShapeProvider,
     val highlight: () -> Highlight?
 ) : ModifierNodeElement<HighlightNode>() {
 
@@ -76,27 +74,20 @@ internal class HighlightElement(
 }
 
 internal class HighlightNode(
-    var shapeProvider: BackdropShapeProvider,
+    var shapeProvider: ShapeProvider,
     var highlight: () -> Highlight?
 ) : DrawModifierNode, ObserverModifierNode, Modifier.Node() {
 
     override val shouldAutoInvalidate: Boolean = false
 
-    private var graphicsLayer: GraphicsLayer? = null
     private var bitmap: Bitmap? = null
     private var canvas: Canvas? = null
+    private var bitmapShader: BitmapShader? = null
     private val paint =
         Paint().apply {
             style = Paint.Style.STROKE
         }
-    private val maskPaint =
-        Paint().apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                blendMode = BlendMode.MODULATE
-            } else {
-                xfermode = PorterDuffXfermode(PorterDuff.Mode.MULTIPLY)
-            }
-        }
+    private val shaderPaint = Paint()
     private var prevSize = Size.Unspecified
     private var clipPath: Path? = null
 
@@ -114,23 +105,29 @@ internal class HighlightNode(
     private var _highlight: Highlight? = null
     private val cacheDrawBlock: DrawScope.() -> Unit = cacheDrawBlock@{
         val highlight = highlight().also { _highlight = it }
-        val graphicsLayer = graphicsLayer
         val size = size
-        if (highlight == null || graphicsLayer == null ||
-            highlight.width.value <= 0f || highlight.color.isUnspecified ||
+        if (highlight == null ||
+            highlight.width.value <= 0f || highlight.color.isUnspecified || highlight.alpha == 0f ||
             size.width < 0.5f || size.height < 0.5f
         ) {
             _highlight = null
             return@cacheDrawBlock
         }
 
-        paint.color = highlight.color.toArgb()
+        val color =
+            if (highlight.alpha == 1f) {
+                highlight.color
+            } else {
+                highlight.color.copy(alpha = highlight.color.alpha * highlight.alpha)
+            }
+        paint.color = color.toArgb()
         val strokeWidth = ceil(highlight.width.toPx().fastCoerceAtMost(size.minDimension / 2f))
         paint.strokeWidth = strokeWidth * 2f
         val blurRadius = highlight.blurRadius.toPx()
         if (blurRadius > 0f) {
             paint.maskFilter = BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
         }
+        shaderPaint.asComposePaint().blendMode = highlight.blendMode
 
         if (prevSize != size) {
             bitmap = null
@@ -144,7 +141,10 @@ internal class HighlightNode(
                 ceil(size.width).toInt(),
                 ceil(size.height).toInt(),
                 Bitmap.Config.ARGB_8888
-            ).also { bitmap = it }
+            ).also {
+                bitmap = it
+                bitmapShader = BitmapShader(it, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+            }
         val canvas =
             canvas?.apply {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -194,20 +194,19 @@ internal class HighlightNode(
         drawContent()
 
         val highlight = _highlight
-        val graphicsLayer = graphicsLayer
         val bitmap = bitmap
-        if (highlight != null && graphicsLayer != null && bitmap != null) {
-            val maskShader = with(highlight.style()) { runtimeShaderCacheScope.createShader(size) }
-            maskPaint.shader = maskShader
-            graphicsLayer.blendMode = highlight.blendMode
-            graphicsLayer.record {
-                val canvas = drawContext.canvas.nativeCanvas
+        val bitmapShader = bitmapShader
+        if (highlight != null && bitmap != null && bitmapShader != null) {
+            val maskShader =
+                with(highlight.style()) { runtimeShaderCacheScope.createShader(size, bitmapShader) }
+            shaderPaint.shader = maskShader
+
+            val canvas = drawContext.canvas.nativeCanvas
+            if (maskShader != null) {
+                canvas.drawRect(0f, 0f, size.width, size.height, shaderPaint)
+            } else {
                 canvas.drawBitmap(bitmap, 0f, 0f, null)
-                if (maskShader != null) {
-                    canvas.drawPaint(maskPaint)
-                }
             }
-            drawLayer(graphicsLayer)
         }
     }
 
@@ -218,21 +217,5 @@ internal class HighlightNode(
     fun invalidateDrawCache() {
         isCacheValid = false
         invalidateDraw()
-    }
-
-    override fun onAttach() {
-        val graphicsContext = requireGraphicsContext()
-        graphicsLayer =
-            graphicsContext.createGraphicsLayer().apply {
-                compositingStrategy = CompositingStrategy.Offscreen
-            }
-    }
-
-    override fun onDetach() {
-        val graphicsContext = requireGraphicsContext()
-        graphicsLayer?.let { layer ->
-            graphicsContext.releaseGraphicsLayer(layer)
-            graphicsLayer = null
-        }
     }
 }

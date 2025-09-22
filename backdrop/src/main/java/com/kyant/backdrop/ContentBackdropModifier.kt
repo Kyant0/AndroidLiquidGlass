@@ -38,7 +38,7 @@ fun Modifier.contentBackdrop(
     onDrawSurface: (DrawScope.() -> Unit)? = null,
     effects: BackdropEffectScope.() -> Unit
 ): Modifier {
-    val shapeProvider = CachedBackdropShapeProvider(shape)
+    val shapeProvider = ShapeProvider(shape)
     return this
         .then(
             if (layer != null) {
@@ -79,7 +79,7 @@ fun Modifier.contentBackdrop(
 }
 
 private class ContentBackdropElement(
-    val shapeProvider: BackdropShapeProvider,
+    val shapeProvider: ShapeProvider,
     var layerBlock: (GraphicsLayerScope.() -> Unit)?,
     val onDrawBehind: (DrawScope.() -> Unit)?,
     val onDrawSurface: (DrawScope.() -> Unit)?,
@@ -138,7 +138,7 @@ private class ContentBackdropElement(
 }
 
 private class ContentBackdropNode(
-    var shapeProvider: BackdropShapeProvider,
+    var shapeProvider: ShapeProvider,
     var layerBlock: (GraphicsLayerScope.() -> Unit)?,
     var onDrawBehind: (DrawScope.() -> Unit)?,
     var onDrawSurface: (DrawScope.() -> Unit)?,

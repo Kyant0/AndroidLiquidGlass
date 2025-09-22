@@ -28,9 +28,13 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -79,6 +83,10 @@ fun BottomTabsContent() {
     val tabsLayer =
         rememberGraphicsLayer().apply {
             colorFilter = ColorFilter.tint(accentColor)
+        }
+    val innerShadowLayer =
+        rememberGraphicsLayer().apply {
+            compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
         }
 
     val animationScope = rememberCoroutineScope()
@@ -243,7 +251,7 @@ fun BottomTabsContent() {
                         { ContinuousCapsule },
                         highlight = {
                             val progress = pressAnimation.value
-                            Highlight(color = Color.White.copy(0.38f * progress))
+                            Highlight.AmbientDefault.copy(alpha = progress)
                         },
                         shadow = {
                             val progress = pressAnimation.value
@@ -259,6 +267,23 @@ fun BottomTabsContent() {
                         },
                         onDrawSurface = {
                             val progress = pressAnimation.value
+
+                            val shape = ContinuousCapsule
+                            val outline = shape.createOutline(size, layoutDirection, this)
+                            val innerShadowOffset = 4f.dp.toPx()
+                            val innerShadowBlurRadius = 4f.dp.toPx()
+
+                            innerShadowLayer.alpha = progress
+                            innerShadowLayer.renderEffect =
+                                BlurEffect(innerShadowBlurRadius, innerShadowBlurRadius, TileMode.Decal)
+                            innerShadowLayer.record {
+                                drawOutline(outline, Color.Black.copy(0.2f))
+                                translate(0f, innerShadowOffset) {
+                                    drawOutline(outline, Color.Transparent, blendMode = BlendMode.Clear)
+                                }
+                            }
+                            drawLayer(innerShadowLayer)
+
                             drawRect(
                                 if (isLightTheme) Color.Black.copy(0.1f)
                                 else Color.White.copy(0.1f),

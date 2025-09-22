@@ -27,11 +27,11 @@ import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.IntSize
-import com.kyant.backdrop.BackdropShapeProvider
+import com.kyant.backdrop.ShapeProvider
 import kotlin.math.ceil
 
 internal class ShadowElement(
-    val shapeProvider: BackdropShapeProvider,
+    val shapeProvider: ShapeProvider,
     val shadow: () -> Shadow?
 ) : ModifierNodeElement<ShadowNode>() {
 
@@ -69,7 +69,7 @@ internal class ShadowElement(
 }
 
 internal class ShadowNode(
-    var shapeProvider: BackdropShapeProvider,
+    var shapeProvider: ShapeProvider,
     var shadow: () -> Shadow?
 ) : DrawModifierNode, ObserverModifierNode, Modifier.Node() {
 
@@ -98,7 +98,7 @@ internal class ShadowNode(
         val shadow = shadow().also { _shadow = it }
         val size = size
         if (shadow == null ||
-            shadow.elevation.value <= 0f || shadow.color.isUnspecified
+            shadow.elevation.value <= 0f || shadow.color.isUnspecified || shadow.alpha == 0f
         ) {
             _shadow = null
             return@cacheDrawBlock
@@ -115,7 +115,13 @@ internal class ShadowNode(
             return@cacheDrawBlock
         }
 
-        paint.setShadowLayer(elevation, offset.x, offset.y, shadow.color.toArgb())
+        val color =
+            if (shadow.alpha == 1f) {
+                shadow.color
+            } else {
+                shadow.color.copy(alpha = shadow.color.alpha * shadow.alpha)
+            }
+        paint.setShadowLayer(elevation, offset.x, offset.y, color.toArgb())
         drawPaint.asComposePaint().blendMode = shadow.blendMode
 
         if (prevSize != size) {

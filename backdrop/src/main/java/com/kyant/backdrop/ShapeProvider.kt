@@ -7,15 +7,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 
-internal interface BackdropShapeProvider {
-
-    val innerShape: Shape
-
-    val shape: Shape
-}
-
 @Immutable
-internal class CachedBackdropShapeProvider(val shapeProvider: () -> Shape) : BackdropShapeProvider {
+internal class ShapeProvider(val shapeBlock: () -> Shape) {
 
     private var _shape: Shape? = null
     private var _outline: Outline? = null
@@ -23,17 +16,17 @@ internal class CachedBackdropShapeProvider(val shapeProvider: () -> Shape) : Bac
     private var _layoutDirection: LayoutDirection? = null
     private var _density: Float? = null
 
-    override val innerShape: Shape
-        get() = shapeProvider()
+    val innerShape
+        get() = shapeBlock()
 
-    override val shape: Shape = object : Shape {
+    val shape = object : Shape {
 
         override fun createOutline(
             size: Size,
             layoutDirection: LayoutDirection,
             density: Density
         ): Outline {
-            val shape = shapeProvider()
+            val shape = shapeBlock()
             if (_shape != shape) {
                 _shape = shape
                 _outline = null

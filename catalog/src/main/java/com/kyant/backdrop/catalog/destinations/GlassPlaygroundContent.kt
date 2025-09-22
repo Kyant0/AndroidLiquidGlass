@@ -60,7 +60,7 @@ fun GlassPlaygroundContent() {
                     }
                 ) {
                     saturation()
-                    refraction(24f.dp.toPx(), size.minDimension / 2f)
+                    refraction(24f.dp.toPx(), size.minDimension / 2f, true)
                 }
                 .pointerInput(animationScope) {
                     fun Offset.rotateBy(angle: Float): Offset {

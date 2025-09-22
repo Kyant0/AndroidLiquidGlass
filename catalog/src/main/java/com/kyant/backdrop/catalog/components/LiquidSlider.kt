@@ -40,8 +40,7 @@ import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.dispersion
-import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.effects.refractionWithDispersion
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.rememberBackdrop
 import com.kyant.backdrop.rememberCombinedBackdropDrawer
@@ -149,12 +148,14 @@ fun LiquidSlider(
                     { ContinuousCapsule },
                     highlight = {
                         val progress = progressAnimation.value
-                        Highlight(
-                            color = Color.Black.copy(0.3f * progress),
-                            blendMode = BlendMode.SrcOver
+                        Highlight.AmbientDefault.copy(alpha = progress)
+                    },
+                    shadow = {
+                        Shadow(
+                            elevation = 4f.dp,
+                            color = Color.Black.copy(0.08f)
                         )
                     },
-                    shadow = { Shadow(elevation = 4f.dp, color = Color.Black.copy(0.08f)) },
                     layer = {
                         val progress = progressAnimation.value
                         val scale = lerp(1f, 1.5f, progress)
@@ -162,11 +163,14 @@ fun LiquidSlider(
                         scaleY = scale
                     },
                     onDrawSurface = {
+                        val progress = progressAnimation.value.fastCoerceIn(0f, 1f)
+
                         val shape = ContinuousCapsule
                         val outline = shape.createOutline(size, layoutDirection, this)
                         val innerShadowOffset = 4f.dp.toPx()
                         val innerShadowBlurRadius = 4f.dp.toPx()
 
+                        innerShadowLayer.alpha = progress
                         innerShadowLayer.renderEffect =
                             BlurEffect(innerShadowBlurRadius, innerShadowBlurRadius, TileMode.Decal)
                         innerShadowLayer.record {
@@ -177,12 +181,10 @@ fun LiquidSlider(
                         }
                         drawLayer(innerShadowLayer)
 
-                        val progress = progressAnimation.value.fastCoerceIn(0f, 1f)
                         drawRect(Color.White.copy(1f - progress))
                     }
                 ) {
-                    refraction(6f.dp.toPx(), size.height / 2f)
-                    dispersion(12f.dp.toPx(), size.height / 2f)
+                    refractionWithDispersion(6f.dp.toPx(), size.height / 2f)
                 }
                 .size(40f.dp, 24f.dp)
         )

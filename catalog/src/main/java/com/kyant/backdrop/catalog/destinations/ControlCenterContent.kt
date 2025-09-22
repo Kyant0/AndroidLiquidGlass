@@ -4,7 +4,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -224,7 +223,6 @@ fun ControlCenterContent() {
                         Modifier
                             .clip(innerItemShape)
                             .background(inactiveItemColor)
-                            .clickable {}
                             .scale(innerItemIconScale)
                             .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                             .size(innerItemSize)
@@ -234,7 +232,6 @@ fun ControlCenterContent() {
                         Modifier
                             .clip(innerItemShape)
                             .background(activeItemColor)
-                            .clickable {}
                             .scale(innerItemIconScale)
                             .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                             .size(innerItemSize)
@@ -244,7 +241,6 @@ fun ControlCenterContent() {
                         Modifier
                             .clip(innerItemShape)
                             .background(activeItemColor)
-                            .clickable {}
                             .scale(innerItemIconScale)
                             .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                             .size(innerItemSize)
@@ -290,7 +286,6 @@ fun ControlCenterContent() {
                                     onDrawSurface = glassSurface,
                                     effects = glassEffects
                                 )
-                                .clickable {}
                                 .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                                 .size(itemSize)
                         )
@@ -305,7 +300,6 @@ fun ControlCenterContent() {
                                     onDrawSurface = glassSurface,
                                     effects = glassEffects
                                 )
-                                .clickable {}
                                 .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                                 .size(itemSize)
                         )
@@ -395,7 +389,6 @@ fun ControlCenterContent() {
                                     onDrawSurface = glassSurface,
                                     effects = glassEffects
                                 )
-                                .clickable {}
                                 .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                                 .size(itemSize)
                         )
@@ -410,7 +403,6 @@ fun ControlCenterContent() {
                                     onDrawSurface = glassSurface,
                                     effects = glassEffects
                                 )
-                                .clickable {}
                                 .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                                 .size(itemSize)
                         )
@@ -430,7 +422,6 @@ fun ControlCenterContent() {
                                     onDrawSurface = glassSurface,
                                     effects = glassEffects
                                 )
-                                .clickable {}
                                 .paint(airplaneModeIcon, colorFilter = iconColorFilter)
                                 .size(itemSize)
                         )
