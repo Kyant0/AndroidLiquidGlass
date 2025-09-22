@@ -4,10 +4,6 @@ import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -27,10 +23,10 @@ interface BackdropEffectScope : Density, RuntimeShaderCacheScope {
 
 internal abstract class BackdropEffectScopeImpl : BackdropEffectScope {
 
-    override var density: Float by mutableFloatStateOf(1f)
-    override var fontScale: Float by mutableFloatStateOf(1f)
-    override var size: Size by mutableStateOf(Size.Unspecified)
-    override var layoutDirection: LayoutDirection by mutableStateOf(LayoutDirection.Ltr)
+    override var density: Float = 1f
+    override var fontScale: Float = 1f
+    override var size: Size = Size.Unspecified
+    override var layoutDirection: LayoutDirection = LayoutDirection.Ltr
     override var renderEffect: RenderEffect? = null
 
     private val runtimeShaders = mutableMapOf<String, RuntimeShader>()
@@ -40,11 +36,32 @@ internal abstract class BackdropEffectScopeImpl : BackdropEffectScope {
         return runtimeShaders.getOrPut(key) { RuntimeShader(string) }
     }
 
-    fun applyDrawScope(scope: DrawScope) {
-        density = scope.density
-        fontScale = scope.fontScale
-        size = scope.size
-        layoutDirection = scope.layoutDirection
+    fun update(scope: DrawScope): Boolean {
+        val newDensity = scope.density
+        val newFontScale = scope.fontScale
+        val newSize = scope.size
+        val newLayoutDirection = scope.layoutDirection
+
+        val changed = newDensity != density ||
+                newFontScale != fontScale ||
+                newSize != size ||
+                newLayoutDirection != layoutDirection
+
+        if (changed) {
+            density = newDensity
+            fontScale = newFontScale
+            size = newSize
+            layoutDirection = newLayoutDirection
+        }
+
+        return changed
+    }
+
+    fun reset() {
+        density = 1f
+        fontScale = 1f
+        size = Size.Unspecified
+        layoutDirection = LayoutDirection.Ltr
         renderEffect = null
     }
 }

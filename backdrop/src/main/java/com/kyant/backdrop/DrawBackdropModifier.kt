@@ -197,15 +197,6 @@ private class DrawBackdropNode(
             null
         }
 
-    private var isCacheValid = false
-    private val cacheDrawBlock: DrawScope.() -> Unit = {
-        if (effectScope != null) {
-            effectScope.applyDrawScope(this)
-            effects(effectScope)
-            graphicsLayer?.renderEffect = effectScope.renderEffect?.asComposeRenderEffect()
-        }
-    }
-
     private val layoutLayerBlock: GraphicsLayerScope.() -> Unit = {
         clip = true
         shape = shapeProvider.shape
@@ -231,9 +222,8 @@ private class DrawBackdropNode(
 
     override fun ContentDrawScope.draw() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (!isCacheValid) {
-                observeReads { cacheDrawBlock() }
-                isCacheValid = true
+            if (effectScope != null && effectScope.update(this)) {
+                updateEffects()
             }
         }
 
@@ -283,13 +273,28 @@ private class DrawBackdropNode(
     }
 
     fun invalidateDrawCache() {
-        isCacheValid = false
+        observeEffects()
         invalidateDraw()
+    }
+
+    private fun observeEffects() {
+        if (effectScope != null) {
+            observeReads { updateEffects() }
+        }
+    }
+
+    private fun updateEffects() {
+        if (effectScope != null) {
+            effectScope.renderEffect = null
+            effects(effectScope)
+            graphicsLayer?.renderEffect = effectScope.renderEffect?.asComposeRenderEffect()
+        }
     }
 
     override fun onAttach() {
         val graphicsContext = requireGraphicsContext()
         graphicsLayer = graphicsContext.createGraphicsLayer()
+        observeEffects()
     }
 
     override fun onDetach() {
@@ -299,5 +304,6 @@ private class DrawBackdropNode(
             graphicsLayer = null
         }
         recordBlock = null
+        effectScope?.reset()
     }
 }
