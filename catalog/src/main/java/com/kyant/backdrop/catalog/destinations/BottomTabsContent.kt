@@ -270,14 +270,20 @@ fun BottomTabsContent() {
 
                             val shape = ContinuousCapsule
                             val outline = shape.createOutline(size, layoutDirection, this)
-                            val innerShadowOffset = 4f.dp.toPx()
-                            val innerShadowBlurRadius = 4f.dp.toPx()
+                            val innerShadowOffset = 4f.dp.toPx() * progress
+                            val innerShadowBlurRadius = 2f.dp.toPx() * progress
 
                             innerShadowLayer.alpha = progress
-                            innerShadowLayer.renderEffect =
-                                BlurEffect(innerShadowBlurRadius, innerShadowBlurRadius, TileMode.Decal)
+                            if (innerShadowBlurRadius > 0f) {
+                                innerShadowLayer.renderEffect =
+                                    BlurEffect(
+                                        innerShadowBlurRadius,
+                                        innerShadowBlurRadius,
+                                        TileMode.Decal
+                                    )
+                            }
                             innerShadowLayer.record {
-                                drawOutline(outline, Color.Black.copy(0.2f))
+                                drawOutline(outline, Color.Black.copy(0.1f))
                                 translate(0f, innerShadowOffset) {
                                     drawOutline(outline, Color.Transparent, blendMode = BlendMode.Clear)
                                 }

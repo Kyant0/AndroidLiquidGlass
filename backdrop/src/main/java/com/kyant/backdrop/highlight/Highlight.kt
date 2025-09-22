@@ -28,8 +28,8 @@ data class Highlight(
         @Stable
         val AmbientDefault: Highlight =
             Highlight(
-                width = 0.5f.dp,
-                blurRadius = 0.5f.dp,
+                width = (1f / 3f).dp,
+                blurRadius = (1f / 3f).dp,
                 color = Color.Transparent.copy(0.5f),
                 blendMode = BlendMode.SrcOver,
                 style = { HighlightStyle.Dynamic.AmbientDefault }

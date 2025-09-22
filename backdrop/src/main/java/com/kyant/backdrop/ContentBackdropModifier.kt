@@ -208,7 +208,7 @@ private class ContentBackdropNode(
                     val inverseLayerScope =
                         inverseLayerScope?.apply { reset() }
                             ?: InverseLayerScope().also { inverseLayerScope = it }
-                    with(inverseLayerScope) { inverseTransform(density = this@draw, layerBlock = layerBlock) }
+                    with(inverseLayerScope) { inverseTransform(this@draw, layerBlock) }
                 }) {
                     drawLayer(layer)
                 }

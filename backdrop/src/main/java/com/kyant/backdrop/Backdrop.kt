@@ -55,7 +55,7 @@ class Backdrop internal constructor(
                 val inverseLayerScope =
                     inverseLayerScope?.apply { reset() }
                         ?: InverseLayerScope().also { inverseLayerScope = it }
-                with(inverseLayerScope) { inverseTransform(density = density, layerBlock = layerBlock) }
+                with(inverseLayerScope) { inverseTransform(density, layerBlock) }
                 translate(-offset.x, -offset.y)
             }) {
                 drawLayer(graphicsLayer)
