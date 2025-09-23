@@ -210,3 +210,17 @@ half4 main(float2 coord) {
     }
     return half4(0.0) * intensity * alpha;
 }"""
+
+@Language("AGSL")
+internal const val GammaAdjustmentShaderString = """
+uniform shader image;
+
+uniform float power;
+
+half4 main(float2 coord) {
+    half4 color = image.eval(coord);
+    color.r = pow(color.r, power);
+    color.g = pow(color.g, power);
+    color.b = pow(color.b, power);
+    return color;
+}"""

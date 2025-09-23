@@ -7,6 +7,28 @@ import android.graphics.RenderEffect
 import android.os.Build
 import androidx.compose.ui.graphics.asAndroidColorFilter
 import com.kyant.backdrop.BackdropEffectScope
+import com.kyant.backdrop.GammaAdjustmentShaderString
+import kotlin.math.pow
+
+@Deprecated(
+    "Use colorControls() instead",
+    replaceWith = ReplaceWith("colorControls(brightness, contrast, saturation)")
+)
+fun BackdropEffectScope.colorFilter(
+    brightness: Float = 0f,
+    contrast: Float = 1f,
+    saturation: Float = 1f
+) {
+    colorControls(brightness, contrast, saturation)
+}
+
+@Deprecated(
+    "Use vibrancy() instead",
+    replaceWith = ReplaceWith("vibrancy()")
+)
+fun BackdropEffectScope.saturation() {
+    vibrancy()
+}
 
 fun BackdropEffectScope.colorFilter(colorFilter: ColorFilter) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
@@ -21,18 +43,10 @@ fun BackdropEffectScope.colorFilter(colorFilter: ColorFilter) {
 }
 
 fun BackdropEffectScope.colorFilter(colorFilter: androidx.compose.ui.graphics.ColorFilter) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-
-    val currentEffect = renderEffect
-    renderEffect =
-        if (currentEffect != null) {
-            RenderEffect.createColorFilterEffect(colorFilter.asAndroidColorFilter(), currentEffect)
-        } else {
-            RenderEffect.createColorFilterEffect(colorFilter.asAndroidColorFilter())
-        }
+    colorFilter(colorFilter.asAndroidColorFilter())
 }
 
-fun BackdropEffectScope.colorFilter(
+fun BackdropEffectScope.colorControls(
     brightness: Float = 0f,
     contrast: Float = 1f,
     saturation: Float = 1f
@@ -41,25 +55,38 @@ fun BackdropEffectScope.colorFilter(
         return
     }
 
-    val colorFilter = colorAdjustmentColorFilter(brightness, contrast, saturation)
-    colorFilter(colorFilter)
+    colorFilter(colorControlsColorFilter(brightness, contrast, saturation))
 }
 
 fun BackdropEffectScope.vibrancy() {
     colorFilter(VibrantColorFilter)
 }
 
-@Deprecated(
-    "Use vibrancy() instead",
-    replaceWith = ReplaceWith("vibrancy()")
-)
-fun BackdropEffectScope.saturation() {
-    vibrancy()
+private val VibrantColorFilter = colorControlsColorFilter(saturation = 1.5f)
+
+fun BackdropEffectScope.exposureAdjustment(ev: Float) {
+    val scale = 2f.pow(ev / 2.2f)
+    val colorMatrix = ColorMatrix(
+        floatArrayOf(
+            scale, 0f, 0f, 0f, 0f,
+            0f, scale, 0f, 0f, 0f,
+            0f, 0f, scale, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f
+        )
+    )
+    colorFilter(ColorMatrixColorFilter(colorMatrix))
 }
 
-private val VibrantColorFilter = colorAdjustmentColorFilter(saturation = 1.5f)
+fun BackdropEffectScope.gammaAdjustment(power: Float) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
 
-private fun colorAdjustmentColorFilter(
+    val shader = obtainRuntimeShader("GammaAdjustment", GammaAdjustmentShaderString).apply {
+        setFloatUniform("power", power)
+    }
+    effect(RenderEffect.createRuntimeShaderEffect(shader, "image"))
+}
+
+private fun colorControlsColorFilter(
     brightness: Float = 0f,
     contrast: Float = 1f,
     saturation: Float = 1f

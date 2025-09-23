@@ -27,7 +27,7 @@ import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.colorFilter
+import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightStyle
@@ -66,7 +66,7 @@ fun DialogContent() {
                     highlight = { Highlight { HighlightStyle.Solid } },
                     onDrawSurface = { drawRect(containerColor) }
                 ) {
-                    colorFilter(
+                    colorControls(
                         brightness = if (isLightTheme) 0.2f else 0f,
                         saturation = 1.5f
                     )

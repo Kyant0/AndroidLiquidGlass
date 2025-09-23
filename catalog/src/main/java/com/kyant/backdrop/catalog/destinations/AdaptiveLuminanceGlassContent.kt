@@ -32,7 +32,7 @@ import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.Block
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.colorFilter
+import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.refraction
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.Dispatchers
@@ -115,7 +115,7 @@ fun AdaptiveLuminanceGlassContent() {
                     }
                 ) {
                     val l = (luminanceAnimation.value * 2f - 1f).let { sign(it) * it * it }
-                    colorFilter(
+                    colorControls(
                         brightness =
                             if (l > 0f) lerp(0.1f, 0.5f, l)
                             else lerp(0.1f, -0.2f, -l),

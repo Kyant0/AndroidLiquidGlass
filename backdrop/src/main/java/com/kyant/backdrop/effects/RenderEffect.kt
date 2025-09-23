@@ -19,11 +19,5 @@ fun BackdropEffectScope.effect(effect: RenderEffect) {
 fun BackdropEffectScope.effect(effect: androidx.compose.ui.graphics.RenderEffect) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
 
-    val currentEffect = renderEffect
-    renderEffect =
-        if (currentEffect != null) {
-            RenderEffect.createChainEffect(effect.asAndroidRenderEffect(), currentEffect)
-        } else {
-            effect.asAndroidRenderEffect()
-        }
+    effect(effect.asAndroidRenderEffect())
 }
