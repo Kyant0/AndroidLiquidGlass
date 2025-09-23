@@ -15,8 +15,7 @@ private val DefaultDrawLayer: ContentDrawScope.() -> Unit = { drawContent() }
     message = "Use rememberLayerBackdrop instead",
     replaceWith = ReplaceWith(
         "rememberLayerBackdrop(graphicsLayer = graphicsLayer)",
-        "com.kyant.backdrop.backdrops.rememberLayerBackdrop",
-        "androidx.compose.ui.graphics.rememberGraphicsLayer"
+        "com.kyant.backdrop.backdrops.rememberLayerBackdrop"
     )
 )
 @Composable

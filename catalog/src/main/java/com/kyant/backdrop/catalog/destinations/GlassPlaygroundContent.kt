@@ -31,7 +31,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kyant.backdrop.backdrops.emptyBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.Block
 import com.kyant.backdrop.catalog.R
@@ -62,6 +62,7 @@ fun GlassPlaygroundContent() {
 
     var isSheetExpanded by remember { mutableStateOf(true) }
 
+    var cornerRadiusFrac by remember { mutableFloatStateOf(0.5f) }
     var blurRadiusDp by remember { mutableFloatStateOf(0f) }
     var refractionHeightFrac by remember { mutableFloatStateOf(0.1f) }
     var refractionAmountFrac by remember { mutableFloatStateOf(0.2f) }
@@ -74,7 +75,7 @@ fun GlassPlaygroundContent() {
                 .statusBarsPadding()
                 .drawBackdrop(
                     backdrop,
-                    { ContinuousRoundedRectangle(48f.dp) },
+                    { ContinuousRoundedRectangle(256f.dp / 2f * cornerRadiusFrac) },
                     layer = {
                         val offset = offsetAnimation.value
                         val zoom = zoomAnimation.value
@@ -91,7 +92,7 @@ fun GlassPlaygroundContent() {
                     saturation()
                     blur(blurRadiusDp.dp.toPx())
                     refractionWithDispersion(
-                        height = refractionHeightFrac * minDimension,
+                        height = refractionHeightFrac * minDimension * 0.5f,
                         amount = refractionAmountFrac * minDimension,
                         hasDepthEffect = true,
                         dispersionIntensity = dispersionIntensity
@@ -131,7 +132,7 @@ fun GlassPlaygroundContent() {
 
         Block {
             if (isSheetExpanded) {
-                val sheetBackdrop = emptyBackdrop()
+                val sheetBackdrop = rememberLayerBackdrop()
                 Column(
                     Modifier
                         .padding(16f.dp)
@@ -140,6 +141,7 @@ fun GlassPlaygroundContent() {
                         .drawBackdrop(
                             backdrop,
                             { ContinuousRoundedRectangle(32f.dp) },
+                            exportedBackdrop = sheetBackdrop,
                             onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) }
                         ) {
                             saturation()
@@ -151,6 +153,15 @@ fun GlassPlaygroundContent() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16f.dp)
                 ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8f.dp)) {
+                        BasicText("Corner radius")
+                        LiquidSlider(
+                            value = { cornerRadiusFrac },
+                            onValueChange = { cornerRadiusFrac = it },
+                            valueRange = 0f..1f,
+                            backdrop = sheetBackdrop
+                        )
+                    }
                     Column(verticalArrangement = Arrangement.spacedBy(8f.dp)) {
                         BasicText("Blur radius")
                         LiquidSlider(
@@ -165,7 +176,7 @@ fun GlassPlaygroundContent() {
                         LiquidSlider(
                             value = { refractionHeightFrac },
                             onValueChange = { refractionHeightFrac = it },
-                            valueRange = 0f..0.5f,
+                            valueRange = 0f..1f,
                             backdrop = sheetBackdrop
                         )
                     }
