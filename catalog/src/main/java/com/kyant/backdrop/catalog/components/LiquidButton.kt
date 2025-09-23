@@ -38,7 +38,7 @@ import com.kyant.backdrop.catalog.utils.inspectDragGestures
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
-import com.kyant.backdrop.effects.saturation
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -162,7 +162,7 @@ half4 main(float2 coord) {
                     null
                 }
             ) {
-                saturation()
+                vibrancy()
                 blur(2f.dp.toPx())
                 refraction(12f.dp.toPx(), 24f.dp.toPx())
             }

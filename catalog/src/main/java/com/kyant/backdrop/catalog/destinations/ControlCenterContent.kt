@@ -51,7 +51,7 @@ import com.kyant.backdrop.catalog.utils.rememberUISensor
 import com.kyant.backdrop.contentBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.refraction
-import com.kyant.backdrop.effects.saturation
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightStyle
 import com.kyant.capsule.ContinuousCapsule
@@ -111,7 +111,7 @@ fun ControlCenterContent() {
     }
     val glassSurface: DrawScope.() -> Unit = { drawRect(containerColor) }
     val glassEffects: BackdropEffectScope.() -> Unit = {
-        saturation()
+        vibrancy()
         refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
     }
 

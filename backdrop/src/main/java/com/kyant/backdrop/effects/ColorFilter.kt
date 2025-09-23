@@ -41,17 +41,25 @@ fun BackdropEffectScope.colorFilter(
         return
     }
 
-    val colorFilter = simpleColorFilter(brightness, contrast, saturation)
+    val colorFilter = colorAdjustmentColorFilter(brightness, contrast, saturation)
     colorFilter(colorFilter)
 }
 
-fun BackdropEffectScope.saturation() {
-    colorFilter(DefaultSaturationColorFilter)
+fun BackdropEffectScope.vibrancy() {
+    colorFilter(VibrantColorFilter)
 }
 
-private val DefaultSaturationColorFilter = simpleColorFilter(saturation = 1.5f)
+@Deprecated(
+    "Use vibrancy() instead",
+    replaceWith = ReplaceWith("vibrancy()")
+)
+fun BackdropEffectScope.saturation() {
+    vibrancy()
+}
 
-private fun simpleColorFilter(
+private val VibrantColorFilter = colorAdjustmentColorFilter(saturation = 1.5f)
+
+private fun colorAdjustmentColorFilter(
     brightness: Float = 0f,
     contrast: Float = 1f,
     saturation: Float = 1f

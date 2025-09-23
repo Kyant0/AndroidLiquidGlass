@@ -59,7 +59,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.dispersion
 import com.kyant.backdrop.effects.refraction
-import com.kyant.backdrop.effects.saturation
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
@@ -136,7 +136,7 @@ fun BottomTabsContent() {
                             },
                             onDrawSurface = { drawRect(containerColor) }
                         ) {
-                            saturation()
+                            vibrancy()
                             blur(8f.dp.toPx())
                             refraction(24f.dp.toPx(), 24f.dp.toPx())
                         }
@@ -214,7 +214,7 @@ fun BottomTabsContent() {
                             shadow = null,
                             onDrawSurface = { drawRect(containerColor) }
                         ) {
-                            saturation()
+                            vibrancy()
                             blur(8f.dp.toPx())
                         }
                         .height(56f.dp)

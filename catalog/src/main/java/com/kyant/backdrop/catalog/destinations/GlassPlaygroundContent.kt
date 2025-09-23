@@ -3,7 +3,6 @@ package com.kyant.backdrop.catalog.destinations
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,27 +20,23 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.paint
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.Block
-import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.components.LiquidButton
 import com.kyant.backdrop.catalog.components.LiquidSlider
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.refractionWithDispersion
-import com.kyant.backdrop.effects.saturation
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -50,11 +45,6 @@ import kotlin.math.sin
 
 @Composable
 fun GlassPlaygroundContent() {
-    val isLightTheme = !isSystemInDarkTheme()
-    val accentColor =
-        if (isLightTheme) Color(0xFF0088FF)
-        else Color(0xFF0091FF)
-
     val animationScope = rememberCoroutineScope()
     val offsetAnimation = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
     val zoomAnimation = remember { Animatable(1f) }
@@ -89,7 +79,7 @@ fun GlassPlaygroundContent() {
                     }
                 ) {
                     val minDimension = size.minDimension
-                    saturation()
+                    vibrancy()
                     blur(blurRadiusDp.dp.toPx())
                     refractionWithDispersion(
                         height = refractionHeightFrac * minDimension * 0.5f,
@@ -122,10 +112,6 @@ fun GlassPlaygroundContent() {
                         }
                     }
                 }
-                .paint(
-                    painterResource(R.drawable.flight_40px),
-                    colorFilter = ColorFilter.tint(accentColor)
-                )
                 .size(256f.dp)
                 .align(Alignment.TopCenter)
         )
@@ -144,7 +130,7 @@ fun GlassPlaygroundContent() {
                             exportedBackdrop = sheetBackdrop,
                             onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) }
                         ) {
-                            saturation()
+                            vibrancy()
                             blur(4f.dp.toPx())
                             refraction(16f.dp.toPx(), 32f.dp.toPx())
                         }
