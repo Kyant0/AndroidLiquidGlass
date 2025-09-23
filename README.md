@@ -2,17 +2,15 @@
 
 ![frontPhoto](artworks/banner.png)
 
-Apple's Liquid Glass effect for Android Jetpack Compose.
+Liquid Glass effect for Android Jetpack Compose.
 
 ## Docs
 
 [![JitPack Release](https://jitpack.io/v/Kyant0/AndroidLiquidGlass.svg)](https://jitpack.io/#Kyant0/AndroidLiquidGlass)
 
-⚠️ The library is in alpha stage, every API may be changed, use it on your own risk.
+⚠️ The library is in early alpha stage, every API may be changed, use it on your own risk.
 
-[Latest docs](https://kyant.gitbook.io/backdrop)
-
-[legacy docs (before 1.0.0-alpha10)](docs/LegacyDocs.md)
+[Documentation](https://kyant.gitbook.io/backdrop)
 
 ## Demos
 
