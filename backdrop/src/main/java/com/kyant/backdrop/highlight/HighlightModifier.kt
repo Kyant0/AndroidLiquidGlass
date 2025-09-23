@@ -154,6 +154,8 @@ internal class HighlightNode(
                 }
             } ?: Canvas(bitmap).also { canvas = it }
 
+        canvas.save()
+
         when (val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)) {
             is Outline.Rectangle -> {
                 val rect = RectF(0f, 0f, size.width, size.height)
@@ -183,6 +185,8 @@ internal class HighlightNode(
                 canvas.drawPath(path, paint)
             }
         }
+
+        canvas.restore()
     }
 
     override fun ContentDrawScope.draw() {
