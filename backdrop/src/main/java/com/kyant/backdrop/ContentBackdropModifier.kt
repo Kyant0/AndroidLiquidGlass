@@ -70,7 +70,7 @@ fun Modifier.contentBackdrop(
         .then(
             ContentBackdropElement(
                 shapeProvider = shapeProvider,
-                layerBlock = layer,
+                layer = layer,
                 onDrawBehind = onDrawBehind,
                 onDrawSurface = onDrawSurface,
                 effects = effects
@@ -80,7 +80,7 @@ fun Modifier.contentBackdrop(
 
 private class ContentBackdropElement(
     val shapeProvider: ShapeProvider,
-    var layerBlock: (GraphicsLayerScope.() -> Unit)?,
+    val layer: (GraphicsLayerScope.() -> Unit)?,
     val onDrawBehind: (DrawScope.() -> Unit)?,
     val onDrawSurface: (DrawScope.() -> Unit)?,
     val effects: BackdropEffectScope.() -> Unit
@@ -89,7 +89,7 @@ private class ContentBackdropElement(
     override fun create(): ContentBackdropNode {
         return ContentBackdropNode(
             shapeProvider = shapeProvider,
-            layerBlock = layerBlock,
+            layer = layer,
             onDrawBehind = onDrawBehind,
             onDrawSurface = onDrawSurface,
             effects = effects
@@ -98,7 +98,7 @@ private class ContentBackdropElement(
 
     override fun update(node: ContentBackdropNode) {
         node.shapeProvider = shapeProvider
-        node.layerBlock = layerBlock
+        node.layer = layer
         node.onDrawBehind = onDrawBehind
         node.onDrawSurface = onDrawSurface
         node.effects = effects
@@ -108,7 +108,7 @@ private class ContentBackdropElement(
     override fun InspectorInfo.inspectableProperties() {
         name = "contentBackdrop"
         properties["shapeProvider"] = shapeProvider
-        properties["layerBlock"] = layerBlock
+        properties["layer"] = layer
         properties["onDrawBehind"] = onDrawBehind
         properties["onDrawSurface"] = onDrawSurface
         properties["effects"] = effects
@@ -119,7 +119,7 @@ private class ContentBackdropElement(
         if (other !is ContentBackdropElement) return false
 
         if (shapeProvider != other.shapeProvider) return false
-        if (layerBlock != other.layerBlock) return false
+        if (layer != other.layer) return false
         if (onDrawBehind != other.onDrawBehind) return false
         if (onDrawSurface != other.onDrawSurface) return false
         if (effects != other.effects) return false
@@ -129,7 +129,7 @@ private class ContentBackdropElement(
 
     override fun hashCode(): Int {
         var result = shapeProvider.hashCode()
-        result = 31 * result + (layerBlock?.hashCode() ?: 0)
+        result = 31 * result + (layer?.hashCode() ?: 0)
         result = 31 * result + (onDrawBehind?.hashCode() ?: 0)
         result = 31 * result + (onDrawSurface?.hashCode() ?: 0)
         result = 31 * result + effects.hashCode()
@@ -139,7 +139,7 @@ private class ContentBackdropElement(
 
 private class ContentBackdropNode(
     var shapeProvider: ShapeProvider,
-    var layerBlock: (GraphicsLayerScope.() -> Unit)?,
+    var layer: (GraphicsLayerScope.() -> Unit)?,
     var onDrawBehind: (DrawScope.() -> Unit)?,
     var onDrawSurface: (DrawScope.() -> Unit)?,
     var effects: BackdropEffectScope.() -> Unit
@@ -159,7 +159,7 @@ private class ContentBackdropNode(
             null
         }
 
-    private val layoutLayerBlock: GraphicsLayerScope.() -> Unit = {
+    private val layerBlock: GraphicsLayerScope.() -> Unit = {
         clip = true
         shape = shapeProvider.shape
         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
@@ -173,7 +173,7 @@ private class ContentBackdropNode(
     ): MeasureResult {
         val placeable = measurable.measure(constraints)
         return layout(placeable.width, placeable.height) {
-            placeable.placeWithLayer(IntOffset.Zero, layerBlock = layoutLayerBlock)
+            placeable.placeWithLayer(IntOffset.Zero, layerBlock = layerBlock)
         }
     }
 
@@ -188,11 +188,9 @@ private class ContentBackdropNode(
 
         val layer = graphicsLayer
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && layer != null) {
-            layer.record {
-                this@draw.drawContent()
-            }
+            layer.record { this@draw.drawContent() }
 
-            val layerBlock = layerBlock
+            val layerBlock = this@ContentBackdropNode.layer
             if (layerBlock != null) {
                 withTransform({
                     val inverseLayerScope =

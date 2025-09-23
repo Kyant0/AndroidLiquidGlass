@@ -30,16 +30,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.catalog.components.LiquidButton
-import com.kyant.backdrop.rememberBackdrop
 
 @Composable
 fun BackdropDemoScaffold(
     modifier: Modifier = Modifier,
     @DrawableRes initialPainterResId: Int = R.drawable.wallpaper_light,
-    content: @Composable BoxScope.(backdrop: Backdrop) -> Unit
+    content: @Composable BoxScope.(backdrop: LayerBackdrop) -> Unit
 ) {
     Box(
         Modifier.fillMaxSize(),
@@ -63,13 +63,13 @@ fun BackdropDemoScaffold(
             }
         }
 
-        val backdrop = rememberBackdrop()
+        val backdrop = rememberLayerBackdrop()
 
         Image(
             painter ?: painterResource(initialPainterResId),
             null,
             Modifier
-                .backdrop(backdrop)
+                .layerBackdrop(backdrop)
                 .then(modifier)
                 .fillMaxSize(),
             contentScale = ContentScale.Crop

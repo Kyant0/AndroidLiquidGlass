@@ -1,17 +1,22 @@
-package com.kyant.backdrop
+package com.kyant.backdrop.backdrops
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.unit.Density
+import com.kyant.backdrop.Backdrop
+
+fun emptyBackdrop(): Backdrop = EmptyBackdrop
 
 @Immutable
-object EmptyBackdropDrawer : BackdropDrawer {
+private object EmptyBackdrop : Backdrop {
+
+    override val isCoordinatesDependent: Boolean = false
 
     override fun DrawScope.drawBackdrop(
         density: Density,
-        coordinates: LayoutCoordinates,
+        coordinates: LayoutCoordinates?,
         layerBlock: (GraphicsLayerScope.() -> Unit)?
     ) {
     }

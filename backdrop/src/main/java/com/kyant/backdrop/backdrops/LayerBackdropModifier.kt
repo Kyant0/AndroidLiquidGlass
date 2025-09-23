@@ -1,4 +1,4 @@
-package com.kyant.backdrop
+package com.kyant.backdrop.backdrops
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
@@ -10,28 +10,30 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.platform.InspectorInfo
 
-fun Modifier.backdrop(backdrop: Backdrop): Modifier =
-    this then BackdropElement(backdrop)
+fun Modifier.layerBackdrop(backdrop: LayerBackdrop): Modifier =
+    this then LayerBackdropElement(backdrop)
 
-private class BackdropElement(val backdrop: Backdrop) : ModifierNodeElement<BackdropNode>() {
+private class LayerBackdropElement(
+    val backdrop: LayerBackdrop
+) : ModifierNodeElement<LayerBackdropNode>() {
 
-    override fun create(): BackdropNode {
-        return BackdropNode(backdrop = backdrop)
+    override fun create(): LayerBackdropNode {
+        return LayerBackdropNode(backdrop)
     }
 
-    override fun update(node: BackdropNode) {
+    override fun update(node: LayerBackdropNode) {
         node.backdrop = backdrop
         node.invalidateDraw()
     }
 
     override fun InspectorInfo.inspectableProperties() {
-        name = "backdrop"
+        name = "layerBackdrop"
         properties["backdrop"] = backdrop
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is BackdropElement) return false
+        if (other !is LayerBackdropElement) return false
 
         if (backdrop != other.backdrop) return false
 
@@ -43,8 +45,9 @@ private class BackdropElement(val backdrop: Backdrop) : ModifierNodeElement<Back
     }
 }
 
-private class BackdropNode(var backdrop: Backdrop) :
-    DrawModifierNode, GlobalPositionAwareModifierNode, Modifier.Node() {
+private class LayerBackdropNode(
+    var backdrop: LayerBackdrop
+) : DrawModifierNode, GlobalPositionAwareModifierNode, Modifier.Node() {
 
     override val shouldAutoInvalidate: Boolean = false
 

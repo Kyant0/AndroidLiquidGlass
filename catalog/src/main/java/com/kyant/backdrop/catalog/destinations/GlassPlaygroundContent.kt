@@ -31,7 +31,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kyant.backdrop.EmptyBackdropDrawer
+import com.kyant.backdrop.backdrops.emptyBackdrop
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.Block
 import com.kyant.backdrop.catalog.R
@@ -131,7 +131,7 @@ fun GlassPlaygroundContent() {
 
         Block {
             if (isSheetExpanded) {
-                val sheetBackdrop = EmptyBackdropDrawer
+                val sheetBackdrop = emptyBackdrop()
                 Column(
                     Modifier
                         .padding(16f.dp)
@@ -202,7 +202,7 @@ fun GlassPlaygroundContent() {
                 tint = Color(0xFFFF8D28)
             ) {
                 BasicText(
-                    if (isSheetExpanded) "🔽" else "⬆️",
+                    if (isSheetExpanded) "🔽" else "🔼",
                     style = TextStyle(Color.White, 15f.sp)
                 )
             }

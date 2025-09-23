@@ -50,7 +50,9 @@ import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
-import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.drawBackdrop
@@ -59,8 +61,6 @@ import com.kyant.backdrop.effects.dispersion
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.saturation
 import com.kyant.backdrop.highlight.Highlight
-import com.kyant.backdrop.rememberBackdrop
-import com.kyant.backdrop.rememberCombinedBackdropDrawer
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.launch
@@ -79,7 +79,7 @@ fun BottomTabsContent() {
     val airplaneModeIcon = painterResource(R.drawable.flight_40px)
     val iconColorFilter = ColorFilter.tint(contentColor)
 
-    val tabsBackdrop = rememberBackdrop()
+    val tabsBackdrop = rememberLayerBackdrop()
     val tabsLayer =
         rememberGraphicsLayer().apply {
             colorFilter = ColorFilter.tint(accentColor)
@@ -202,7 +202,7 @@ fun BottomTabsContent() {
                 Modifier
                     .clearAndSetSemantics {}
                     .alpha(0f)
-                    .backdrop(tabsBackdrop),
+                    .layerBackdrop(tabsBackdrop),
                 contentAlignment = Alignment.CenterStart
             ) {
                 Box(
@@ -247,7 +247,7 @@ fun BottomTabsContent() {
                         }
                     }
                     .drawBackdrop(
-                        rememberCombinedBackdropDrawer(backdrop, tabsBackdrop),
+                        rememberCombinedBackdrop(backdrop, tabsBackdrop),
                         { ContinuousCapsule },
                         highlight = {
                             val progress = pressAnimation.value

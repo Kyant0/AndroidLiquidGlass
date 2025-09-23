@@ -36,13 +36,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
-import com.kyant.backdrop.BackdropDrawer
-import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.refractionWithDispersion
 import com.kyant.backdrop.highlight.Highlight
-import com.kyant.backdrop.rememberBackdrop
-import com.kyant.backdrop.rememberCombinedBackdropDrawer
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.launch
@@ -52,7 +52,7 @@ fun LiquidSlider(
     value: () -> Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
-    backdrop: BackdropDrawer,
+    backdrop: Backdrop,
     modifier: Modifier = Modifier
 ) {
     val isLightTheme = !isSystemInDarkTheme()
@@ -74,7 +74,7 @@ fun LiquidSlider(
     val progressAnimationSpec = spring(0.5f, 300f, 0.001f)
     val progressAnimation = remember { Animatable(0f) }
 
-    val trackBackdrop = rememberBackdrop()
+    val trackBackdrop = rememberLayerBackdrop()
     val innerShadowLayer =
         rememberGraphicsLayer().apply {
             compositingStrategy = CompositingStrategy.Offscreen
@@ -87,7 +87,7 @@ fun LiquidSlider(
         val density = LocalDensity.current
         val trackWidth = constraints.maxWidth
 
-        Box(Modifier.backdrop(trackBackdrop)) {
+        Box(Modifier.layerBackdrop(trackBackdrop)) {
             Box(
                 Modifier
                     .clip(ContinuousCapsule)
@@ -141,7 +141,7 @@ fun LiquidSlider(
                     }
                 )
                 .drawBackdrop(
-                    rememberCombinedBackdropDrawer(backdrop, trackBackdrop),
+                    rememberCombinedBackdrop(backdrop, trackBackdrop),
                     { ContinuousCapsule },
                     highlight = {
                         val progress = progressAnimation.value
