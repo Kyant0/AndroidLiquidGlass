@@ -1,12 +1,13 @@
 package com.kyant.backdrop.highlight
 
-import android.graphics.BitmapShader
-import android.graphics.Shader
 import android.os.Build
 import androidx.annotation.FloatRange
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.RenderEffect
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.AmbientHighlightShaderString
 import com.kyant.backdrop.DynamicHighlightShaderString
@@ -16,18 +17,14 @@ import kotlin.math.PI
 @Immutable
 sealed interface HighlightStyle {
 
-    fun RuntimeShaderCacheScope.createShader(
-        size: Size,
-        bitmapShader: BitmapShader
-    ): Shader?
+    @RequiresApi(Build.VERSION_CODES.S)
+    fun RuntimeShaderCacheScope.createRenderEffect(size: Size): RenderEffect?
 
     @Immutable
     data object Solid : HighlightStyle {
 
-        override fun RuntimeShaderCacheScope.createShader(
-            size: Size,
-            bitmapShader: BitmapShader
-        ): Shader? = null
+        @RequiresApi(Build.VERSION_CODES.S)
+        override fun RuntimeShaderCacheScope.createRenderEffect(size: Size): RenderEffect? = null
     }
 
     @Immutable
@@ -37,10 +34,8 @@ sealed interface HighlightStyle {
         val isAmbient: Boolean = false
     ) : HighlightStyle {
 
-        override fun RuntimeShaderCacheScope.createShader(
-            size: Size,
-            bitmapShader: BitmapShader
-        ): Shader? {
+        @RequiresApi(Build.VERSION_CODES.S)
+        override fun RuntimeShaderCacheScope.createRenderEffect(size: Size): RenderEffect? {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val shader =
                     if (isAmbient) {
@@ -49,11 +44,12 @@ sealed interface HighlightStyle {
                         obtainRuntimeShader("Dynamic", DynamicHighlightShaderString)
                     }
                 shader.apply {
-                    setInputBuffer("image", bitmapShader)
                     setFloatUniform("size", size.width, size.height)
                     setFloatUniform("angle", angle * (PI / 180f).toFloat())
                     setFloatUniform("falloff", falloff)
                 }
+                android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "image")
+                    .asComposeRenderEffect()
             } else {
                 null
             }

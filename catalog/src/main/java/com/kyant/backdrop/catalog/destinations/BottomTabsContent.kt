@@ -269,7 +269,7 @@ fun BottomTabsContent() {
                         shadow = {
                             val progress = pressAnimation.value
                             Shadow(
-                                elevation = 24f.dp * progress,
+                                radius = 24f.dp * progress,
                                 offset = DpOffset(0f.dp, 4f.dp * progress)
                             )
                         },

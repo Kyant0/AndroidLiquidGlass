@@ -1,30 +1,27 @@
 package com.kyant.backdrop.shadow
 
-import android.graphics.Bitmap
-import android.graphics.BlendMode
-import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
-import android.graphics.RectF
 import android.os.Build
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.asComposePaint
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.isUnspecified
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.layer.CompositingStrategy
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
-import androidx.compose.ui.node.ObserverModifierNode
 import androidx.compose.ui.node.invalidateDraw
-import androidx.compose.ui.node.observeReads
+import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.IntSize
 import com.kyant.backdrop.ShapeProvider
@@ -42,7 +39,7 @@ internal class ShadowElement(
     override fun update(node: ShadowNode) {
         node.shapeProvider = shapeProvider
         node.shadow = shadow
-        node.invalidateDrawCache()
+        node.invalidateDraw()
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -71,92 +68,96 @@ internal class ShadowElement(
 internal class ShadowNode(
     var shapeProvider: ShapeProvider,
     var shadow: () -> Shadow?
-) : DrawModifierNode, ObserverModifierNode, Modifier.Node() {
+) : DrawModifierNode, Modifier.Node() {
 
     override val shouldAutoInvalidate: Boolean = false
 
-    private var bitmap: Bitmap? = null
-    private var canvas: Canvas? = null
-    private val paint =
-        Paint().apply {
-            color = Color.TRANSPARENT
-        }
-    private val maskPaint =
-        Paint().apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                blendMode = BlendMode.CLEAR
-            } else {
-                xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+    private var shadowLayer: GraphicsLayer? = null
+    private var maskLayer: GraphicsLayer? = null
+
+    private val shadowPaint = Paint()
+
+    private var prevRadius = Float.NaN
+
+    override fun ContentDrawScope.draw() {
+        val shadow = shadow() ?: return drawContent()
+
+        val shadowLayer = shadowLayer
+        val maskLayer = maskLayer
+        if (shadowLayer != null && maskLayer != null) {
+            val size = size
+            val radius = shadow.radius.toPx()
+            val offsetX = shadow.offset.x.toPx()
+            val offsetY = shadow.offset.y.toPx()
+            val shadowSize = IntSize(
+                ceil(size.width + radius * 2 + offsetX).toInt(),
+                ceil(size.height + radius * 2 + offsetY).toInt()
+            )
+            val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)
+
+            configurePaint(shadow)
+
+            if (prevRadius != radius) {
+                shadowLayer.renderEffect =
+                    if (radius > 0f) {
+                        BlurEffect(radius, radius, TileMode.Decal)
+                    } else {
+                        null
+                    }
+                prevRadius = radius
             }
-        }
-    private val drawPaint = Paint()
-    private var prevSize = Size.Unspecified
-    private var dx = 0f
-    private var dy = 0f
+            shadowLayer.record { drawOutline(outline, shadowPaint) }
 
-    private var _shadow: Shadow? = null
-    private var isCacheValid = false
-    private val cacheDrawBlock: DrawScope.() -> Unit = cacheDrawBlock@{
-        val shadow = shadow().also { _shadow = it }
-        val size = size
-        if (shadow == null ||
-            shadow.elevation.value <= 0f || shadow.color.isUnspecified || shadow.alpha == 0f
-        ) {
-            _shadow = null
-            return@cacheDrawBlock
-        }
-
-        val elevation = shadow.elevation.toPx()
-        val offset = Offset(shadow.offset.x.toPx(), shadow.offset.y.toPx())
-        val shadowSize = IntSize(
-            ceil(size.width + elevation * 2).toInt(),
-            ceil(size.height + elevation * 2).toInt()
-        )
-        if (shadowSize.width < 0.5f || shadowSize.height < 0.5f) {
-            _shadow = null
-            return@cacheDrawBlock
-        }
-
-        val color =
-            if (shadow.alpha == 1f) {
-                shadow.color
-            } else {
-                shadow.color.copy(alpha = shadow.color.alpha * shadow.alpha)
-            }
-        paint.setShadowLayer(elevation, offset.x, offset.y, color.toArgb())
-        drawPaint.asComposePaint().blendMode = shadow.blendMode
-
-        if (prevSize != size) {
-            bitmap = null
-            canvas = null
-            prevSize = size
-        }
-
-        @Suppress("UseKtx")
-        val bitmap =
-            bitmap ?: Bitmap.createBitmap(
-                shadowSize.width,
-                shadowSize.height,
-                Bitmap.Config.ARGB_8888
-            ).also { bitmap = it }
-        val canvas =
-            canvas?.apply {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    drawColor(Color.TRANSPARENT, BlendMode.CLEAR)
-                } else {
-                    drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+            maskLayer.blendMode = shadow.blendMode
+            maskLayer.record(size = shadowSize) {
+                translate(radius + offsetX, radius + offsetY) {
+                    drawLayer(shadowLayer)
+                    translate(-offsetX, -offsetY) {
+                        drawOutline(outline, ShadowMaskPaint)
+                    }
                 }
-            } ?: Canvas(bitmap).also { canvas = it }
+            }
 
-        dx = elevation - offset.x
-        dy = elevation - offset.y
-        canvas.translate(dx, dy)
+            translate(-radius, -radius) {
+                drawLayer(maskLayer)
+            }
+        }
 
-        when (val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)) {
+        drawContent()
+    }
+
+    override fun onAttach() {
+        val graphicsContext = requireGraphicsContext()
+        shadowLayer = graphicsContext.createGraphicsLayer()
+        maskLayer =
+            graphicsContext.createGraphicsLayer().apply {
+                compositingStrategy = CompositingStrategy.Offscreen
+            }
+    }
+
+    override fun onDetach() {
+        val graphicsContext = requireGraphicsContext()
+        shadowLayer?.let { layer ->
+            graphicsContext.releaseGraphicsLayer(layer)
+            shadowLayer = null
+        }
+        maskLayer?.let { layer ->
+            graphicsContext.releaseGraphicsLayer(layer)
+            maskLayer = null
+        }
+        prevRadius = Float.NaN
+    }
+
+    private fun DrawScope.configurePaint(shadow: Shadow) {
+        shadowPaint.color = shadow.color.modulate(shadow.alpha).toArgb()
+    }
+
+    private fun DrawScope.drawOutline(outline: Outline, paint: Paint) {
+        val canvas = drawContext.canvas.nativeCanvas
+
+        when (outline) {
             is Outline.Rectangle -> {
-                val rect = RectF(0f, 0f, size.width, size.height)
-                canvas.drawRect(rect, paint)
-                canvas.drawRect(rect, maskPaint)
+                canvas.drawRect(0f, 0f, size.width, size.height, paint)
             }
 
             is Outline.Rounded -> {
@@ -164,46 +165,32 @@ internal class ShadowNode(
                 val path = outline.roundRectPath?.asAndroidPath()
                 if (path != null) {
                     canvas.drawPath(path, paint)
-                    canvas.drawPath(path, maskPaint)
                 } else {
-                    val rect = with(outline.roundRect) { RectF(left, top, right, bottom) }
+                    val rr = outline.roundRect
                     val radius = outline.roundRect.topLeftCornerRadius.x
-                    canvas.drawRoundRect(rect, radius, radius, paint)
-                    canvas.drawRoundRect(rect, radius, radius, maskPaint)
+                    canvas.drawRoundRect(rr.left, rr.top, rr.right, rr.bottom, radius, radius, paint)
                 }
             }
 
             is Outline.Generic -> {
                 val path = outline.path.asAndroidPath()
                 canvas.drawPath(path, paint)
-                canvas.drawPath(path, maskPaint)
             }
         }
-
-        canvas.translate(-dx, -dy)
-    }
-
-    override fun ContentDrawScope.draw() {
-        if (!isCacheValid) {
-            observeReads { cacheDrawBlock() }
-            isCacheValid = true
-        }
-
-        val bitmap = bitmap
-        if (bitmap != null) {
-            val canvas = drawContext.canvas.nativeCanvas
-            canvas.drawBitmap(bitmap, -dx, -dy, drawPaint)
-        }
-
-        drawContent()
-    }
-
-    override fun onObservedReadsChanged() {
-        invalidateDrawCache()
-    }
-
-    fun invalidateDrawCache() {
-        isCacheValid = false
-        invalidateDraw()
     }
 }
+
+private val ShadowMaskPaint = Paint().apply {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        blendMode = android.graphics.BlendMode.CLEAR
+    } else {
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+    }
+}
+
+private fun Color.modulate(alpha: Float): Color =
+    if (alpha != 1.0f) {
+        copy(alpha = this.alpha * alpha)
+    } else {
+        this
+    }

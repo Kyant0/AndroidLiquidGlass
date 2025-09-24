@@ -53,7 +53,7 @@ fun LockScreenContent() {
                         },
                         shadow = {
                             Shadow(
-                                elevation = 4f.dp,
+                                radius = 4f.dp,
                                 offset = DpOffset(0f.dp, 1f.dp),
                                 color = Color.Black.copy(0.05f)
                             )

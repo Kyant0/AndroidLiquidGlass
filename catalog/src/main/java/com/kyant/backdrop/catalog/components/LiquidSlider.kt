@@ -152,7 +152,7 @@ fun LiquidSlider(
                     },
                     shadow = {
                         Shadow(
-                            elevation = 4f.dp,
+                            radius = 4f.dp,
                             color = Color.Black.copy(0.05f)
                         )
                     },

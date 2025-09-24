@@ -14,7 +14,7 @@ import androidx.compose.ui.util.lerp
 
 @Immutable
 data class Shadow(
-    val elevation: Dp = 24f.dp,
+    val radius: Dp = 24f.dp,
     val offset: DpOffset = DpOffset(0f.dp, 4f.dp),
     val color: Color = Color.Black.copy(alpha = 0.15f),
     val alpha: Float = 1f,
@@ -31,7 +31,7 @@ data class Shadow(
 @Stable
 fun lerp(start: Shadow, stop: Shadow, fraction: Float): Shadow {
     return Shadow(
-        elevation = lerp(start.elevation, stop.elevation, fraction),
+        radius = lerp(start.radius, stop.radius, fraction),
         offset = lerp(start.offset, stop.offset, fraction),
         color = lerp(start.color, stop.color, fraction),
         alpha = lerp(start.alpha, stop.alpha, fraction),
