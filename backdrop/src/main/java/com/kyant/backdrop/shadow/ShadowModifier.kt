@@ -73,7 +73,7 @@ internal class ShadowNode(
 
     private var shadowLayer: GraphicsLayer? = null
 
-    private val shadowPaint = Paint()
+    private val paint = Paint()
 
     override fun ContentDrawScope.draw() {
         val shadow = shadow() ?: return drawContent()
@@ -124,10 +124,10 @@ internal class ShadowNode(
     }
 
     private fun DrawScope.configurePaint(shadow: Shadow) {
-        shadowPaint.color = shadow.color.modulate(shadow.alpha).toArgb()
+        paint.color = shadow.color.modulate(shadow.alpha).toArgb()
         val blurRadius = shadow.radius.toPx()
         if (blurRadius > 0f) {
-            shadowPaint.maskFilter = BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
+            paint.maskFilter = BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
         }
     }
 
@@ -136,7 +136,7 @@ internal class ShadowNode(
 
         when (outline) {
             is Outline.Rectangle -> {
-                canvas.drawRect(0f, 0f, size.width, size.height, shadowPaint)
+                canvas.drawRect(0f, 0f, size.width, size.height, paint)
                 canvas.translate(-offsetX, -offsetY)
                 canvas.drawRect(0f, 0f, size.width, size.height, ShadowMaskPaint)
                 canvas.translate(offsetX, offsetY)
@@ -146,14 +146,14 @@ internal class ShadowNode(
                 @Suppress("INVISIBLE_REFERENCE")
                 val path = outline.roundRectPath?.asAndroidPath()
                 if (path != null) {
-                    canvas.drawPath(path, shadowPaint)
+                    canvas.drawPath(path, paint)
                     canvas.translate(-offsetX, -offsetY)
                     canvas.drawPath(path, ShadowMaskPaint)
                     canvas.translate(offsetX, offsetY)
                 } else {
                     val rr = outline.roundRect
                     val radius = outline.roundRect.topLeftCornerRadius.x
-                    canvas.drawRoundRect(rr.left, rr.top, rr.right, rr.bottom, radius, radius, shadowPaint)
+                    canvas.drawRoundRect(rr.left, rr.top, rr.right, rr.bottom, radius, radius, paint)
                     canvas.translate(-offsetX, -offsetY)
                     canvas.drawRoundRect(rr.left, rr.top, rr.right, rr.bottom, radius, radius, ShadowMaskPaint)
                     canvas.translate(offsetX, offsetY)
@@ -162,7 +162,7 @@ internal class ShadowNode(
 
             is Outline.Generic -> {
                 val path = outline.path.asAndroidPath()
-                canvas.drawPath(path, shadowPaint)
+                canvas.drawPath(path, paint)
                 canvas.translate(-offsetX, -offsetY)
                 canvas.drawPath(path, ShadowMaskPaint)
                 canvas.translate(offsetX, offsetY)
