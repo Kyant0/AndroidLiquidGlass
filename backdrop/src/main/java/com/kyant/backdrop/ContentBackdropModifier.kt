@@ -34,6 +34,7 @@ fun Modifier.contentBackdrop(
     highlight: (() -> Highlight?)? = DefaultHighlight,
     shadow: (() -> Shadow?)? = DefaultShadow,
     layer: (GraphicsLayerScope.() -> Unit)? = null,
+    drawContent: Boolean = false,
     onDrawBehind: (DrawScope.() -> Unit)? = null,
     onDrawSurface: (DrawScope.() -> Unit)? = null,
     effects: BackdropEffectScope.() -> Unit
@@ -71,6 +72,7 @@ fun Modifier.contentBackdrop(
             ContentBackdropElement(
                 shapeProvider = shapeProvider,
                 layer = layer,
+                drawContent = drawContent,
                 onDrawBehind = onDrawBehind,
                 onDrawSurface = onDrawSurface,
                 effects = effects
@@ -81,6 +83,7 @@ fun Modifier.contentBackdrop(
 private class ContentBackdropElement(
     val shapeProvider: ShapeProvider,
     val layer: (GraphicsLayerScope.() -> Unit)?,
+    val drawContent: Boolean,
     val onDrawBehind: (DrawScope.() -> Unit)?,
     val onDrawSurface: (DrawScope.() -> Unit)?,
     val effects: BackdropEffectScope.() -> Unit
@@ -90,6 +93,7 @@ private class ContentBackdropElement(
         return ContentBackdropNode(
             shapeProvider = shapeProvider,
             layer = layer,
+            drawContent = drawContent,
             onDrawBehind = onDrawBehind,
             onDrawSurface = onDrawSurface,
             effects = effects
@@ -99,6 +103,7 @@ private class ContentBackdropElement(
     override fun update(node: ContentBackdropNode) {
         node.shapeProvider = shapeProvider
         node.layer = layer
+        node.drawContent = drawContent
         node.onDrawBehind = onDrawBehind
         node.onDrawSurface = onDrawSurface
         node.effects = effects
@@ -109,6 +114,7 @@ private class ContentBackdropElement(
         name = "contentBackdrop"
         properties["shapeProvider"] = shapeProvider
         properties["layer"] = layer
+        properties["drawContent"] = drawContent
         properties["onDrawBehind"] = onDrawBehind
         properties["onDrawSurface"] = onDrawSurface
         properties["effects"] = effects
@@ -120,6 +126,7 @@ private class ContentBackdropElement(
 
         if (shapeProvider != other.shapeProvider) return false
         if (layer != other.layer) return false
+        if (drawContent != other.drawContent) return false
         if (onDrawBehind != other.onDrawBehind) return false
         if (onDrawSurface != other.onDrawSurface) return false
         if (effects != other.effects) return false
@@ -130,6 +137,7 @@ private class ContentBackdropElement(
     override fun hashCode(): Int {
         var result = shapeProvider.hashCode()
         result = 31 * result + (layer?.hashCode() ?: 0)
+        result = 31 * result + drawContent.hashCode()
         result = 31 * result + (onDrawBehind?.hashCode() ?: 0)
         result = 31 * result + (onDrawSurface?.hashCode() ?: 0)
         result = 31 * result + effects.hashCode()
@@ -140,6 +148,7 @@ private class ContentBackdropElement(
 private class ContentBackdropNode(
     var shapeProvider: ShapeProvider,
     var layer: (GraphicsLayerScope.() -> Unit)?,
+    var drawContent: Boolean,
     var onDrawBehind: (DrawScope.() -> Unit)?,
     var onDrawSurface: (DrawScope.() -> Unit)?,
     var effects: BackdropEffectScope.() -> Unit
@@ -202,6 +211,10 @@ private class ContentBackdropNode(
                 }
             } else {
                 drawLayer(layer)
+            }
+
+            if (drawContent) {
+                drawContent()
             }
         } else {
             drawContent()
