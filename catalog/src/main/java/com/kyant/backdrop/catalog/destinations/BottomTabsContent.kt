@@ -126,8 +126,13 @@ fun BottomTabsContent() {
                 Row(
                     Modifier
                         .drawBackdrop(
-                            backdrop,
-                            { ContinuousCapsule },
+                            backdrop = backdrop,
+                            shape = { ContinuousCapsule },
+                            effects = {
+                                vibrancy()
+                                blur(8f.dp.toPx())
+                                refraction(24f.dp.toPx(), 24f.dp.toPx())
+                            },
                             layer = {
                                 val progress = pressAnimation.value
                                 val scale = lerp(1f, 1f + 2f.dp.toPx() / size.height, progress)
@@ -135,11 +140,7 @@ fun BottomTabsContent() {
                                 scaleY = scale
                             },
                             onDrawSurface = { drawRect(containerColor) }
-                        ) {
-                            vibrancy()
-                            blur(8f.dp.toPx())
-                            refraction(24f.dp.toPx(), 24f.dp.toPx())
-                        }
+                        )
                         .drawWithContent {
                             drawContent()
                             tabsLayer.record { this@drawWithContent.drawContent() }
@@ -210,13 +211,14 @@ fun BottomTabsContent() {
                         .drawBackdrop(
                             backdrop,
                             { ContinuousCapsule },
+                            {
+                                vibrancy()
+                                blur(8f.dp.toPx())
+                            },
                             highlight = null,
                             shadow = null,
                             onDrawSurface = { drawRect(containerColor) }
-                        ) {
-                            vibrancy()
-                            blur(8f.dp.toPx())
-                        }
+                        )
                         .height(56f.dp)
                         .fillMaxWidth()
                 )
@@ -249,6 +251,17 @@ fun BottomTabsContent() {
                     .drawBackdrop(
                         rememberCombinedBackdrop(backdrop, tabsBackdrop),
                         { ContinuousCapsule },
+                        {
+                            val progress = pressAnimation.value
+                            refraction(
+                                12f.dp.toPx() * progress,
+                                12f.dp.toPx() * progress
+                            )
+                            dispersion(
+                                12f.dp.toPx() * progress,
+                                24f.dp.toPx() * progress
+                            )
+                        },
                         highlight = {
                             val progress = pressAnimation.value
                             Highlight.AmbientDefault.copy(alpha = progress)
@@ -296,17 +309,7 @@ fun BottomTabsContent() {
                                 alpha = 1f - progress
                             )
                         }
-                    ) {
-                        val progress = pressAnimation.value
-                        refraction(
-                            12f.dp.toPx() * progress,
-                            12f.dp.toPx() * progress
-                        )
-                        dispersion(
-                            12f.dp.toPx() * progress,
-                            24f.dp.toPx() * progress
-                        )
-                    }
+                    )
                     .draggable(
                         rememberDraggableState { delta ->
                             val scaleX = lerp(1f, 1f + 20f / 56f, scaleXAnimation.value)

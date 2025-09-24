@@ -36,12 +36,13 @@ fun ScrollContainerContent() {
                 Box(
                     Modifier
                         .drawBackdrop(
-                            backdrop,
-                            { ContinuousRoundedRectangle(32f.dp) }
-                        ) {
-                            vibrancy()
-                            refraction(16f.dp.toPx(), 32f.dp.toPx())
-                        }
+                            backdrop = backdrop,
+                            shape = { ContinuousRoundedRectangle(32f.dp) },
+                            effects = {
+                                vibrancy()
+                                refraction(16f.dp.toPx(), 32f.dp.toPx())
+                            }
+                        )
                         .height(160f.dp)
                         .fillMaxWidth()
                 )

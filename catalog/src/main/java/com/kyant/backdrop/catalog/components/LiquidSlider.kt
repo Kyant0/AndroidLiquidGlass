@@ -141,8 +141,11 @@ fun LiquidSlider(
                     }
                 )
                 .drawBackdrop(
-                    rememberCombinedBackdrop(backdrop, trackBackdrop),
-                    { ContinuousCapsule },
+                    backdrop = rememberCombinedBackdrop(backdrop, trackBackdrop),
+                    shape = { ContinuousCapsule },
+                    effects = {
+                        refractionWithDispersion(6f.dp.toPx(), size.height / 2f)
+                    },
                     highlight = {
                         val progress = progressAnimation.value
                         Highlight.AmbientDefault.copy(alpha = progress)
@@ -186,9 +189,7 @@ fun LiquidSlider(
 
                         drawRect(Color.White.copy(1f - progress))
                     }
-                ) {
-                    refractionWithDispersion(6f.dp.toPx(), size.height / 2f)
-                }
+                )
                 .size(40f.dp, 24f.dp)
         )
     }

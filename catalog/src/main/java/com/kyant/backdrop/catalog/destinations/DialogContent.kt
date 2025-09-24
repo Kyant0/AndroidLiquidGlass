@@ -6,7 +6,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -15,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -48,27 +48,29 @@ fun DialogContent() {
         else Color(0xFF121212).copy(0.56f)
 
     BackdropDemoScaffold(
-        Modifier
-            .background(dimColor)
-            .fillMaxSize(),
+        Modifier.drawWithContent {
+            drawContent()
+            drawRect(dimColor)
+        },
         initialPainterResId = R.drawable.system_home_screen_light
     ) { backdrop ->
         Column(
             Modifier
                 .padding(40f.dp)
                 .drawBackdrop(
-                    backdrop,
-                    { ContinuousRoundedRectangle(48f.dp) },
+                    backdrop = backdrop,
+                    shape = { ContinuousRoundedRectangle(48f.dp) },
+                    effects = {
+                        colorControls(
+                            brightness = if (isLightTheme) 0.2f else 0f,
+                            saturation = 1.5f
+                        )
+                        blur(if (isLightTheme) 16f.dp.toPx() else 8f.dp.toPx())
+                        refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
+                    },
                     highlight = { Highlight { HighlightStyle.Solid } },
                     onDrawSurface = { drawRect(containerColor) }
-                ) {
-                    colorControls(
-                        brightness = if (isLightTheme) 0.2f else 0f,
-                        saturation = 1.5f
-                    )
-                    blur(if (isLightTheme) 16f.dp.toPx() else 8f.dp.toPx())
-                    refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
-                }
+                )
                 .fillMaxWidth()
         ) {
             BasicText(

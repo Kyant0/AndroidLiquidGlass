@@ -64,8 +64,19 @@ fun GlassPlaygroundContent() {
                 .padding(top = 48f.dp)
                 .statusBarsPadding()
                 .drawBackdrop(
-                    backdrop,
-                    { ContinuousRoundedRectangle(256f.dp / 2f * cornerRadiusFrac) },
+                    backdrop = backdrop,
+                    shape = { ContinuousRoundedRectangle(256f.dp / 2f * cornerRadiusFrac) },
+                    effects = {
+                        val minDimension = size.minDimension
+                        vibrancy()
+                        blur(blurRadiusDp.dp.toPx())
+                        refractionWithDispersion(
+                            height = refractionHeightFrac * minDimension * 0.5f,
+                            amount = refractionAmountFrac * minDimension,
+                            hasDepthEffect = true,
+                            dispersionIntensity = dispersionIntensity
+                        )
+                    },
                     layer = {
                         val offset = offsetAnimation.value
                         val zoom = zoomAnimation.value
@@ -77,17 +88,7 @@ fun GlassPlaygroundContent() {
                         rotationZ = rotation
                         transformOrigin = TransformOrigin(0.5f, 0.5f)
                     }
-                ) {
-                    val minDimension = size.minDimension
-                    vibrancy()
-                    blur(blurRadiusDp.dp.toPx())
-                    refractionWithDispersion(
-                        height = refractionHeightFrac * minDimension * 0.5f,
-                        amount = refractionAmountFrac * minDimension,
-                        hasDepthEffect = true,
-                        dispersionIntensity = dispersionIntensity
-                    )
-                }
+                )
                 .pointerInput(animationScope) {
                     fun Offset.rotateBy(angle: Float): Offset {
                         val angleInRadians = angle * (PI / 180)
@@ -125,15 +126,16 @@ fun GlassPlaygroundContent() {
                         .padding(bottom = 72f.dp)
                         .navigationBarsPadding()
                         .drawBackdrop(
-                            backdrop,
-                            { ContinuousRoundedRectangle(32f.dp) },
+                            backdrop = backdrop,
+                            shape = { ContinuousRoundedRectangle(32f.dp) },
+                            effects = {
+                                vibrancy()
+                                blur(4f.dp.toPx())
+                                refraction(16f.dp.toPx(), 32f.dp.toPx())
+                            },
                             exportedBackdrop = sheetBackdrop,
                             onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) }
-                        ) {
-                            vibrancy()
-                            blur(4f.dp.toPx())
-                            refraction(16f.dp.toPx(), 32f.dp.toPx())
-                        }
+                        )
                         .padding(24f.dp)
                         .align(Alignment.BottomCenter),
                     horizontalAlignment = Alignment.CenterHorizontally,

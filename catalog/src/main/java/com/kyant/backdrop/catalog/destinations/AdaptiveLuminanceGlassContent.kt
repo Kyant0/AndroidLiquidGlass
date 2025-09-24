@@ -96,8 +96,25 @@ fun AdaptiveLuminanceGlassContent() {
         Box(
             Modifier
                 .drawBackdrop(
-                    backdrop,
-                    { ContinuousRoundedRectangle(24f.dp) },
+                    backdrop = backdrop,
+                    shape = { ContinuousRoundedRectangle(24f.dp) },
+                    effects = {
+                        val l = (luminanceAnimation.value * 2f - 1f).let { sign(it) * it * it }
+                        colorControls(
+                            brightness =
+                                if (l > 0f) lerp(0.1f, 0.5f, l)
+                                else lerp(0.1f, -0.2f, -l),
+                            contrast =
+                                if (l > 0f) lerp(1f, 0f, l)
+                                else 1f,
+                            saturation = 1.5f
+                        )
+                        blur(
+                            if (l > 0f) lerp(8f.dp.toPx(), 16f.dp.toPx(), l)
+                            else lerp(8f.dp.toPx(), 2f.dp.toPx(), -l)
+                        )
+                        refraction(24f.dp.toPx(), size.minDimension / 2f, true)
+                    },
                     layer = {
                         val offset = offsetAnimation.value
                         val zoom = zoomAnimation.value
@@ -113,23 +130,7 @@ fun AdaptiveLuminanceGlassContent() {
                         drawBackdrop()
                         layer.record { drawBackdrop() }
                     }
-                ) {
-                    val l = (luminanceAnimation.value * 2f - 1f).let { sign(it) * it * it }
-                    colorControls(
-                        brightness =
-                            if (l > 0f) lerp(0.1f, 0.5f, l)
-                            else lerp(0.1f, -0.2f, -l),
-                        contrast =
-                            if (l > 0f) lerp(1f, 0f, l)
-                            else 1f,
-                        saturation = 1.5f
-                    )
-                    blur(
-                        if (l > 0f) lerp(8f.dp.toPx(), 16f.dp.toPx(), l)
-                        else lerp(8f.dp.toPx(), 2f.dp.toPx(), -l)
-                    )
-                    refraction(24f.dp.toPx(), size.minDimension / 2f, true)
-                }
+                )
                 .pointerInput(animationScope) {
                     fun Offset.rotateBy(angle: Float): Offset {
                         val angleInRadians = angle * (PI / 180)

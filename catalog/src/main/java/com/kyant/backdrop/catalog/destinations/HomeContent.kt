@@ -45,10 +45,11 @@ fun HomeContent(onNavigate: (CatalogDestination) -> Unit) {
             ListItem({ onNavigate(CatalogDestination.Buttons) }, "Buttons")
             ListItem({ onNavigate(CatalogDestination.Slider) }, "Slider")
             ListItem({ onNavigate(CatalogDestination.BottomTabs) }, "Bottom tabs")
+            ListItem({ onNavigate(CatalogDestination.Dialog) }, "Dialog")
 
             Subtitle("System UIs")
+            ListItem({ onNavigate(CatalogDestination.LockScreen) }, "Lock screen")
             ListItem({ onNavigate(CatalogDestination.ControlCenter) }, "Control center")
-            ListItem({ onNavigate(CatalogDestination.Dialog) }, "Dialog")
 
             Subtitle("Experiments")
             ListItem({ onNavigate(CatalogDestination.GlassPlayground) }, "Glass playground")

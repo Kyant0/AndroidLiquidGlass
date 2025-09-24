@@ -14,6 +14,7 @@ import com.kyant.backdrop.catalog.destinations.DialogContent
 import com.kyant.backdrop.catalog.destinations.GlassPlaygroundContent
 import com.kyant.backdrop.catalog.destinations.HomeContent
 import com.kyant.backdrop.catalog.destinations.LazyScrollContainerContent
+import com.kyant.backdrop.catalog.destinations.LockScreenContent
 import com.kyant.backdrop.catalog.destinations.ScrollContainerContent
 import com.kyant.backdrop.catalog.destinations.SliderContent
 
@@ -31,9 +32,10 @@ fun MainContent() {
         CatalogDestination.Buttons -> ButtonsContent()
         CatalogDestination.Slider -> SliderContent()
         CatalogDestination.BottomTabs -> BottomTabsContent()
-
-        CatalogDestination.ControlCenter -> ControlCenterContent()
         CatalogDestination.Dialog -> DialogContent()
+
+        CatalogDestination.LockScreen -> LockScreenContent()
+        CatalogDestination.ControlCenter -> ControlCenterContent()
 
         CatalogDestination.GlassPlayground -> GlassPlaygroundContent()
         CatalogDestination.AdaptiveLuminanceGlass -> AdaptiveLuminanceGlassContent()

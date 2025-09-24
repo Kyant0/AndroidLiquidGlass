@@ -86,8 +86,13 @@ half4 main(float2 coord) {
     Row(
         modifier
             .drawBackdrop(
-                backdrop,
-                { ContinuousCapsule },
+                backdrop = backdrop,
+                shape = { ContinuousCapsule },
+                effects = {
+                    vibrancy()
+                    blur(2f.dp.toPx())
+                    refraction(12f.dp.toPx(), 24f.dp.toPx())
+                },
                 layer = if (isInteractive) {
                     {
                         val width = size.width
@@ -161,11 +166,7 @@ half4 main(float2 coord) {
                 } else {
                     null
                 }
-            ) {
-                vibrancy()
-                blur(2f.dp.toPx())
-                refraction(12f.dp.toPx(), 24f.dp.toPx())
-            }
+            )
             .clickable(
                 interactionSource = null,
                 indication = if (isInteractive) null else LocalIndication.current,

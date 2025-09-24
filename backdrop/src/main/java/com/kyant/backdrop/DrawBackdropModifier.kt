@@ -44,6 +44,7 @@ private val DefaultOnDrawContent: ContentDrawScope.() -> Unit = { drawContent() 
 fun Modifier.drawBackdrop(
     backdrop: Backdrop,
     shape: () -> Shape,
+    effects: (BackdropEffectScope.() -> Unit)? = null,
     highlight: (() -> Highlight?)? = DefaultHighlight,
     shadow: (() -> Shadow?)? = DefaultShadow,
     layer: (GraphicsLayerScope.() -> Unit)? = null,
@@ -51,11 +52,10 @@ fun Modifier.drawBackdrop(
     onDrawBehind: (DrawScope.() -> Unit)? = null,
     onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdrop,
     onDrawSurface: (DrawScope.() -> Unit)? = null,
-    onDrawContent: ContentDrawScope.() -> Unit = DefaultOnDrawContent,
     onDrawFront: (DrawScope.() -> Unit)? = null,
-    drawContent: Boolean = true,
     contentEffects: (BackdropEffectScope.() -> Unit)? = null,
-    effects: (BackdropEffectScope.() -> Unit)? = null
+    onDrawContent: ContentDrawScope.() -> Unit = DefaultOnDrawContent,
+    drawContent: Boolean = true
 ): Modifier {
     val shapeProvider = ShapeProvider(shape)
     return this

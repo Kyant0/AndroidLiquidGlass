@@ -6,9 +6,10 @@ enum class CatalogDestination {
     Buttons,
     Slider,
     BottomTabs,
-
-    ControlCenter,
     Dialog,
+
+    LockScreen,
+    ControlCenter,
 
     GlassPlayground,
     AdaptiveLuminanceGlass,
