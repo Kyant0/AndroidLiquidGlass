@@ -91,6 +91,8 @@ internal class ShadowNode(
         }
     private val drawPaint = Paint()
     private var prevSize = Size.Unspecified
+    private var dx = 0f
+    private var dy = 0f
 
     private var _shadow: Shadow? = null
     private var isCacheValid = false
@@ -146,8 +148,8 @@ internal class ShadowNode(
                 }
             } ?: Canvas(bitmap).also { canvas = it }
 
-        val dx = elevation - offset.x
-        val dy = elevation - offset.y
+        dx = elevation - offset.x
+        dy = elevation - offset.y
         canvas.translate(dx, dy)
 
         when (val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)) {
@@ -187,15 +189,10 @@ internal class ShadowNode(
             isCacheValid = true
         }
 
-        val shadow = _shadow
-        if (shadow != null) {
+        val bitmap = bitmap
+        if (bitmap != null) {
             val canvas = drawContext.canvas.nativeCanvas
-            val elevation = shadow.elevation.toPx()
-            val dx = -(elevation - shadow.offset.x.toPx())
-            val dy = -(elevation - shadow.offset.y.toPx())
-            canvas.translate(dx, dy)
-            bitmap?.let { canvas.drawBitmap(it, 0f, 0f, drawPaint) }
-            canvas.translate(-dx, -dy)
+            canvas.drawBitmap(bitmap, -dx, -dy, drawPaint)
         }
 
         drawContent()
