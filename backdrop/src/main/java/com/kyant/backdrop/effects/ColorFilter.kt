@@ -46,6 +46,18 @@ fun BackdropEffectScope.colorFilter(colorFilter: androidx.compose.ui.graphics.Co
     colorFilter(colorFilter.asAndroidColorFilter())
 }
 
+fun BackdropEffectScope.opacity(alpha: Float) {
+    val colorMatrix = ColorMatrix(
+        floatArrayOf(
+            1f, 0f, 0f, 0f, 0f,
+            0f, 1f, 0f, 0f, 0f,
+            0f, 0f, 1f, 0f, 0f,
+            0f, 0f, 0f, alpha, 0f
+        )
+    )
+    colorFilter(ColorMatrixColorFilter(colorMatrix))
+}
+
 fun BackdropEffectScope.colorControls(
     brightness: Float = 0f,
     contrast: Float = 1f,
