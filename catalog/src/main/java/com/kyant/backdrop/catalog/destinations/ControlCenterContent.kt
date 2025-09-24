@@ -48,7 +48,6 @@ import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.utils.ProgressConverter
 import com.kyant.backdrop.catalog.utils.rememberUISensor
-import com.kyant.backdrop.contentBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
@@ -208,17 +207,12 @@ fun ControlCenterContent() {
                             highlight = null,
                             shadow = null,
                             onDrawSurface = glassSurface,
+                            contentEffects = {
+                                blur(8f.dp.toPx())
+                                refraction(8f.dp.toPx(), size.minDimension / 4f, true)
+                            },
                             effects = glassEffects
                         )
-                        .contentBackdrop(
-                            { ContinuousRoundedRectangle(40f.dp) },
-                            highlight = glassHighlight,
-                            shadow = null,
-                            drawContent = true
-                        ) {
-                            blur(8f.dp.toPx())
-                            refraction(8f.dp.toPx(), size.minDimension / 4f, true)
-                        }
                         .size(itemTwoSpanSize)
                         .padding(itemSpacing)
                 ) {
