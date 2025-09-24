@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,14 +48,11 @@ fun DialogContent() {
         else Color(0xFF121212).copy(0.56f)
 
     BackdropDemoScaffold(
+        Modifier
+            .background(dimColor)
+            .fillMaxSize(),
         initialPainterResId = R.drawable.system_home_screen_light
     ) { backdrop ->
-        Box(
-            Modifier
-                .background(dimColor)
-                .fillMaxSize()
-        )
-
         Column(
             Modifier
                 .padding(40f.dp)

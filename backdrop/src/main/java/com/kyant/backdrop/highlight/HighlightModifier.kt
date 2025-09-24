@@ -209,7 +209,7 @@ internal class HighlightNode(
             if (maskShader != null) {
                 canvas.drawRect(0f, 0f, size.width, size.height, shaderPaint)
             } else {
-                canvas.drawBitmap(bitmap, 0f, 0f, null)
+                canvas.drawBitmap(bitmap, 0f, 0f, shaderPaint)
             }
         }
     }
