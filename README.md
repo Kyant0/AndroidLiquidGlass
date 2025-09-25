@@ -1,6 +1,6 @@
 # Backdrop (Liquid Glass)
 
-![frontPhoto](artworks/banner.png)
+![frontPhoto](artworks/banner.jpg)
 
 Liquid Glass effect for Android Jetpack Compose.
 
