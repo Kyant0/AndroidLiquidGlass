@@ -44,19 +44,19 @@ fun LockScreenContent() {
             Row(
                 Modifier
                     .drawBackdrop(
-                        backdrop,
-                        { ContinuousRoundedRectangle(24f.dp) },
-                        {
-                            vibrancy()
-                            blur(4f.dp.toPx())
-                            refraction(16f.dp.toPx(), size.minDimension / 2f, true)
-                        },
+                        backdrop = backdrop,
+                        shape = { ContinuousRoundedRectangle(24f.dp) },
                         shadow = {
                             Shadow(
                                 radius = 4f.dp,
                                 offset = DpOffset(0f.dp, 1f.dp),
                                 color = Color.Black.copy(0.05f)
                             )
+                        },
+                        effects = {
+                            vibrancy()
+                            blur(4f.dp.toPx())
+                            refraction(16f.dp.toPx(), size.minDimension / 2f, true)
                         },
                         onDrawSurface = { drawRect(Color.White.copy(0.1f)) },
                         contentEffects = {

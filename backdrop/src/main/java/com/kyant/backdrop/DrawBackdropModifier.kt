@@ -44,9 +44,9 @@ private val DefaultOnDrawContent: ContentDrawScope.() -> Unit = { drawContent() 
 fun Modifier.drawBackdrop(
     backdrop: Backdrop,
     shape: () -> Shape,
-    effects: (BackdropEffectScope.() -> Unit)? = null,
     highlight: (() -> Highlight?)? = DefaultHighlight,
     shadow: (() -> Shadow?)? = DefaultShadow,
+    effects: (BackdropEffectScope.() -> Unit)? = null,
     layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
     exportedBackdrop: LayerBackdrop? = null,
     onDrawBehind: (DrawScope.() -> Unit)? = null,
@@ -89,17 +89,17 @@ fun Modifier.drawBackdrop(
         .then(
             DrawBackdropElement(
                 backdrop = backdrop,
-                exportedBackdrop = exportedBackdrop,
                 shapeProvider = shapeProvider,
+                effects = effects,
                 layerBlock = layerBlock,
+                exportedBackdrop = exportedBackdrop,
                 onDrawBehind = onDrawBehind,
                 onDrawBackdrop = onDrawBackdrop,
                 onDrawSurface = onDrawSurface,
-                onDrawContent = onDrawContent,
                 onDrawFront = onDrawFront,
-                drawContent = drawContent,
                 contentEffects = contentEffects,
-                effects = effects
+                onDrawContent = onDrawContent,
+                drawContent = drawContent
             )
         )
 }
@@ -107,48 +107,48 @@ fun Modifier.drawBackdrop(
 private class DrawBackdropElement(
     val backdrop: Backdrop,
     val shapeProvider: ShapeProvider,
+    val effects: (BackdropEffectScope.() -> Unit)?,
     val layerBlock: (GraphicsLayerScope.() -> Unit)?,
     val exportedBackdrop: LayerBackdrop?,
     val onDrawBehind: (DrawScope.() -> Unit)?,
     val onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     val onDrawSurface: (DrawScope.() -> Unit)?,
-    val onDrawContent: ContentDrawScope.() -> Unit,
     val onDrawFront: (DrawScope.() -> Unit)?,
-    val drawContent: Boolean,
     val contentEffects: (BackdropEffectScope.() -> Unit)?,
-    val effects: (BackdropEffectScope.() -> Unit)?
+    val onDrawContent: ContentDrawScope.() -> Unit,
+    val drawContent: Boolean
 ) : ModifierNodeElement<DrawBackdropNode>() {
 
     override fun create(): DrawBackdropNode {
         return DrawBackdropNode(
             backdrop = backdrop,
             shapeProvider = shapeProvider,
+            effects = effects,
             layerBlock = layerBlock,
             exportedBackdrop = exportedBackdrop,
             onDrawBehind = onDrawBehind,
             onDrawBackdrop = onDrawBackdrop,
             onDrawSurface = onDrawSurface,
-            onDrawContent = onDrawContent,
             onDrawFront = onDrawFront,
-            drawContent = drawContent,
             contentEffects = contentEffects,
-            effects = effects
+            onDrawContent = onDrawContent,
+            drawContent = drawContent
         )
     }
 
     override fun update(node: DrawBackdropNode) {
         node.backdrop = backdrop
         node.shapeProvider = shapeProvider
+        node.effects = effects
         node.layerBlock = layerBlock
         node.exportedBackdrop = exportedBackdrop
         node.onDrawBehind = onDrawBehind
         node.onDrawBackdrop = onDrawBackdrop
         node.onDrawSurface = onDrawSurface
-        node.onDrawContent = onDrawContent
         node.onDrawFront = onDrawFront
-        node.drawContent = drawContent
         node.contentEffects = contentEffects
-        node.effects = effects
+        node.onDrawContent = onDrawContent
+        node.drawContent = drawContent
         node.invalidateDrawCache()
     }
 
@@ -156,16 +156,16 @@ private class DrawBackdropElement(
         name = "drawBackdrop"
         properties["backdrop"] = backdrop
         properties["shapeProvider"] = shapeProvider
+        properties["effects"] = effects
         properties["layerBlock"] = layerBlock
         properties["exportedBackdrop"] = exportedBackdrop
         properties["onDrawBehind"] = onDrawBehind
         properties["onDrawBackdrop"] = onDrawBackdrop
         properties["onDrawSurface"] = onDrawSurface
-        properties["onDrawContent"] = onDrawContent
         properties["onDrawFront"] = onDrawFront
-        properties["drawContent"] = drawContent
         properties["contentEffects"] = contentEffects
-        properties["effects"] = effects
+        properties["onDrawContent"] = onDrawContent
+        properties["drawContent"] = drawContent
     }
 
     override fun equals(other: Any?): Boolean {
@@ -174,16 +174,16 @@ private class DrawBackdropElement(
 
         if (backdrop != other.backdrop) return false
         if (shapeProvider != other.shapeProvider) return false
+        if (effects != other.effects) return false
         if (layerBlock != other.layerBlock) return false
         if (exportedBackdrop != other.exportedBackdrop) return false
         if (onDrawBehind != other.onDrawBehind) return false
         if (onDrawBackdrop != other.onDrawBackdrop) return false
         if (onDrawSurface != other.onDrawSurface) return false
-        if (onDrawContent != other.onDrawContent) return false
         if (onDrawFront != other.onDrawFront) return false
-        if (drawContent != other.drawContent) return false
         if (contentEffects != other.contentEffects) return false
-        if (effects != other.effects) return false
+        if (onDrawContent != other.onDrawContent) return false
+        if (drawContent != other.drawContent) return false
 
         return true
     }
@@ -191,16 +191,16 @@ private class DrawBackdropElement(
     override fun hashCode(): Int {
         var result = backdrop.hashCode()
         result = 31 * result + shapeProvider.hashCode()
+        result = 31 * result + (effects?.hashCode() ?: 0)
         result = 31 * result + (layerBlock?.hashCode() ?: 0)
         result = 31 * result + (exportedBackdrop?.hashCode() ?: 0)
         result = 31 * result + (onDrawBehind?.hashCode() ?: 0)
         result = 31 * result + onDrawBackdrop.hashCode()
         result = 31 * result + (onDrawSurface?.hashCode() ?: 0)
-        result = 31 * result + onDrawContent.hashCode()
         result = 31 * result + (onDrawFront?.hashCode() ?: 0)
-        result = 31 * result + drawContent.hashCode()
         result = 31 * result + (contentEffects?.hashCode() ?: 0)
-        result = 31 * result + effects.hashCode()
+        result = 31 * result + onDrawContent.hashCode()
+        result = 31 * result + drawContent.hashCode()
         return result
     }
 }
@@ -208,16 +208,16 @@ private class DrawBackdropElement(
 private class DrawBackdropNode(
     var backdrop: Backdrop,
     var shapeProvider: ShapeProvider,
+    var effects: (BackdropEffectScope.() -> Unit)?,
     var layerBlock: (GraphicsLayerScope.() -> Unit)?,
     var exportedBackdrop: LayerBackdrop?,
     var onDrawBehind: (DrawScope.() -> Unit)?,
     var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     var onDrawSurface: (DrawScope.() -> Unit)?,
-    var onDrawContent: ContentDrawScope.() -> Unit,
     var onDrawFront: (DrawScope.() -> Unit)?,
-    var drawContent: Boolean,
     var contentEffects: (BackdropEffectScope.() -> Unit)?,
-    var effects: (BackdropEffectScope.() -> Unit)?
+    var onDrawContent: ContentDrawScope.() -> Unit,
+    var drawContent: Boolean
 ) : LayoutModifierNode, DrawModifierNode, GlobalPositionAwareModifierNode, ObserverModifierNode, Modifier.Node() {
 
     override val shouldAutoInvalidate: Boolean = false

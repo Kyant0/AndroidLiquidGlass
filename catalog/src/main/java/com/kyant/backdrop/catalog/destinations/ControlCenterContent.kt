@@ -202,9 +202,9 @@ fun ControlCenterContent() {
                         .drawBackdrop(
                             backdrop = backdrop,
                             shape = glassShape,
-                            effects = glassEffects,
                             highlight = glassHighlight,
                             shadow = null,
+                            effects = glassEffects,
                             layerBlock = glassLayer,
                             onDrawSurface = glassSurface
                         )
@@ -244,9 +244,9 @@ fun ControlCenterContent() {
                         .drawBackdrop(
                             backdrop = backdrop,
                             shape = glassShape,
-                            effects = glassEffects,
                             highlight = glassHighlight,
                             shadow = null,
+                            effects = glassEffects,
                             layerBlock = glassLayer,
                             onDrawSurface = glassSurface
                         )
@@ -272,9 +272,9 @@ fun ControlCenterContent() {
                                 .drawBackdrop(
                                     backdrop = backdrop,
                                     shape = glassShape,
-                                    effects = glassEffects,
                                     highlight = glassHighlight,
                                     shadow = null,
+                                    effects = glassEffects,
                                     layerBlock = glassLayer,
                                     onDrawSurface = glassSurface
                                 )
@@ -286,9 +286,9 @@ fun ControlCenterContent() {
                                 .drawBackdrop(
                                     backdrop = backdrop,
                                     shape = glassShape,
-                                    effects = glassEffects,
                                     highlight = glassHighlight,
                                     shadow = null,
+                                    effects = glassEffects,
                                     layerBlock = glassLayer,
                                     onDrawSurface = glassSurface
                                 )
@@ -301,9 +301,9 @@ fun ControlCenterContent() {
                             .drawBackdrop(
                                 backdrop = backdrop,
                                 shape = glassShape,
-                                effects = glassEffects,
                                 highlight = glassHighlight,
                                 shadow = null,
+                                effects = glassEffects,
                                 layerBlock = glassLayer
                             )
                             .size(itemTwoSpanSize, itemSize)
@@ -319,9 +319,9 @@ fun ControlCenterContent() {
                             .drawBackdrop(
                                 backdrop = backdrop,
                                 shape = glassShape,
-                                effects = glassEffects,
                                 highlight = glassHighlight,
                                 shadow = null,
+                                effects = glassEffects,
                                 layerBlock = glassLayer,
                                 onDrawSurface = glassSurface
                             )
@@ -332,9 +332,9 @@ fun ControlCenterContent() {
                             .drawBackdrop(
                                 backdrop = backdrop,
                                 shape = glassShape,
-                                effects = glassEffects,
                                 highlight = glassHighlight,
                                 shadow = null,
+                                effects = glassEffects,
                                 layerBlock = glassLayer,
                                 onDrawSurface = glassSurface
                             )
@@ -354,9 +354,9 @@ fun ControlCenterContent() {
                         .drawBackdrop(
                             backdrop = backdrop,
                             shape = glassShape,
-                            effects = glassEffects,
                             highlight = glassHighlight,
                             shadow = null,
+                            effects = glassEffects,
                             layerBlock = glassLayer,
                             onDrawSurface = glassSurface
                         )
@@ -375,9 +375,9 @@ fun ControlCenterContent() {
                                 .drawBackdrop(
                                     backdrop = backdrop,
                                     shape = glassShape,
-                                    effects = glassEffects,
                                     highlight = glassHighlight,
                                     shadow = null,
+                                    effects = glassEffects,
                                     layerBlock = glassLayer,
                                     onDrawSurface = glassSurface
                                 )
@@ -389,9 +389,9 @@ fun ControlCenterContent() {
                                 .drawBackdrop(
                                     backdrop = backdrop,
                                     shape = glassShape,
-                                    effects = glassEffects,
                                     highlight = glassHighlight,
                                     shadow = null,
+                                    effects = glassEffects,
                                     layerBlock = glassLayer,
                                     onDrawSurface = glassSurface
                                 )
@@ -408,9 +408,9 @@ fun ControlCenterContent() {
                                 .drawBackdrop(
                                     backdrop = backdrop,
                                     shape = glassShape,
-                                    effects = glassEffects,
                                     highlight = glassHighlight,
                                     shadow = null,
+                                    effects = glassEffects,
                                     layerBlock = glassLayer,
                                     onDrawSurface = glassSurface
                                 )
