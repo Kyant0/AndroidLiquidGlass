@@ -4,7 +4,7 @@ kotlin = "2.2.20"
 
 core = "1.17.0"
 activity = "1.11.0"
-compose = "1.9.1"
+compose = "1.9.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core" }
