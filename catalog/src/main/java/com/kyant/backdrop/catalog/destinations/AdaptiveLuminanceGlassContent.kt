@@ -115,7 +115,7 @@ fun AdaptiveLuminanceGlassContent() {
                         )
                         refraction(24f.dp.toPx(), size.minDimension / 2f, true)
                     },
-                    layer = {
+                    layerBlock = {
                         val offset = offsetAnimation.value
                         val zoom = zoomAnimation.value
                         val rotation = rotationAnimation.value

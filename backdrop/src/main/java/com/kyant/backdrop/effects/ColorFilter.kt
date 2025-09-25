@@ -10,26 +10,6 @@ import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.GammaAdjustmentShaderString
 import kotlin.math.pow
 
-@Deprecated(
-    "Use colorControls() instead",
-    replaceWith = ReplaceWith("colorControls(brightness, contrast, saturation)")
-)
-fun BackdropEffectScope.colorFilter(
-    brightness: Float = 0f,
-    contrast: Float = 1f,
-    saturation: Float = 1f
-) {
-    colorControls(brightness, contrast, saturation)
-}
-
-@Deprecated(
-    "Use vibrancy() instead",
-    replaceWith = ReplaceWith("vibrancy()")
-)
-fun BackdropEffectScope.saturation() {
-    vibrancy()
-}
-
 fun BackdropEffectScope.colorFilter(colorFilter: ColorFilter) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
 

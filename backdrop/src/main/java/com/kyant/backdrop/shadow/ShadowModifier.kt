@@ -6,7 +6,6 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.os.Build
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
@@ -92,6 +91,7 @@ internal class ShadowNode(
 
             configurePaint(shadow)
 
+            shadowLayer.alpha = shadow.alpha
             shadowLayer.blendMode = shadow.blendMode
             shadowLayer.record(size = shadowSize) {
                 translate(radius + offsetX, radius + offsetY) {
@@ -124,7 +124,7 @@ internal class ShadowNode(
     }
 
     private fun DrawScope.configurePaint(shadow: Shadow) {
-        paint.color = shadow.color.modulate(shadow.alpha).toArgb()
+        paint.color = shadow.color.toArgb()
         val blurRadius = shadow.radius.toPx()
         if (blurRadius > 0f) {
             paint.maskFilter = BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
@@ -178,10 +178,3 @@ private val ShadowMaskPaint = Paint().apply {
         xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
     }
 }
-
-private fun Color.modulate(alpha: Float): Color =
-    if (alpha != 1.0f) {
-        copy(alpha = this.alpha * alpha)
-    } else {
-        this
-    }

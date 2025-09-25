@@ -77,7 +77,7 @@ fun GlassPlaygroundContent() {
                             dispersionIntensity = dispersionIntensity
                         )
                     },
-                    layer = {
+                    layerBlock = {
                         val offset = offsetAnimation.value
                         val zoom = zoomAnimation.value
                         val rotation = rotationAnimation.value

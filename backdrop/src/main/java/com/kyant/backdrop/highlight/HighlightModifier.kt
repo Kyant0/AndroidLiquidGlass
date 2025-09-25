@@ -3,9 +3,6 @@ package com.kyant.backdrop.highlight
 import android.graphics.BlurMaskFilter
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.RuntimeShader
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
@@ -23,7 +20,7 @@ import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.util.fastCoerceAtMost
-import com.kyant.backdrop.RuntimeShaderCacheScope
+import com.kyant.backdrop.RuntimeShaderCacheScopeImpl
 import com.kyant.backdrop.ShapeProvider
 import kotlin.math.ceil
 
@@ -81,15 +78,7 @@ internal class HighlightNode(
         }
     private var clipPath: Path? = null
 
-    private val runtimeShaderCacheScope = object : RuntimeShaderCacheScope {
-
-        private val runtimeShaders = mutableMapOf<String, RuntimeShader>()
-
-        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-        override fun obtainRuntimeShader(key: String, string: String): RuntimeShader {
-            return runtimeShaders.getOrPut(key) { RuntimeShader(string) }
-        }
-    }
+    private val runtimeShaderCacheScope = RuntimeShaderCacheScopeImpl()
 
     private var prevStyle: HighlightStyle? = null
 
@@ -120,6 +109,7 @@ internal class HighlightNode(
             maskLayer.alpha = highlight.alpha
             maskLayer.blendMode = highlight.blendMode
             maskLayer.record { drawLayer(highlightLayer) }
+
             drawLayer(maskLayer)
         }
     }
@@ -160,6 +150,7 @@ internal class HighlightNode(
     private fun DrawScope.drawHighlight(outline: Outline) {
         val canvas = drawContext.canvas.nativeCanvas
 
+        @Suppress("UseKtx")
         canvas.save()
 
         when (outline) {

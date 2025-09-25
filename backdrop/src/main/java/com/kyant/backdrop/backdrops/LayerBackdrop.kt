@@ -39,7 +39,7 @@ class LayerBackdrop internal constructor(
 
     override val isCoordinatesDependent: Boolean = true
 
-    internal var backdropCoordinates: LayoutCoordinates? by mutableStateOf(null)
+    internal var currentCoordinates: LayoutCoordinates? by mutableStateOf(null)
 
     private var inverseLayerScope: InverseLayerScope? = null
 
@@ -48,15 +48,12 @@ class LayerBackdrop internal constructor(
         coordinates: LayoutCoordinates?,
         layerBlock: (GraphicsLayerScope.() -> Unit)?
     ) {
-        val backdropCoordinates = backdropCoordinates ?: return
-        val offset = backdropCoordinates.localPositionOf(coordinates ?: return)
+        val currentCoordinates = currentCoordinates ?: return
+        val offset = currentCoordinates.localPositionOf(coordinates ?: return)
         val layerBlock = layerBlock
         if (layerBlock != null) {
             withTransform({
-                val inverseLayerScope =
-                    inverseLayerScope?.apply { reset() }
-                        ?: InverseLayerScope().also { inverseLayerScope = it }
-                with(inverseLayerScope) { inverseTransform(density, layerBlock) }
+                with(obtainInverseLayerScope()) { inverseTransform(density, layerBlock) }
                 translate(-offset.x, -offset.y)
             }) {
                 drawLayer(graphicsLayer)
@@ -66,5 +63,10 @@ class LayerBackdrop internal constructor(
                 drawLayer(graphicsLayer)
             }
         }
+    }
+
+    private fun obtainInverseLayerScope(): InverseLayerScope {
+        return inverseLayerScope?.apply { reset() }
+            ?: InverseLayerScope().also { inverseLayerScope = it }
     }
 }

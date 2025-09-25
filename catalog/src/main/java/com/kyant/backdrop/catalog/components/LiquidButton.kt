@@ -79,7 +79,7 @@ half4 main(float2 coord) {
 }"""
             )
         } else {
-            null
+            Unit
         }
     }
 
@@ -93,7 +93,7 @@ half4 main(float2 coord) {
                     blur(2f.dp.toPx())
                     refraction(12f.dp.toPx(), 24f.dp.toPx())
                 },
-                layer = if (isInteractive) {
+                layerBlock = if (isInteractive) {
                     {
                         val width = size.width
                         val height = size.height
@@ -135,7 +135,7 @@ half4 main(float2 coord) {
                     {
                         val progress = progressAnimation.value.fastCoerceIn(0f, 1f)
                         if (progress > 0f) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && interactiveHighlightShader != null) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && interactiveHighlightShader is RuntimeShader) {
                                 drawRect(
                                     Color.White.copy(0.1f * progress),
                                     blendMode = BlendMode.Plus

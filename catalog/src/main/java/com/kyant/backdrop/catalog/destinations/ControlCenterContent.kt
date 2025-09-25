@@ -205,7 +205,7 @@ fun ControlCenterContent() {
                             effects = glassEffects,
                             highlight = glassHighlight,
                             shadow = null,
-                            layer = glassLayer,
+                            layerBlock = glassLayer,
                             onDrawSurface = glassSurface
                         )
                         .size(itemTwoSpanSize)
@@ -247,7 +247,7 @@ fun ControlCenterContent() {
                             effects = glassEffects,
                             highlight = glassHighlight,
                             shadow = null,
-                            layer = glassLayer,
+                            layerBlock = glassLayer,
                             onDrawSurface = glassSurface
                         )
                         .size(itemTwoSpanSize)
@@ -275,7 +275,7 @@ fun ControlCenterContent() {
                                     effects = glassEffects,
                                     highlight = glassHighlight,
                                     shadow = null,
-                                    layer = glassLayer,
+                                    layerBlock = glassLayer,
                                     onDrawSurface = glassSurface
                                 )
                                 .paint(airplaneModeIcon, colorFilter = iconColorFilter)
@@ -289,7 +289,7 @@ fun ControlCenterContent() {
                                     effects = glassEffects,
                                     highlight = glassHighlight,
                                     shadow = null,
-                                    layer = glassLayer,
+                                    layerBlock = glassLayer,
                                     onDrawSurface = glassSurface
                                 )
                                 .paint(airplaneModeIcon, colorFilter = iconColorFilter)
@@ -304,7 +304,7 @@ fun ControlCenterContent() {
                                 effects = glassEffects,
                                 highlight = glassHighlight,
                                 shadow = null,
-                                layer = glassLayer
+                                layerBlock = glassLayer
                             )
                             .size(itemTwoSpanSize, itemSize)
                     )
@@ -322,7 +322,7 @@ fun ControlCenterContent() {
                                 effects = glassEffects,
                                 highlight = glassHighlight,
                                 shadow = null,
-                                layer = glassLayer,
+                                layerBlock = glassLayer,
                                 onDrawSurface = glassSurface
                             )
                             .size(itemSize, itemTwoSpanSize)
@@ -335,7 +335,7 @@ fun ControlCenterContent() {
                                 effects = glassEffects,
                                 highlight = glassHighlight,
                                 shadow = null,
-                                layer = glassLayer,
+                                layerBlock = glassLayer,
                                 onDrawSurface = glassSurface
                             )
                             .size(itemSize, itemTwoSpanSize)
@@ -357,7 +357,7 @@ fun ControlCenterContent() {
                             effects = glassEffects,
                             highlight = glassHighlight,
                             shadow = null,
-                            layer = glassLayer,
+                            layerBlock = glassLayer,
                             onDrawSurface = glassSurface
                         )
                         .size(itemTwoSpanSize)
@@ -378,7 +378,7 @@ fun ControlCenterContent() {
                                     effects = glassEffects,
                                     highlight = glassHighlight,
                                     shadow = null,
-                                    layer = glassLayer,
+                                    layerBlock = glassLayer,
                                     onDrawSurface = glassSurface
                                 )
                                 .paint(airplaneModeIcon, colorFilter = iconColorFilter)
@@ -392,7 +392,7 @@ fun ControlCenterContent() {
                                     effects = glassEffects,
                                     highlight = glassHighlight,
                                     shadow = null,
-                                    layer = glassLayer,
+                                    layerBlock = glassLayer,
                                     onDrawSurface = glassSurface
                                 )
                                 .paint(airplaneModeIcon, colorFilter = iconColorFilter)
@@ -411,7 +411,7 @@ fun ControlCenterContent() {
                                     effects = glassEffects,
                                     highlight = glassHighlight,
                                     shadow = null,
-                                    layer = glassLayer,
+                                    layerBlock = glassLayer,
                                     onDrawSurface = glassSurface
                                 )
                                 .paint(airplaneModeIcon, colorFilter = iconColorFilter)

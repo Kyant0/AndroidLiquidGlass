@@ -32,7 +32,7 @@ fun LazyScrollContainerContent() {
             item {
                 Spacer(Modifier.windowInsetsTopHeight(WindowInsets.systemBars))
             }
-            items(20) {
+            items(100) {
                 Box(
                     Modifier
                         .drawBackdrop(

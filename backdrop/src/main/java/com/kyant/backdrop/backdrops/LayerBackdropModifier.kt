@@ -60,11 +60,11 @@ private class LayerBackdropNode(
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
-            backdrop.backdropCoordinates = coordinates
+            backdrop.currentCoordinates = coordinates
         }
     }
 
     override fun onDetach() {
-        backdrop.backdropCoordinates = null
+        backdrop.currentCoordinates = null
     }
 }

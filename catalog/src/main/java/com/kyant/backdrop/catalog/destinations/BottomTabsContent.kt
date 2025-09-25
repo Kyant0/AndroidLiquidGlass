@@ -133,7 +133,7 @@ fun BottomTabsContent() {
                                 blur(8f.dp.toPx())
                                 refraction(24f.dp.toPx(), 24f.dp.toPx())
                             },
-                            layer = {
+                            layerBlock = {
                                 val progress = pressAnimation.value
                                 val scale = lerp(1f, 1f + 2f.dp.toPx() / size.height, progress)
                                 scaleX = scale
@@ -273,7 +273,7 @@ fun BottomTabsContent() {
                                 offset = DpOffset(0f.dp, 4f.dp * progress)
                             )
                         },
-                        layer = {
+                        layerBlock = {
                             translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * 3)
                             scaleX = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleXAnimation.value)
                             scaleY = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleYAnimation.value)

@@ -47,7 +47,7 @@ fun Modifier.drawBackdrop(
     effects: (BackdropEffectScope.() -> Unit)? = null,
     highlight: (() -> Highlight?)? = DefaultHighlight,
     shadow: (() -> Shadow?)? = DefaultShadow,
-    layer: (GraphicsLayerScope.() -> Unit)? = null,
+    layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
     exportedBackdrop: LayerBackdrop? = null,
     onDrawBehind: (DrawScope.() -> Unit)? = null,
     onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdrop,
@@ -60,8 +60,8 @@ fun Modifier.drawBackdrop(
     val shapeProvider = ShapeProvider(shape)
     return this
         .then(
-            if (layer != null) {
-                Modifier.graphicsLayer(layer)
+            if (layerBlock != null) {
+                Modifier.graphicsLayer(layerBlock)
             } else {
                 Modifier
             }
@@ -91,7 +91,7 @@ fun Modifier.drawBackdrop(
                 backdrop = backdrop,
                 exportedBackdrop = exportedBackdrop,
                 shapeProvider = shapeProvider,
-                layer = layer,
+                layerBlock = layerBlock,
                 onDrawBehind = onDrawBehind,
                 onDrawBackdrop = onDrawBackdrop,
                 onDrawSurface = onDrawSurface,
@@ -107,7 +107,7 @@ fun Modifier.drawBackdrop(
 private class DrawBackdropElement(
     val backdrop: Backdrop,
     val shapeProvider: ShapeProvider,
-    val layer: (GraphicsLayerScope.() -> Unit)?,
+    val layerBlock: (GraphicsLayerScope.() -> Unit)?,
     val exportedBackdrop: LayerBackdrop?,
     val onDrawBehind: (DrawScope.() -> Unit)?,
     val onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
@@ -123,7 +123,7 @@ private class DrawBackdropElement(
         return DrawBackdropNode(
             backdrop = backdrop,
             shapeProvider = shapeProvider,
-            layer = layer,
+            layerBlock = layerBlock,
             exportedBackdrop = exportedBackdrop,
             onDrawBehind = onDrawBehind,
             onDrawBackdrop = onDrawBackdrop,
@@ -139,7 +139,7 @@ private class DrawBackdropElement(
     override fun update(node: DrawBackdropNode) {
         node.backdrop = backdrop
         node.shapeProvider = shapeProvider
-        node.layer = layer
+        node.layerBlock = layerBlock
         node.exportedBackdrop = exportedBackdrop
         node.onDrawBehind = onDrawBehind
         node.onDrawBackdrop = onDrawBackdrop
@@ -156,7 +156,7 @@ private class DrawBackdropElement(
         name = "drawBackdrop"
         properties["backdrop"] = backdrop
         properties["shapeProvider"] = shapeProvider
-        properties["layer"] = layer
+        properties["layerBlock"] = layerBlock
         properties["exportedBackdrop"] = exportedBackdrop
         properties["onDrawBehind"] = onDrawBehind
         properties["onDrawBackdrop"] = onDrawBackdrop
@@ -174,7 +174,7 @@ private class DrawBackdropElement(
 
         if (backdrop != other.backdrop) return false
         if (shapeProvider != other.shapeProvider) return false
-        if (layer != other.layer) return false
+        if (layerBlock != other.layerBlock) return false
         if (exportedBackdrop != other.exportedBackdrop) return false
         if (onDrawBehind != other.onDrawBehind) return false
         if (onDrawBackdrop != other.onDrawBackdrop) return false
@@ -191,7 +191,7 @@ private class DrawBackdropElement(
     override fun hashCode(): Int {
         var result = backdrop.hashCode()
         result = 31 * result + shapeProvider.hashCode()
-        result = 31 * result + (layer?.hashCode() ?: 0)
+        result = 31 * result + (layerBlock?.hashCode() ?: 0)
         result = 31 * result + (exportedBackdrop?.hashCode() ?: 0)
         result = 31 * result + (onDrawBehind?.hashCode() ?: 0)
         result = 31 * result + onDrawBackdrop.hashCode()
@@ -208,7 +208,7 @@ private class DrawBackdropElement(
 private class DrawBackdropNode(
     var backdrop: Backdrop,
     var shapeProvider: ShapeProvider,
-    var layer: (GraphicsLayerScope.() -> Unit)?,
+    var layerBlock: (GraphicsLayerScope.() -> Unit)?,
     var exportedBackdrop: LayerBackdrop?,
     var onDrawBehind: (DrawScope.() -> Unit)?,
     var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
@@ -222,22 +222,6 @@ private class DrawBackdropNode(
 
     override val shouldAutoInvalidate: Boolean = false
 
-    private var graphicsLayer: GraphicsLayer? = null
-    private var contentGraphicsLayer: GraphicsLayer? = null
-
-    private var layoutCoordinates: LayoutCoordinates? by mutableStateOf(null, neverEqualPolicy())
-    private val recordBlock: (DrawScope.() -> Unit) = {
-        onDrawBackdrop {
-            with(backdrop) {
-                drawBackdrop(
-                    density = requireDensity(),
-                    coordinates = layoutCoordinates,
-                    layerBlock = layer
-                )
-            }
-        }
-    }
-
     private val effectScope =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             object : BackdropEffectScopeImpl() {
@@ -248,10 +232,42 @@ private class DrawBackdropNode(
             null
         }
 
-    private val layerBlock: GraphicsLayerScope.() -> Unit = {
+    private var backdropGraphicsLayer: GraphicsLayer? = null
+    private var contentGraphicsLayer: GraphicsLayer? = null
+
+    private val layoutLayerBlock: GraphicsLayerScope.() -> Unit = {
         clip = true
         shape = shapeProvider.shape
         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+    }
+
+    private var layoutCoordinates: LayoutCoordinates? by mutableStateOf(null, neverEqualPolicy())
+    private val recordBackdropBlock: (DrawScope.() -> Unit) = {
+        onDrawBackdrop {
+            with(backdrop) {
+                drawBackdrop(
+                    density = requireDensity(),
+                    coordinates = layoutCoordinates,
+                    layerBlock = layerBlock
+                )
+            }
+        }
+    }
+    private val drawBackdropLayer: DrawScope.() -> Unit = {
+        val layer = backdropGraphicsLayer
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && layer != null) {
+            layer.record(block = recordBackdropBlock)
+            drawLayer(layer)
+        } else {
+            recordBackdropBlock()
+        }
+    }
+    private val drawContentLayer: ContentDrawScope.() -> Unit = draw@{
+        val contentLayer = contentGraphicsLayer
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && contentLayer != null) {
+            contentLayer.record { this@draw.onDrawContent() }
+            drawLayer(contentLayer)
+        }
     }
 
     override fun MeasureScope.measure(
@@ -260,7 +276,7 @@ private class DrawBackdropNode(
     ): MeasureResult {
         val placeable = measurable.measure(constraints)
         return layout(placeable.width, placeable.height) {
-            placeable.placeWithLayer(IntOffset.Zero, layerBlock = layerBlock)
+            placeable.placeWithLayer(IntOffset.Zero, layerBlock = layoutLayerBlock)
         }
     }
 
@@ -272,42 +288,16 @@ private class DrawBackdropNode(
         }
 
         onDrawBehind?.invoke(this)
-
-        val layer = graphicsLayer
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && layer != null) {
-            layer.record(block = recordBlock)
-            drawLayer(layer)
-        } else {
-            recordBlock()
-        }
-
+        drawBackdropLayer()
         onDrawSurface?.invoke(this)
-
-        val contentLayer = contentGraphicsLayer
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && contentLayer != null) {
-            contentLayer.record { this@draw.onDrawContent() }
-
-            drawLayer(contentLayer)
-        }
-
-        if (drawContent) {
-            onDrawContent()
-        }
-
+        drawContentLayer()
+        if (drawContent) drawContent()
         onDrawFront?.invoke(this)
 
         exportedBackdrop?.graphicsLayer?.record {
             onDrawBehind?.invoke(this)
-
-            val layer = graphicsLayer
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && layer != null) {
-                drawLayer(layer)
-            } else {
-                recordBlock()
-            }
-
+            drawBackdropLayer()
             onDrawSurface?.invoke(this)
-
             onDrawFront?.invoke(this)
         }
     }
@@ -316,12 +306,12 @@ private class DrawBackdropNode(
         if (coordinates.isAttached) {
             if (backdrop.isCoordinatesDependent) {
                 layoutCoordinates = coordinates
-                exportedBackdrop?.backdropCoordinates = coordinates
             } else {
                 if (layoutCoordinates != null) {
                     layoutCoordinates = null
                 }
             }
+            exportedBackdrop?.currentCoordinates = coordinates
         }
     }
 
@@ -346,17 +336,17 @@ private class DrawBackdropNode(
 
             val backdropEffects = effects
             if (backdropEffects != null) {
-                if (graphicsLayer == null) {
-                    graphicsLayer = graphicsContext.createGraphicsLayer()
+                if (backdropGraphicsLayer == null) {
+                    backdropGraphicsLayer = graphicsContext.createGraphicsLayer()
                 }
 
                 effectScope.renderEffect = null
                 backdropEffects(effectScope)
-                graphicsLayer?.renderEffect = effectScope.renderEffect?.asComposeRenderEffect()
+                backdropGraphicsLayer?.renderEffect = effectScope.renderEffect?.asComposeRenderEffect()
             } else {
-                graphicsLayer?.let { layer ->
+                backdropGraphicsLayer?.let { layer ->
                     graphicsContext.releaseGraphicsLayer(layer)
-                    graphicsLayer = null
+                    backdropGraphicsLayer = null
                 }
             }
 
@@ -385,9 +375,9 @@ private class DrawBackdropNode(
 
     override fun onDetach() {
         val graphicsContext = requireGraphicsContext()
-        graphicsLayer?.let { layer ->
+        backdropGraphicsLayer?.let { layer ->
             graphicsContext.releaseGraphicsLayer(layer)
-            graphicsLayer = null
+            backdropGraphicsLayer = null
         }
         contentGraphicsLayer?.let { layer ->
             graphicsContext.releaseGraphicsLayer(layer)

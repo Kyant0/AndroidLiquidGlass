@@ -156,7 +156,7 @@ fun LiquidSlider(
                             color = Color.Black.copy(0.05f)
                         )
                     },
-                    layer = {
+                    layerBlock = {
                         val progress = progressAnimation.value
                         val scale = lerp(1f, 1.5f, progress)
                         scaleX = scale
