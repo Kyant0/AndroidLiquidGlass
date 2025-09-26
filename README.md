@@ -14,7 +14,7 @@ Liquid Glass effect for Android Jetpack Compose.
 
 ## Components
 
-The library doesn't provides any high level components yet.
+The library doesn't provide any high level components yet.
 
 But there are some demo components in the [Catalog](./catalog/release/catalog-release.apk) app:
 
