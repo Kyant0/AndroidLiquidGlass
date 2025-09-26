@@ -147,26 +147,19 @@ internal const val DynamicHighlightShaderString = """
 uniform shader image;
 
 uniform float2 size;
+uniform float4 cornerRadii;
 uniform float angle;
 uniform float falloff;
 
-float2 gradSdCapsule(float2 coord, float2 halfSize) {
-    float cornerRadius = min(halfSize.x, halfSize.y);
-    float2 innerHalfSize = halfSize - float2(cornerRadius);
-    float2 cornerCoord = abs(coord) - innerHalfSize;
-    
-    float insideCorner = step(0.0, min(cornerCoord.x, cornerCoord.y)); // 1 if in corner
-    float xMajor = step(cornerCoord.y, cornerCoord.x); // 1 if x is major
-    float2 gradEdge = float2(xMajor, 1.0 - xMajor);
-    float2 gradCorner = normalize(cornerCoord);
-    return sign(coord) * mix(gradEdge, gradCorner, insideCorner);
-}
+$RoundedRectSDF
 
 half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
     float2 centeredCoord = coord - halfSize;
     
-    float2 grad = gradSdCapsule(centeredCoord, halfSize);
+    float4 maxGradRadius = float4(min(halfSize.x, halfSize.y));
+    float4 gradRadius = min(cornerRadii * 1.5, maxGradRadius);
+    float2 grad = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
     float2 normal = float2(-cos(angle), -sin(angle));
     float intensity = pow(abs(dot(normal, grad)), falloff);
     return image.eval(coord) * intensity;
@@ -177,26 +170,19 @@ internal const val AmbientHighlightShaderString = """
 uniform shader image;
 
 uniform float2 size;
+uniform float4 cornerRadii;
 uniform float angle;
 uniform float falloff;
 
-float2 gradSdCapsule(float2 coord, float2 halfSize) {
-    float cornerRadius = min(halfSize.x, halfSize.y);
-    float2 innerHalfSize = halfSize - float2(cornerRadius);
-    float2 cornerCoord = abs(coord) - innerHalfSize;
-    
-    float insideCorner = step(0.0, min(cornerCoord.x, cornerCoord.y)); // 1 if in corner
-    float xMajor = step(cornerCoord.y, cornerCoord.x); // 1 if x is major
-    float2 gradEdge = float2(xMajor, 1.0 - xMajor);
-    float2 gradCorner = normalize(cornerCoord);
-    return sign(coord) * mix(gradEdge, gradCorner, insideCorner);
-}
+$RoundedRectSDF
 
 half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
     float2 centeredCoord = coord - halfSize;
     
-    float2 grad = gradSdCapsule(centeredCoord, halfSize);
+    float4 maxGradRadius = float4(min(halfSize.x, halfSize.y));
+    float4 gradRadius = min(cornerRadii * 1.5, maxGradRadius);
+    float2 grad = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
     float2 normal = float2(-cos(angle), -sin(angle));
     float d = dot(normal, grad);
     float alpha = image.eval(coord).a;
@@ -208,7 +194,7 @@ half4 main(float2 coord) {
     if (d < 0.0) {
         return half4(1.0) * intensity * alpha;
     }
-    return half4(0.0) * intensity * alpha;
+    return half4(0.0);
 }"""
 
 @Language("AGSL")

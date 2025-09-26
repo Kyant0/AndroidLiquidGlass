@@ -98,7 +98,7 @@ fun ControlCenterContent() {
 
     val uiSensor = rememberUISensor()
     val glassShape = { itemShape }
-    val glassHighlight = { Highlight { HighlightStyle.Dynamic(angle = uiSensor.gravityAngle) } }
+    val glassHighlight = { Highlight(style = HighlightStyle.Dynamic(angle = uiSensor.gravityAngle)) }
     val glassLayer: GraphicsLayerScope.() -> Unit = {
         val progress = progress
         val safeProgress = safeEnterProgressAnimation.value

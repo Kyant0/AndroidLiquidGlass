@@ -98,10 +98,14 @@ internal class HighlightNode(
 
             configurePaint(highlight)
 
-            val style = highlight.style()
+            val style = highlight.style
             if (prevStyle != style) {
-                highlightLayer.renderEffect =
-                    with(highlight.style()) { runtimeShaderCacheScope.createRenderEffect(size) }
+                highlightLayer.renderEffect = with(style) {
+                    createRenderEffect(
+                        shape = shapeProvider.shape,
+                        shaderCache = runtimeShaderCacheScope
+                    )
+                }
                 prevStyle = style
             }
             highlightLayer.record { drawHighlight(outline) }

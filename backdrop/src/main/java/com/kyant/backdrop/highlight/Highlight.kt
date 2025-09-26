@@ -17,8 +17,25 @@ data class Highlight(
     val color: Color = Color.White.copy(alpha = 0.38f),
     val alpha: Float = 1f,
     val blendMode: BlendMode = BlendMode.Plus,
-    val style: () -> HighlightStyle = DefaultHighlightStyle
+    val style: HighlightStyle = HighlightStyle.Dynamic.Default
 ) {
+
+    @Deprecated(message = "Use the non-lambda version of style parameter")
+    constructor(
+        width: Dp = (2f / 3f).dp,
+        blurRadius: Dp = width / 2f,
+        color: Color = Color.White.copy(alpha = 0.38f),
+        alpha: Float = 1f,
+        blendMode: BlendMode = BlendMode.Plus,
+        style: () -> HighlightStyle
+    ) : this(
+        width = width,
+        blurRadius = blurRadius,
+        color = color,
+        alpha = alpha,
+        blendMode = blendMode,
+        style = style()
+    )
 
     companion object {
 
@@ -30,13 +47,13 @@ data class Highlight(
             Highlight(
                 width = (1f / 3f).dp,
                 blurRadius = (1f / 3f).dp,
-                color = Color.Transparent.copy(0.5f),
+                color = Color.Transparent.copy(alpha = 0.5f),
                 blendMode = BlendMode.SrcOver,
-                style = { HighlightStyle.Dynamic.AmbientDefault }
+                style = HighlightStyle.Dynamic.AmbientDefault
             )
 
         @Stable
-        val SolidDefault: Highlight = Highlight { HighlightStyle.Solid }
+        val SolidDefault: Highlight = Highlight(style = HighlightStyle.Solid)
     }
 }
 
@@ -48,8 +65,6 @@ fun lerp(start: Highlight, stop: Highlight, fraction: Float): Highlight {
         alpha = lerp(start.alpha, stop.alpha, fraction),
         blendMode = if (fraction < 0.5f) start.blendMode else stop.blendMode,
         blurRadius = lerp(start.blurRadius, stop.blurRadius, fraction),
-        style = { lerp(start.style(), stop.style(), fraction) }
+        style = lerp(start.style, stop.style, fraction)
     )
 }
-
-private val DefaultHighlightStyle = { HighlightStyle.Dynamic.Default }
