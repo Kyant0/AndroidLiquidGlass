@@ -335,7 +335,7 @@ half4 main(float2 coord) {
                         }
                     }
                     .graphicsLayer {
-                        translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * 3)
+                        translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * (tabsCount - 1))
                         tabLayerBlock()
                         shape = ContinuousCapsule
                         clip = true
@@ -403,7 +403,7 @@ half4 main(float2 coord) {
                     }
                 }
                 .graphicsLayer {
-                    translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * 3)
+                    translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * (tabsCount - 1))
                 }
                 .pointerInput(Unit) {
                     val velocityTracker = VelocityTracker()
