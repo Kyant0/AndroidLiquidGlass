@@ -215,8 +215,8 @@ fun LiquidBottomTabs(
             scaleX = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleXAnimation.value)
             scaleY = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleYAnimation.value)
             val velocity = velocityAnimation.value / size.width
-            scaleX /= 1f + (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-            scaleY *= 1f + (velocity * 0.25f).fastCoerceIn(-0.15f, 0.15f)
+            scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
+            scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.15f, 0.15f)
         }
 
         val interactiveHighlightShader = remember {
