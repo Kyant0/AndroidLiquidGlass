@@ -12,6 +12,16 @@ Liquid Glass effect for Android Jetpack Compose.
 
 [Documentation](https://kyant.gitbook.io/backdrop)
 
+## Components
+
+The library doesn't provides any high level components yet.
+
+But there are some demo components in the [Catalog](./catalog/release/catalog-release.apk) app:
+
+- [LiquidButton](/catalog/src/main/java/com/kyant/backdrop/catalog/components/LiquidButton.kt)
+- [LiquidSlider](/catalog/src/main/java/com/kyant/backdrop/catalog/components/LiquidSlider.kt)
+- [LiquidBottomTabs](/catalog/src/main/java/com/kyant/backdrop/catalog/components/LiquidBottomTabs.kt)
+
 ## Demos
 
 - [Catalog](./catalog/release/catalog-release.apk)
