@@ -34,6 +34,9 @@ data class Highlight(
                 blendMode = BlendMode.SrcOver,
                 style = { HighlightStyle.Dynamic.AmbientDefault }
             )
+
+        @Stable
+        val SolidDefault: Highlight = Highlight { HighlightStyle.Solid }
     }
 }
 

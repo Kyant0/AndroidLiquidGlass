@@ -34,6 +34,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.highlight.Highlight
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
@@ -98,6 +99,7 @@ fun AdaptiveLuminanceGlassContent() {
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { ContinuousRoundedRectangle(24f.dp) },
+                    highlight = { Highlight.SolidDefault },
                     effects = {
                         val l = (luminanceAnimation.value * 2f - 1f).let { sign(it) * it * it }
                         colorControls(

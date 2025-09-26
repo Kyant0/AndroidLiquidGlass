@@ -37,6 +37,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.refractionWithDispersion
 import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.highlight.Highlight
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -66,6 +67,7 @@ fun GlassPlaygroundContent() {
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { ContinuousRoundedRectangle(256f.dp / 2f * cornerRadiusFrac) },
+                    highlight = { Highlight.SolidDefault },
                     effects = {
                         val minDimension = size.minDimension
                         vibrancy()
@@ -128,6 +130,7 @@ fun GlassPlaygroundContent() {
                         .drawBackdrop(
                             backdrop = backdrop,
                             shape = { ContinuousRoundedRectangle(32f.dp) },
+                            highlight = { Highlight.SolidDefault },
                             effects = {
                                 vibrancy()
                                 blur(4f.dp.toPx())
