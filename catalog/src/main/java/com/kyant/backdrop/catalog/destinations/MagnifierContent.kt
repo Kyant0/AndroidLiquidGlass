@@ -28,7 +28,8 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.utils.LoremIpsum
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.refractionWithDispersion
+import com.kyant.backdrop.effects.dispersion
+import com.kyant.backdrop.effects.refraction
 import com.kyant.capsule.ContinuousCapsule
 
 @Composable
@@ -49,7 +50,7 @@ fun MagnifierContent() {
             Modifier
                 .layerBackdrop(contentBackdrop)
                 .padding(48f.dp),
-            style = TextStyle(contentColor, 15f.sp)
+            style = TextStyle(contentColor, 16f.sp)
         )
 
         Box(
@@ -76,11 +77,14 @@ fun MagnifierContent() {
                     backdrop = rememberCombinedBackdrop(backdrop, contentBackdrop, cursorBackdrop),
                     shape = { ContinuousCapsule },
                     effects = {
-                        refractionWithDispersion(
-                            height = 12f.dp.toPx(),
-                            amount = 12f.dp.toPx(),
-                            hasDepthEffect = true,
-                            dispersionIntensity = 1.5f
+                        refraction(
+                            height = 8f.dp.toPx(),
+                            amount = 24f.dp.toPx(),
+                            hasDepthEffect = true
+                        )
+                        dispersion(
+                            height = 8f.dp.toPx(),
+                            amount = 8f.dp.toPx()
                         )
                     },
                     onDrawBackdrop = { drawBackdrop ->
@@ -91,7 +95,7 @@ fun MagnifierContent() {
                         }
                     }
                 )
-                .size(128f.dp, 80f.dp)
+                .size(128f.dp, 96f.dp)
         )
     }
 }
