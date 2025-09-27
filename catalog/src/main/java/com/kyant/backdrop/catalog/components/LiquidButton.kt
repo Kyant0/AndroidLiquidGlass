@@ -25,7 +25,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -122,11 +121,6 @@ half4 main(float2 coord) {
                     }
                 } else {
                     null
-                },
-                onDrawBackdrop = { drawBackdrop ->
-                    translate(0f, 48f.dp.toPx()) {
-                        drawBackdrop()
-                    }
                 },
                 onDrawSurface = {
                     if (tint.isSpecified) {
