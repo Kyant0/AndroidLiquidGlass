@@ -25,11 +25,11 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.ObserverModifierNode
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.observeReads
-import androidx.compose.ui.node.requireDensity
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.toIntSize
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightElement
@@ -222,6 +222,7 @@ private class DrawBackdropNode(
 
     override val shouldAutoInvalidate: Boolean = false
 
+    private val mutableDensity = MutableDensity()
     private val effectScope =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             object : BackdropEffectScopeImpl() {
@@ -246,7 +247,7 @@ private class DrawBackdropNode(
         onDrawBackdrop {
             with(backdrop) {
                 drawBackdrop(
-                    density = requireDensity(),
+                    density = mutableDensity,
                     coordinates = layoutCoordinates,
                     layerBlock = layerBlock
                 )
@@ -256,7 +257,12 @@ private class DrawBackdropNode(
     private val drawBackdropLayer: DrawScope.() -> Unit = {
         val layer = backdropGraphicsLayer
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && layer != null) {
-            layer.record(block = recordBackdropBlock)
+            layer.record(
+                density = mutableDensity,
+                layoutDirection = layoutDirection,
+                size = size.toIntSize(),
+                block = recordBackdropBlock
+            )
             drawLayer(layer)
         } else {
             recordBackdropBlock()
@@ -265,7 +271,11 @@ private class DrawBackdropNode(
     private val drawContentLayer: ContentDrawScope.() -> Unit = draw@{
         val contentLayer = contentGraphicsLayer
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && contentLayer != null) {
-            contentLayer.record { this@draw.onDrawContent() }
+            contentLayer.record(
+                density = mutableDensity,
+                layoutDirection = layoutDirection,
+                size = size.toIntSize()
+            ) { this@draw.onDrawContent() }
             drawLayer(contentLayer)
         }
     }
@@ -281,6 +291,7 @@ private class DrawBackdropNode(
     }
 
     override fun ContentDrawScope.draw() {
+        mutableDensity.update(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (effectScope != null && effectScope.update(this)) {
                 updateEffects()
@@ -294,7 +305,11 @@ private class DrawBackdropNode(
         if (drawContent) drawContent()
         onDrawFront?.invoke(this)
 
-        exportedBackdrop?.graphicsLayer?.record {
+        exportedBackdrop?.graphicsLayer?.record(
+            density = mutableDensity,
+            layoutDirection = layoutDirection,
+            size = size.toIntSize()
+        ) {
             onDrawBehind?.invoke(this)
             drawBackdropLayer()
             onDrawSurface?.invoke(this)
