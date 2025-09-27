@@ -6,6 +6,8 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
@@ -21,6 +23,10 @@ import kotlin.math.PI
 @Immutable
 interface HighlightStyle {
 
+    val color: Color
+
+    val blendMode: BlendMode
+
     @RequiresApi(Build.VERSION_CODES.S)
     fun DrawScope.createRenderEffect(
         shape: Shape,
@@ -29,6 +35,10 @@ interface HighlightStyle {
 
     @Immutable
     data object Solid : HighlightStyle {
+
+        override val color: Color = DefaultHighlightColor
+
+        override val blendMode: BlendMode = DrawScope.DefaultBlendMode
 
         @RequiresApi(Build.VERSION_CODES.S)
         override fun DrawScope.createRenderEffect(
@@ -43,6 +53,11 @@ interface HighlightStyle {
         @param:FloatRange(from = 0.0) val falloff: Float = 1f,
         val isAmbient: Boolean = false
     ) : HighlightStyle {
+
+        override val color: Color = DefaultHighlightColor
+
+        override val blendMode: BlendMode =
+            if (isAmbient) DrawScope.DefaultBlendMode else BlendMode.Plus
 
         @RequiresApi(Build.VERSION_CODES.S)
         override fun DrawScope.createRenderEffect(
@@ -73,9 +88,6 @@ interface HighlightStyle {
 
             @Stable
             val Default: Dynamic = Dynamic()
-
-            @Stable
-            val AmbientDefault: Dynamic = Dynamic(isAmbient = true)
         }
     }
 }
@@ -119,3 +131,5 @@ private fun DrawScope.getCornerRadii(shape: Shape): FloatArray {
         bottomLeft.fastCoerceAtMost(maxRadius)
     )
 }
+
+private val DefaultHighlightColor = Color.White.copy(alpha = 0.5f)

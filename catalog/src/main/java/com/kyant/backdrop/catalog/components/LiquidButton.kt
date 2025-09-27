@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -122,6 +123,11 @@ half4 main(float2 coord) {
                 } else {
                     null
                 },
+                onDrawBackdrop = { drawBackdrop ->
+                    translate(0f, 48f.dp.toPx()) {
+                        drawBackdrop()
+                    }
+                },
                 onDrawSurface = {
                     if (tint.isSpecified) {
                         drawRect(tint, blendMode = BlendMode.Hue)
@@ -130,9 +136,7 @@ half4 main(float2 coord) {
                     if (surfaceColor.isSpecified) {
                         drawRect(surfaceColor)
                     }
-                },
-                onDrawFront = if (isInteractive) {
-                    {
+                    if (isInteractive) {
                         val progress = progressAnimation.value.fastCoerceIn(0f, 1f)
                         if (progress > 0f) {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && interactiveHighlightShader is RuntimeShader) {
@@ -163,8 +167,6 @@ half4 main(float2 coord) {
                             }
                         }
                     }
-                } else {
-                    null
                 }
             )
             .clickable(

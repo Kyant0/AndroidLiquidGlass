@@ -10,6 +10,7 @@ enum class CatalogDestination {
 
     LockScreen,
     ControlCenter,
+    Magnifier,
 
     GlassPlayground,
     AdaptiveLuminanceGlass,

@@ -84,8 +84,8 @@ internal class ShadowNode(
             val offsetX = shadow.offset.x.toPx()
             val offsetY = shadow.offset.y.toPx()
             val shadowSize = IntSize(
-                ceil(size.width + radius * 2 + offsetX).toInt(),
-                ceil(size.height + radius * 2 + offsetY).toInt()
+                ceil(size.width + radius * 4f + offsetX).toInt(),
+                ceil(size.height + radius * 4f + offsetY).toInt()
             )
             val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)
 
@@ -94,12 +94,12 @@ internal class ShadowNode(
             shadowLayer.alpha = shadow.alpha
             shadowLayer.blendMode = shadow.blendMode
             shadowLayer.record(size = shadowSize) {
-                translate(radius + offsetX, radius + offsetY) {
+                translate(radius * 2f + offsetX, radius * 2f + offsetY) {
                     drawShadow(outline, offsetX, offsetY)
                 }
             }
 
-            translate(-radius, -radius) {
+            translate(-radius * 2f, -radius * 2f) {
                 drawLayer(shadowLayer)
             }
         }
@@ -126,9 +126,12 @@ internal class ShadowNode(
     private fun DrawScope.configurePaint(shadow: Shadow) {
         paint.color = shadow.color.toArgb()
         val blurRadius = shadow.radius.toPx()
-        if (blurRadius > 0f) {
-            paint.maskFilter = BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
-        }
+        paint.maskFilter =
+            if (blurRadius > 0f) {
+                BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
+            } else {
+                null
+            }
     }
 
     private fun DrawScope.drawShadow(outline: Outline, offsetX: Float, offsetY: Float) {

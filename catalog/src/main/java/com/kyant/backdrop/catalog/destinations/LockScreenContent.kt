@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
@@ -49,7 +48,6 @@ fun LockScreenContent() {
                         shadow = {
                             Shadow(
                                 radius = 4f.dp,
-                                offset = DpOffset(0f.dp, 1f.dp),
                                 color = Color.Black.copy(0.05f)
                             )
                         },

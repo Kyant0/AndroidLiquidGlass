@@ -15,7 +15,7 @@ import androidx.compose.ui.util.lerp
 @Immutable
 data class Shadow(
     val radius: Dp = 24f.dp,
-    val offset: DpOffset = DpOffset(0f.dp, 4f.dp),
+    val offset: DpOffset = DpOffset(0f.dp, radius / 6f),
     val color: Color = Color.Black.copy(alpha = 0.15f),
     val alpha: Float = 1f,
     val blendMode: BlendMode = DrawScope.DefaultBlendMode

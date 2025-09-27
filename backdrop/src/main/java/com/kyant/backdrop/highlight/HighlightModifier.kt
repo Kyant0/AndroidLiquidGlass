@@ -3,12 +3,12 @@ package com.kyant.backdrop.highlight
 import android.graphics.BlurMaskFilter
 import android.graphics.Paint
 import android.graphics.Path
+import android.os.Build
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.isUnspecified
 import androidx.compose.ui.graphics.layer.CompositingStrategy
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -84,7 +84,7 @@ internal class HighlightNode(
 
     override fun ContentDrawScope.draw() {
         val highlight = highlight()
-        if (highlight == null || highlight.width.value <= 0f || highlight.color.isUnspecified) {
+        if (highlight == null || highlight.width.value <= 0f) {
             return drawContent()
         }
 
@@ -99,19 +99,21 @@ internal class HighlightNode(
             configurePaint(highlight)
 
             val style = highlight.style
-            if (prevStyle != style) {
-                highlightLayer.renderEffect = with(style) {
-                    createRenderEffect(
-                        shape = shapeProvider.shape,
-                        shaderCache = runtimeShaderCacheScope
-                    )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (prevStyle != style) {
+                    highlightLayer.renderEffect = with(style) {
+                        createRenderEffect(
+                            shape = shapeProvider.shape,
+                            shaderCache = runtimeShaderCacheScope
+                        )
+                    }
+                    prevStyle = style
                 }
-                prevStyle = style
             }
             highlightLayer.record { drawHighlight(outline) }
 
             maskLayer.alpha = highlight.alpha
-            maskLayer.blendMode = highlight.blendMode
+            maskLayer.blendMode = style.blendMode
             maskLayer.record { drawLayer(highlightLayer) }
 
             drawLayer(maskLayer)
@@ -142,13 +144,16 @@ internal class HighlightNode(
     }
 
     private fun DrawScope.configurePaint(highlight: Highlight) {
-        paint.color = highlight.color.toArgb()
+        paint.color = highlight.style.color.toArgb()
         paint.strokeWidth =
             ceil(highlight.width.toPx().fastCoerceAtMost(size.minDimension / 2f)) * 2f
         val blurRadius = highlight.blurRadius.toPx()
-        if (blurRadius > 0f) {
-            paint.maskFilter = BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
-        }
+        paint.maskFilter =
+            if (blurRadius > 0f) {
+                BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
+            } else {
+                null
+            }
     }
 
     private fun DrawScope.drawHighlight(outline: Outline) {

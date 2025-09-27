@@ -33,7 +33,6 @@ import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.GraphicsLayerScope
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
@@ -42,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
-import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.R
@@ -98,20 +96,31 @@ fun ControlCenterContent() {
 
     val uiSensor = rememberUISensor()
     val glassShape = { itemShape }
-    val glassHighlight = { Highlight(style = HighlightStyle.Dynamic(angle = uiSensor.gravityAngle)) }
+    val glassHighlight = {
+        Highlight(
+            style = HighlightStyle.Dynamic(
+                angle = uiSensor.gravityAngle,
+                falloff = 2f
+            )
+        )
+    }
     val glassLayer: GraphicsLayerScope.() -> Unit = {
         val progress = progress
         val safeProgress = safeEnterProgressAnimation.value
-        translationY = lerp(-24f.dp.toPx(), 0f, progress)
+        translationY = -48f.dp.toPx() * (1f - progress)
         alpha = EaseIn.transform(safeProgress)
-        scaleX = 1f - 0.05f * (progress - 1f).fastCoerceAtLeast(0f)
-        scaleY = 1f + 0.1f * (progress - 1f).fastCoerceAtLeast(0f)
-        transformOrigin = TransformOrigin(0.5f, 0f)
+        scaleX /= 1f + 0.1f * (progress - 1f).fastCoerceAtLeast(0f)
+        scaleY *= 1f + 0.1f * (progress - 1f).fastCoerceAtLeast(0f)
     }
     val glassSurface: DrawScope.() -> Unit = { drawRect(containerColor) }
     val glassEffects: BackdropEffectScope.() -> Unit = {
+        val progress = safeEnterProgressAnimation.value
         vibrancy()
-        refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
+        refraction(
+            24f.dp.toPx() * progress,
+            48f.dp.toPx() * progress,
+            true
+        )
     }
 
     val spacerLayoutModifier = Modifier.layout { measurable, constraints ->
@@ -119,8 +128,18 @@ fun ControlCenterContent() {
         val progress = progress
         val height =
             itemSpacing.roundToPx() +
-                    (24f.dp.toPx() * (progress - 1f).fastCoerceAtLeast(0f)).fastRoundToInt()
-        layout(constraints.maxWidth, height) {
+                    (32f.dp.toPx() * (progress - 1f).fastCoerceAtLeast(0f)).fastRoundToInt()
+        layout(constraints.minWidth, height) {
+            placeable.place(0, 0)
+        }
+    }
+    val smallSpacerLayoutModifier = Modifier.layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        val progress = progress
+        val height =
+            itemSpacing.roundToPx() +
+                    (16f.dp.toPx() * (progress - 1f).fastCoerceAtLeast(0f)).fastRoundToInt()
+        layout(constraints.minWidth, height) {
             placeable.place(0, 0)
         }
     }
@@ -260,9 +279,7 @@ fun ControlCenterContent() {
                 horizontalArrangement = Arrangement.spacedBy(itemSpacing, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(itemSpacing)
-                ) {
+                Column {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(itemSpacing),
                         verticalAlignment = Alignment.CenterVertically
@@ -296,6 +313,9 @@ fun ControlCenterContent() {
                                 .size(itemSize)
                         )
                     }
+
+                    Spacer(smallSpacerLayoutModifier)
+
                     Box(
                         Modifier
                             .drawBackdrop(
@@ -363,9 +383,7 @@ fun ControlCenterContent() {
                         .size(itemTwoSpanSize)
                 )
 
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(itemSpacing)
-                ) {
+                Column {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(itemSpacing),
                         verticalAlignment = Alignment.CenterVertically
@@ -399,6 +417,9 @@ fun ControlCenterContent() {
                                 .size(itemSize)
                         )
                     }
+
+                    Spacer(smallSpacerLayoutModifier)
+
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(itemSpacing),
                         verticalAlignment = Alignment.CenterVertically

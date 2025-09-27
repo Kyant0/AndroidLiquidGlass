@@ -31,8 +31,6 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawOutline
@@ -47,7 +45,6 @@ import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.util.fastCoerceIn
@@ -196,7 +193,7 @@ fun LiquidBottomTabs(
                     if (progressAnimation.targetValue != 1f) {
                         launch {
                             onDragStart()
-                            delay(250)
+                            delay(200)
                             onDragStop()
                         }
                     } else {
@@ -209,14 +206,6 @@ fun LiquidBottomTabs(
                         )
                     }
                 }
-        }
-
-        val tabLayerBlock: GraphicsLayerScope.() -> Unit = {
-            scaleX = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleXAnimation.value)
-            scaleY = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleYAnimation.value)
-            val velocity = velocityAnimation.value / size.width
-            scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-            scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.15f, 0.15f)
         }
 
         val interactiveHighlightShader = remember {
@@ -274,81 +263,35 @@ half4 main(float2 coord) {
             drawContent()
         }
 
-        Box(
+        Row(
             Modifier
-                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-                .layout { measurable, constraints ->
-                    val placeable = measurable.measure(constraints)
-                    val width =
-                        placeable.width +
-                                (4f.dp.toPx() / placeable.height * placeable.width).fastRoundToInt() +
-                                48f.dp.roundToPx()
-                    val height =
-                        placeable.height +
-                                4f.dp.roundToPx() +
-                                48f.dp.roundToPx()
-                    layout(width, height) {
-                        placeable.place(
-                            (width - placeable.width) / 2,
-                            (height - placeable.height) / 2
-                        )
-                    }
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { ContinuousCapsule },
+                    effects = {
+                        vibrancy()
+                        blur(8f.dp.toPx())
+                        refraction(24f.dp.toPx(), 24f.dp.toPx())
+                    },
+                    layerBlock = {
+                        val progress = progressAnimation.value
+                        val scale = lerp(1f, 1f + 2f.dp.toPx() / size.height, progress)
+                        scaleX = scale
+                        scaleY = scale
+                    },
+                    onDrawSurface = { drawRect(containerColor) }
+                )
+                .then(drawInteractiveHighlightModifier)
+                .drawWithContent {
+                    drawContent()
+                    tabsLayer.record { this@drawWithContent.drawContent() }
                 }
-        ) {
-            Row(
-                Modifier
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { ContinuousCapsule },
-                        effects = {
-                            vibrancy()
-                            blur(8f.dp.toPx())
-                            refraction(24f.dp.toPx(), 24f.dp.toPx())
-                        },
-                        layerBlock = {
-                            val progress = progressAnimation.value
-                            val scale = lerp(1f, 1f + 2f.dp.toPx() / size.height, progress)
-                            scaleX = scale
-                            scaleY = scale
-                        },
-                        onDrawSurface = { drawRect(containerColor) }
-                    )
-                    .then(drawInteractiveHighlightModifier)
-                    .drawWithContent {
-                        drawContent()
-                        tabsLayer.record { this@drawWithContent.drawContent() }
-                    }
-                    .height(64f.dp)
-                    .fillMaxWidth()
-                    .padding(4f.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                content = content
-            )
-
-            Box(
-                Modifier
-                    .layout { measurable, constraints ->
-                        val padding = (4f.dp.toPx() * (1f - progressAnimation.value)).fastRoundToInt()
-                        val placeable = measurable.measure(constraints.offset(-padding * 2, 0))
-                        layout(placeable.width + padding, placeable.height) {
-                            placeable.place(padding, 4f.dp.roundToPx())
-                        }
-                    }
-                    .graphicsLayer {
-                        translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * (tabsCount - 1))
-                        tabLayerBlock()
-                        shape = ContinuousCapsule
-                        clip = true
-                    }
-                    .drawBehind {
-                        if (progressAnimation.value != 0f) {
-                            drawRect(Color.Black, blendMode = BlendMode.DstOut)
-                        }
-                    }
-                    .height(56f.dp)
-                    .fillMaxWidth(1f / tabsCount)
-            )
-        }
+                .height(64f.dp)
+                .fillMaxWidth()
+                .padding(4f.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content
+        )
 
         Box(
             Modifier
@@ -467,10 +410,7 @@ half4 main(float2 coord) {
                     },
                     shadow = {
                         val progress = progressAnimation.value
-                        Shadow(
-                            radius = 24f.dp * progress,
-                            offset = DpOffset(0f.dp, 4f.dp * progress)
-                        )
+                        Shadow(alpha = progress)
                     },
                     effects = {
                         val progress = progressAnimation.value
@@ -479,14 +419,20 @@ half4 main(float2 coord) {
                             12f.dp.toPx() * progress
                         )
                     },
-                    layerBlock = tabLayerBlock,
+                    layerBlock = {
+                        scaleX = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleXAnimation.value)
+                        scaleY = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleYAnimation.value)
+                        val velocity = velocityAnimation.value / size.width
+                        scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
+                        scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.15f, 0.15f)
+                    },
                     onDrawSurface = {
                         val progress = progressAnimation.value
 
                         val shape = ContinuousCapsule
                         val outline = shape.createOutline(size, layoutDirection, this)
-                        val innerShadowOffset = 4f.dp.toPx() * progress
-                        val innerShadowBlurRadius = 2f.dp.toPx() * progress
+                        val innerShadowOffset = 8f.dp.toPx() * progress
+                        val innerShadowBlurRadius = 8f.dp.toPx() * progress
 
                         innerShadowLayer.alpha = progress
                         if (innerShadowBlurRadius > 0f) {
@@ -498,7 +444,7 @@ half4 main(float2 coord) {
                                 )
                         }
                         innerShadowLayer.record {
-                            drawOutline(outline, Color.Black.copy(0.1f))
+                            drawOutline(outline, Color.Black.copy(0.12f))
                             translate(0f, innerShadowOffset) {
                                 drawOutline(outline, Color.Transparent, blendMode = BlendMode.Clear)
                             }

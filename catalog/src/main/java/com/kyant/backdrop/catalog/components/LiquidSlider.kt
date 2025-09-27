@@ -168,7 +168,7 @@ fun LiquidSlider(
                         val shape = ContinuousCapsule
                         val outline = shape.createOutline(size, layoutDirection, this)
                         val innerShadowOffset = 4f.dp.toPx() * progress
-                        val innerShadowBlurRadius = 2f.dp.toPx() * progress
+                        val innerShadowBlurRadius = 4f.dp.toPx() * progress
 
                         innerShadowLayer.alpha = progress
                         if (innerShadowBlurRadius > 0f) {
@@ -180,7 +180,7 @@ fun LiquidSlider(
                                 )
                         }
                         innerShadowLayer.record {
-                            drawOutline(outline, Color.Black.copy(0.1f))
+                            drawOutline(outline, Color.Black.copy(0.12f))
                             translate(0f, innerShadowOffset) {
                                 drawOutline(outline, Color.Transparent, blendMode = BlendMode.Clear)
                             }
