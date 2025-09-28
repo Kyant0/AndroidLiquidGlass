@@ -12,11 +12,12 @@ import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.util.fastCoerceAtMost
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.AmbientHighlightShaderString
-import com.kyant.backdrop.DynamicHighlightShaderString
+import com.kyant.backdrop.DefaultHighlightShaderString
 import com.kyant.backdrop.RuntimeShaderCacheScope
 import kotlin.math.PI
 
@@ -33,12 +34,15 @@ interface HighlightStyle {
         shaderCache: RuntimeShaderCacheScope
     ): RenderEffect?
 
-    @Immutable
+    @Deprecated(
+        message = "Use HighlightStyle.Plain instead",
+        replaceWith = ReplaceWith("HighlightStyle.Plain")
+    )
     data object Solid : HighlightStyle {
 
-        override val color: Color = DefaultHighlightColor
+        override val color: Color = Color.White.copy(alpha = 0.38f)
 
-        override val blendMode: BlendMode = DrawScope.DefaultBlendMode
+        override val blendMode: BlendMode = BlendMode.Plus
 
         @RequiresApi(Build.VERSION_CODES.S)
         override fun DrawScope.createRenderEffect(
@@ -48,16 +52,41 @@ interface HighlightStyle {
     }
 
     @Immutable
-    data class Dynamic(
-        val angle: Float = 45f,
-        @param:FloatRange(from = 0.0) val falloff: Float = 1f,
-        val isAmbient: Boolean = false
+    data class Plain(
+        override val color: Color = Color.White.copy(alpha = 0.38f),
+        override val blendMode: BlendMode = BlendMode.Plus
     ) : HighlightStyle {
 
-        override val color: Color = DefaultHighlightColor
+        @RequiresApi(Build.VERSION_CODES.S)
+        override fun DrawScope.createRenderEffect(
+            shape: Shape,
+            shaderCache: RuntimeShaderCacheScope
+        ): RenderEffect? = null
+    }
 
-        override val blendMode: BlendMode =
-            if (isAmbient) DrawScope.DefaultBlendMode else BlendMode.Plus
+    @Deprecated(
+        message = "Use HighlightStyle.Default instead",
+        replaceWith = ReplaceWith("HighlightStyle.Default")
+    )
+    data class Dynamic(
+        override val color: Color = Color.White.copy(alpha = 0.5f),
+        override val blendMode: BlendMode = BlendMode.Plus,
+        val angle: Float = 45f,
+        @param:FloatRange(from = 0.0) val falloff: Float = 1f
+    ) : HighlightStyle by Default(
+        color = color,
+        blendMode = blendMode,
+        angle = angle,
+        falloff = falloff
+    )
+
+    @Immutable
+    data class Default(
+        override val color: Color = Color.White.copy(alpha = 0.5f),
+        override val blendMode: BlendMode = BlendMode.Plus,
+        val angle: Float = 45f,
+        @param:FloatRange(from = 0.0) val falloff: Float = 1f
+    ) : HighlightStyle {
 
         @RequiresApi(Build.VERSION_CODES.S)
         override fun DrawScope.createRenderEffect(
@@ -65,12 +94,7 @@ interface HighlightStyle {
             shaderCache: RuntimeShaderCacheScope
         ): RenderEffect? {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val shader =
-                    if (isAmbient) {
-                        shaderCache.obtainRuntimeShader("Ambient", AmbientHighlightShaderString)
-                    } else {
-                        shaderCache.obtainRuntimeShader("Dynamic", DynamicHighlightShaderString)
-                    }
+                val shader = shaderCache.obtainRuntimeShader("Dynamic", DefaultHighlightShaderString)
                 shader.apply {
                     setFloatUniform("size", size.width, size.height)
                     setFloatUniform("cornerRadii", getCornerRadii(shape))
@@ -83,25 +107,75 @@ interface HighlightStyle {
                 null
             }
         }
+    }
 
-        companion object {
+    @Immutable
+    data class Ambient(
+        override val color: Color = Color.White.copy(alpha = 0.5f),
+        override val blendMode: BlendMode = DrawScope.DefaultBlendMode
+    ) : HighlightStyle {
 
-            @Stable
-            val Default: Dynamic = Dynamic()
+        @RequiresApi(Build.VERSION_CODES.S)
+        override fun DrawScope.createRenderEffect(
+            shape: Shape,
+            shaderCache: RuntimeShaderCacheScope
+        ): RenderEffect? {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val shader = shaderCache.obtainRuntimeShader("Ambient", AmbientHighlightShaderString)
+                shader.apply {
+                    setFloatUniform("size", size.width, size.height)
+                    setFloatUniform("cornerRadii", getCornerRadii(shape))
+                    setFloatUniform("angle", 45f * (PI / 180f).toFloat())
+                    setFloatUniform("falloff", 1f)
+                }
+                android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
+                    .asComposeRenderEffect()
+            } else {
+                null
+            }
         }
+    }
+
+    companion object {
+
+        @Stable
+        val Default: Default = Default()
+
+        @Deprecated(
+            message = "Use HighlightStyle.Default instead",
+            replaceWith = ReplaceWith("HighlightStyle.Default")
+        )
+        @Stable
+        val Dynamic: Dynamic = Dynamic()
+
+        @Stable
+        val Ambient: Ambient = Ambient()
+
+        @Stable
+        val Plain: Plain = Plain()
     }
 }
 
 @Stable
 fun lerp(start: HighlightStyle, stop: HighlightStyle, fraction: Float): HighlightStyle {
-    if (start is HighlightStyle.Solid && stop is HighlightStyle.Solid) {
-        return HighlightStyle.Solid
+    if (start is HighlightStyle.Plain && stop is HighlightStyle.Plain) {
+        return HighlightStyle.Plain(
+            color = lerp(start.color, stop.color, fraction),
+            blendMode = if (fraction < 0.5f) start.blendMode else stop.blendMode
+        )
     }
-    if (start is HighlightStyle.Dynamic && stop is HighlightStyle.Dynamic) {
-        return HighlightStyle.Dynamic(
+    if (start is HighlightStyle.Default && stop is HighlightStyle.Default) {
+        return HighlightStyle.Default(
+            color = lerp(start.color, stop.color, fraction),
+            blendMode = if (fraction < 0.5f) start.blendMode else stop.blendMode,
             angle = lerp(start.angle, stop.angle, fraction),
-            falloff = lerp(start.falloff, stop.falloff, fraction),
-            isAmbient = if (fraction < 0.5f) start.isAmbient else stop.isAmbient
+            falloff = lerp(start.falloff, stop.falloff, fraction)
+        )
+    }
+    if (start is HighlightStyle.Ambient && stop is HighlightStyle.Ambient) {
+        return HighlightStyle.Ambient(
+            color = lerp(start.color, stop.color, fraction),
+            blendMode = if (fraction < 0.5f) start.blendMode else stop.blendMode
         )
     }
     return if (fraction < 0.5f) start else stop
@@ -131,5 +205,3 @@ private fun DrawScope.getCornerRadii(shape: Shape): FloatArray {
         bottomLeft.fastCoerceAtMost(maxRadius)
     )
 }
-
-private val DefaultHighlightColor = Color.White.copy(alpha = 0.5f)

@@ -98,7 +98,7 @@ fun ControlCenterContent() {
     val glassShape = { itemShape }
     val glassHighlight = {
         Highlight(
-            style = HighlightStyle.Dynamic(
+            style = HighlightStyle.Default(
                 angle = uiSensor.gravityAngle,
                 falloff = 2f
             )

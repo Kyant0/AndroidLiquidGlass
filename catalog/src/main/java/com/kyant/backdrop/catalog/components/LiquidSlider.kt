@@ -120,7 +120,7 @@ fun LiquidSlider(
                     shape = { ContinuousCapsule },
                     highlight = {
                         val progress = momentumAnimation.progress
-                        Highlight.AmbientDefault.copy(alpha = progress)
+                        Highlight.Ambient.copy(alpha = progress)
                     },
                     shadow = {
                         Shadow(

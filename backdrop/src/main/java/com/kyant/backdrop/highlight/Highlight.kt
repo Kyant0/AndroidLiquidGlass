@@ -14,7 +14,7 @@ data class Highlight(
     val width: Dp = 0.5f.dp,
     val blurRadius: Dp = width / 2f,
     val alpha: Float = 1f,
-    val style: HighlightStyle = HighlightStyle.Dynamic.Default
+    val style: HighlightStyle = HighlightStyle.Default
 ) {
 
     @Deprecated(message = "Use the non-lambda version of style parameter")
@@ -38,10 +38,10 @@ data class Highlight(
         val Default: Highlight = Highlight()
 
         @Stable
-        val AmbientDefault: Highlight = Highlight(style = HighlightStyle.Dynamic(isAmbient = true))
+        val Ambient: Highlight = Highlight(style = HighlightStyle.Ambient)
 
         @Stable
-        val SolidDefault: Highlight = Highlight(style = HighlightStyle.Solid)
+        val Plain: Highlight = Highlight(style = HighlightStyle.Plain)
     }
 }
 

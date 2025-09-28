@@ -67,7 +67,7 @@ fun GlassPlaygroundContent() {
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { ContinuousRoundedRectangle(256f.dp / 2f * cornerRadiusFrac) },
-                    highlight = { Highlight.SolidDefault },
+                    highlight = { Highlight.Plain },
                     effects = {
                         val minDimension = size.minDimension
                         vibrancy()
@@ -130,7 +130,7 @@ fun GlassPlaygroundContent() {
                         .drawBackdrop(
                             backdrop = backdrop,
                             shape = { ContinuousRoundedRectangle(32f.dp) },
-                            highlight = { Highlight.SolidDefault },
+                            highlight = { Highlight.Plain },
                             effects = {
                                 vibrancy()
                                 blur(4f.dp.toPx())

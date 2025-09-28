@@ -60,7 +60,7 @@ fun DialogContent() {
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { ContinuousRoundedRectangle(48f.dp) },
-                    highlight = { Highlight.SolidDefault },
+                    highlight = { Highlight.Plain },
                     effects = {
                         colorControls(
                             brightness = if (isLightTheme) 0.2f else 0f,

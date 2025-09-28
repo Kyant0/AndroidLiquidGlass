@@ -143,7 +143,7 @@ half4 main(float2 coord) {
 }"""
 
 @Language("AGSL")
-internal const val DynamicHighlightShaderString = """
+internal const val DefaultHighlightShaderString = """
 uniform shader content;
 
 uniform float2 size;
