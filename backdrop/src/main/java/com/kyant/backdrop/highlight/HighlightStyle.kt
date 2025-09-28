@@ -54,7 +54,9 @@ interface HighlightStyle {
         val isAmbient: Boolean = false
     ) : HighlightStyle {
 
-        override val color: Color = DefaultHighlightColor
+        override val color: Color =
+            if (isAmbient) Color.Black.copy(alpha = 0.38f)
+            else DefaultHighlightColor
 
         override val blendMode: BlendMode =
             if (isAmbient) DrawScope.DefaultBlendMode else BlendMode.Plus

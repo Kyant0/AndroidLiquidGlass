@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -29,7 +30,9 @@ import com.kyant.backdrop.catalog.utils.LoremIpsum
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.dispersion
 import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.capsule.ContinuousCapsule
+import com.kyant.capsule.ContinuousRoundedRectangle
 
 @Composable
 fun MagnifierContent() {
@@ -38,6 +41,9 @@ fun MagnifierContent() {
     val accentColor =
         if (isLightTheme) Color(0xFF0088FF)
         else Color(0xFF0091FF)
+    val backgroundColor =
+        if (isLightTheme) Color(0xFFFFFFFF)
+        else Color(0xFF121212)
 
     BackdropDemoScaffold { backdrop ->
         val contentBackdrop = rememberLayerBackdrop()
@@ -48,7 +54,10 @@ fun MagnifierContent() {
             LoremIpsum,
             Modifier
                 .layerBackdrop(contentBackdrop)
-                .padding(48f.dp),
+                .padding(24f.dp)
+                .clip(ContinuousRoundedRectangle(32f.dp))
+                .background(backgroundColor.copy(alpha = 0.9f))
+                .padding(24f.dp),
             style = TextStyle(contentColor, 16f.sp)
         )
 
@@ -75,6 +84,7 @@ fun MagnifierContent() {
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, contentBackdrop, cursorBackdrop),
                     shape = { ContinuousCapsule },
+                    innerShadow = { InnerShadow(radius = 16f.dp) },
                     effects = {
                         refraction(
                             height = 8f.dp.toPx(),

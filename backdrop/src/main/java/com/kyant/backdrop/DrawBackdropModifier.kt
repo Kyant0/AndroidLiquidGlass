@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.toIntSize
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightElement
+import com.kyant.backdrop.shadow.InnerShadow
+import com.kyant.backdrop.shadow.InnerShadowElement
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.backdrop.shadow.ShadowElement
 
@@ -47,6 +49,7 @@ fun Modifier.drawBackdrop(
     shape: () -> Shape,
     highlight: (() -> Highlight?)? = DefaultHighlight,
     shadow: (() -> Shadow?)? = DefaultShadow,
+    innerShadow: (() -> InnerShadow?)? = null,
     effects: (BackdropEffectScope.() -> Unit)? = null,
     layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
     exportedBackdrop: LayerBackdrop? = null,
@@ -63,6 +66,16 @@ fun Modifier.drawBackdrop(
         .then(
             if (layerBlock != null) {
                 Modifier.graphicsLayer(layerBlock)
+            } else {
+                Modifier
+            }
+        )
+        .then(
+            if (innerShadow != null) {
+                InnerShadowElement(
+                    shapeProvider = shapeProvider,
+                    shadow = innerShadow
+                )
             } else {
                 Modifier
             }

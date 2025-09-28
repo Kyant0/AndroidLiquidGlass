@@ -28,13 +28,9 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ShaderBrush
-import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -61,6 +57,7 @@ import com.kyant.backdrop.effects.refraction
 import com.kyant.backdrop.effects.refractionWithDispersion
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.delay
@@ -88,10 +85,6 @@ fun LiquidBottomTabs(
     val tabsLayer =
         rememberGraphicsLayer().apply {
             colorFilter = ColorFilter.tint(accentColor)
-        }
-    val innerShadowLayer =
-        rememberGraphicsLayer().apply {
-            compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
         }
 
     BoxWithConstraints(
@@ -412,6 +405,13 @@ half4 main(float2 coord) {
                         val progress = progressAnimation.value
                         Shadow(alpha = progress)
                     },
+                    innerShadow = {
+                        val progress = progressAnimation.value
+                        InnerShadow(
+                            radius = 8f.dp * progress,
+                            alpha = progress
+                        )
+                    },
                     effects = {
                         val progress = progressAnimation.value
                         refractionWithDispersion(
@@ -428,29 +428,6 @@ half4 main(float2 coord) {
                     },
                     onDrawSurface = {
                         val progress = progressAnimation.value
-
-                        val shape = ContinuousCapsule
-                        val outline = shape.createOutline(size, layoutDirection, this)
-                        val innerShadowOffset = 8f.dp.toPx() * progress
-                        val innerShadowBlurRadius = 8f.dp.toPx() * progress
-
-                        innerShadowLayer.alpha = progress
-                        if (innerShadowBlurRadius > 0f) {
-                            innerShadowLayer.renderEffect =
-                                BlurEffect(
-                                    innerShadowBlurRadius,
-                                    innerShadowBlurRadius,
-                                    TileMode.Decal
-                                )
-                        }
-                        innerShadowLayer.record {
-                            drawOutline(outline, Color.Black.copy(0.12f))
-                            translate(0f, innerShadowOffset) {
-                                drawOutline(outline, Color.Transparent, blendMode = BlendMode.Clear)
-                            }
-                        }
-                        drawLayer(innerShadowLayer)
-
                         drawRect(
                             if (isLightTheme) Color.Black.copy(0.1f)
                             else Color.White.copy(0.1f),
