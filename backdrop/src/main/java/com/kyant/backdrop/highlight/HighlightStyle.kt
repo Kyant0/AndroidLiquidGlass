@@ -34,23 +34,6 @@ interface HighlightStyle {
         shaderCache: RuntimeShaderCacheScope
     ): RenderEffect?
 
-    @Deprecated(
-        message = "Use HighlightStyle.Plain instead",
-        replaceWith = ReplaceWith("HighlightStyle.Plain")
-    )
-    data object Solid : HighlightStyle {
-
-        override val color: Color = Color.White.copy(alpha = 0.38f)
-
-        override val blendMode: BlendMode = BlendMode.Plus
-
-        @RequiresApi(Build.VERSION_CODES.S)
-        override fun DrawScope.createRenderEffect(
-            shape: Shape,
-            shaderCache: RuntimeShaderCacheScope
-        ): RenderEffect? = null
-    }
-
     @Immutable
     data class Plain(
         override val color: Color = Color.White.copy(alpha = 0.38f),
@@ -63,22 +46,6 @@ interface HighlightStyle {
             shaderCache: RuntimeShaderCacheScope
         ): RenderEffect? = null
     }
-
-    @Deprecated(
-        message = "Use HighlightStyle.Default instead",
-        replaceWith = ReplaceWith("HighlightStyle.Default")
-    )
-    data class Dynamic(
-        override val color: Color = Color.White.copy(alpha = 0.5f),
-        override val blendMode: BlendMode = BlendMode.Plus,
-        val angle: Float = 45f,
-        @param:FloatRange(from = 0.0) val falloff: Float = 1f
-    ) : HighlightStyle by Default(
-        color = color,
-        blendMode = blendMode,
-        angle = angle,
-        falloff = falloff
-    )
 
     @Immutable
     data class Default(
@@ -140,13 +107,6 @@ interface HighlightStyle {
 
         @Stable
         val Default: Default = Default()
-
-        @Deprecated(
-            message = "Use HighlightStyle.Default instead",
-            replaceWith = ReplaceWith("HighlightStyle.Default")
-        )
-        @Stable
-        val Dynamic: Dynamic = Dynamic()
 
         @Stable
         val Ambient: Ambient = Ambient()
