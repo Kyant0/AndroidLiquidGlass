@@ -16,8 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -88,11 +87,13 @@ fun MagnifierContent() {
                         )
                     },
                     onDrawBackdrop = { drawBackdrop ->
-                        scale(1.5f, 1.5f) {
-                            translate(top = -size.height) {
-                                drawBackdrop()
-                            }
-                        }
+                        withTransform(
+                            {
+                                scale(1.5f, 1.5f)
+                                translate(top = -size.height)
+                            },
+                            drawBackdrop
+                        )
                     }
                 )
                 .size(128f.dp, 96f.dp)

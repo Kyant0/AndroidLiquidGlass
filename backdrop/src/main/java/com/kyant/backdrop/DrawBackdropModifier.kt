@@ -247,7 +247,7 @@ private class DrawBackdropNode(
         onDrawBackdrop {
             with(backdrop) {
                 drawBackdrop(
-                    density = this@onDrawBackdrop,
+                    density = requireDensity(),
                     coordinates = layoutCoordinates,
                     layerBlock = layerBlock
                 )
