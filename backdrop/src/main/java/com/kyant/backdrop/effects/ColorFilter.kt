@@ -75,7 +75,7 @@ fun BackdropEffectScope.gammaAdjustment(power: Float) {
     val shader = obtainRuntimeShader("GammaAdjustment", GammaAdjustmentShaderString).apply {
         setFloatUniform("power", power)
     }
-    effect(RenderEffect.createRuntimeShaderEffect(shader, "image"))
+    effect(RenderEffect.createRuntimeShaderEffect(shader, "content"))
 }
 
 private fun colorControlsColorFilter(

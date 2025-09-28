@@ -396,6 +396,7 @@ half4 main(float2 coord) {
                             else Color.White.copy(0.1f),
                             alpha = 1f - progress
                         )
+                        drawRect(Color.Black.copy(alpha = 0.03f * progress))
                     }
                 )
                 .height(56f.dp)

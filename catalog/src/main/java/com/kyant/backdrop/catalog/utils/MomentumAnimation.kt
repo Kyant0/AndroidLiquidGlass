@@ -23,7 +23,7 @@ fun rememberMomentumAnimation(
     progressAnimationSpec: FiniteAnimationSpec<Float> =
         spring(1f, 1000f, 0.01f),
     velocityAnimationSpec: FiniteAnimationSpec<Float> =
-        spring(0.5f, 250f, 0.01f),
+        spring(0.5f, 250f, 5f),
     scaleXAnimationSpec: FiniteAnimationSpec<Float> =
         spring(0.4f, 400f, 0.01f),
     scaleYAnimationSpec: FiniteAnimationSpec<Float> =

@@ -27,7 +27,7 @@ fun BackdropEffectScope.refraction(
                 setFloatUniform("refractionAmount", -amount)
                 setFloatUniform("depthEffect", if (hasDepthEffect) 1f else 0f)
             }
-            RenderEffect.createRuntimeShaderEffect(shader, "image")
+            RenderEffect.createRuntimeShaderEffect(shader, "content")
         } else {
             throwUnsupportedSDFException()
         }
@@ -50,7 +50,7 @@ fun BackdropEffectScope.dispersion(
                 setFloatUniform("dispersionHeight", height)
                 setFloatUniform("dispersionAmount", amount)
             }
-            RenderEffect.createRuntimeShaderEffect(shader, "image")
+            RenderEffect.createRuntimeShaderEffect(shader, "content")
         } else {
             throwUnsupportedSDFException()
         }
@@ -83,8 +83,8 @@ fun BackdropEffectScope.refractionWithDispersion(
                 setFloatUniform("dispersionAmount", amount * dispersionIntensity)
             }
             RenderEffect.createChainEffect(
-                RenderEffect.createRuntimeShaderEffect(dispersionShader, "image"),
-                RenderEffect.createRuntimeShaderEffect(refractionShader, "image")
+                RenderEffect.createRuntimeShaderEffect(dispersionShader, "content"),
+                RenderEffect.createRuntimeShaderEffect(refractionShader, "content")
             )
         } else {
             throwUnsupportedSDFException()

@@ -54,9 +54,7 @@ interface HighlightStyle {
         val isAmbient: Boolean = false
     ) : HighlightStyle {
 
-        override val color: Color =
-            if (isAmbient) Color.Black.copy(alpha = 0.38f)
-            else DefaultHighlightColor
+        override val color: Color = DefaultHighlightColor
 
         override val blendMode: BlendMode =
             if (isAmbient) DrawScope.DefaultBlendMode else BlendMode.Plus
@@ -79,7 +77,7 @@ interface HighlightStyle {
                     setFloatUniform("angle", angle * (PI / 180f).toFloat())
                     setFloatUniform("falloff", falloff)
                 }
-                android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "image")
+                android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
                     .asComposeRenderEffect()
             } else {
                 null

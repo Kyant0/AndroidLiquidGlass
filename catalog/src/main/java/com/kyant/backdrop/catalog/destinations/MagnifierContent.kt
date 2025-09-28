@@ -79,7 +79,7 @@ fun MagnifierContent() {
                 .graphicsLayer {
                     val offset = offset
                     translationX = offset.x
-                    translationY = offset.y - size.height
+                    translationY = offset.y - 80f.dp.toPx()
                 }
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, contentBackdrop, cursorBackdrop),
@@ -100,7 +100,7 @@ fun MagnifierContent() {
                         withTransform(
                             {
                                 scale(1.5f, 1.5f)
-                                translate(top = -size.height)
+                                translate(top = with(this@drawBackdrop) { -80f.dp.toPx() })
                             },
                             drawBackdrop
                         )

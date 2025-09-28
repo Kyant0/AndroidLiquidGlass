@@ -54,7 +54,7 @@ float2 gradSdRoundedRectangle(float2 coord, float2 halfSize, float4 radii) {
 
 @Language("AGSL")
 internal const val RoundedRectRefractionShaderString = """
-uniform shader image;
+uniform shader content;
 
 uniform float2 size;
 uniform float4 cornerRadii;
@@ -73,7 +73,7 @@ half4 main(float2 coord) {
     float2 centeredCoord = coord - halfSize;
     float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadii);
     if (-sd >= refractionHeight) {
-        return image.eval(coord);
+        return content.eval(coord);
     }
     sd = min(sd, 0.0);
     
@@ -85,12 +85,12 @@ half4 main(float2 coord) {
     float2 refractedDirection = normalize(normal + depthEffect * normalize(centeredCoord));
     float2 refractedCoord = coord + refractedDistance * refractedDirection;
     
-    return image.eval(refractedCoord);
+    return content.eval(refractedCoord);
 }"""
 
 @Language("AGSL")
 internal const val RoundedRectDispersionShaderString = """
-uniform shader image;
+uniform shader content;
 
 uniform float2 size;
 uniform float4 cornerRadii;
@@ -108,13 +108,13 @@ half4 main(float2 coord) {
     float2 centeredCoord = coord - halfSize;
     float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadii);
     if (-sd >= dispersionHeight) {
-        return image.eval(coord);
+        return content.eval(coord);
     }
     sd = min(sd, 0.0);
     
     float dispersionDistance = circleMap(1.0 - -sd / dispersionHeight) * dispersionAmount;
     if (dispersionDistance < 2.0) {
-        half4 color = image.eval(coord);
+        half4 color = content.eval(coord);
         return color;
     }
     
@@ -125,11 +125,11 @@ half4 main(float2 coord) {
     
     half4 dispersedColor = half4(0.0);
     half4 weight = half4(0.0);
-    float maxI = min(dispersionDistance, 20.0);
+    float maxI = ceil(min(dispersionDistance, 20.0));
     for (float i = 0.0; i < 20.0; i++) {
         float t = i / maxI;
         if (t > 1.0) break;
-        half4 color = image.eval(coord + tangent * float2(t - 0.5) * dispersionDistance);
+        half4 color = content.eval(coord + tangent * float2(t - 0.5) * dispersionDistance);
         half rMask = step(0.5, t);
         half gMask = step(0.25, t) * step(t, 0.75);
         half bMask = step(t, 0.5);
@@ -144,7 +144,7 @@ half4 main(float2 coord) {
 
 @Language("AGSL")
 internal const val DynamicHighlightShaderString = """
-uniform shader image;
+uniform shader content;
 
 uniform float2 size;
 uniform float4 cornerRadii;
@@ -162,12 +162,12 @@ half4 main(float2 coord) {
     float2 grad = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
     float2 normal = float2(-cos(angle), -sin(angle));
     float intensity = pow(abs(dot(normal, grad)), falloff);
-    return image.eval(coord) * intensity;
+    return content.eval(coord) * intensity;
 }"""
 
 @Language("AGSL")
 internal const val AmbientHighlightShaderString = """
-uniform shader image;
+uniform shader content;
 
 uniform float2 size;
 uniform float4 cornerRadii;
@@ -185,7 +185,7 @@ half4 main(float2 coord) {
     float2 grad = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
     float2 normal = float2(-cos(angle), -sin(angle));
     float d = dot(normal, grad);
-    float alpha = image.eval(coord).a;
+    float alpha = content.eval(coord).a;
     float intensity = pow(abs(d), falloff);
     
     if (d > 0.0) {
@@ -199,12 +199,12 @@ half4 main(float2 coord) {
 
 @Language("AGSL")
 internal const val GammaAdjustmentShaderString = """
-uniform shader image;
+uniform shader content;
 
 uniform float power;
 
 half4 main(float2 coord) {
-    half4 color = image.eval(coord);
+    half4 color = content.eval(coord);
     color.r = pow(color.r, power);
     color.g = pow(color.g, power);
     color.b = pow(color.b, power);
