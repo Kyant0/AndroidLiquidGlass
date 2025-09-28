@@ -24,6 +24,8 @@ fun RowScope.LiquidBottomTab(
         modifier
             .clip(ContinuousCapsule)
             .clickable(
+                interactionSource = null,
+                indication = null,
                 role = Role.Tab,
                 onClick = onClick
             )

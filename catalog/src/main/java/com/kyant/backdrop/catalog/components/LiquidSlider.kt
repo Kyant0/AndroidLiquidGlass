@@ -1,7 +1,5 @@
 package com.kyant.backdrop.catalog.components
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
@@ -16,7 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,13 +29,14 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.catalog.utils.rememberMomentumAnimation
 import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refractionWithDispersion
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
-import kotlinx.coroutines.launch
 
 @Composable
 fun LiquidSlider(
@@ -63,11 +61,9 @@ fun LiquidSlider(
         }
     }
 
-    val animationScope = rememberCoroutineScope()
-    val progressAnimationSpec = spring(0.5f, 300f, 0.001f)
-    val progressAnimation = remember { Animatable(0f) }
-
     val trackBackdrop = rememberLayerBackdrop()
+
+    val momentumAnimation = rememberMomentumAnimation(maxScale = 1.5f)
 
     BoxWithConstraints(
         modifier.fillMaxWidth(),
@@ -116,51 +112,47 @@ fun LiquidSlider(
                         val targetValue = lerp(valueRange.start, valueRange.endInclusive, targetFraction)
                         onValueChange(targetValue.fastCoerceIn(valueRange.start, valueRange.endInclusive))
                     },
-                    Orientation.Horizontal,
-                    startDragImmediately = true,
-                    onDragStarted = {
-                        animationScope.launch {
-                            progressAnimation.animateTo(1f, progressAnimationSpec)
-                        }
-                    },
-                    onDragStopped = {
-                        animationScope.launch {
-                            progressAnimation.animateTo(0f, progressAnimationSpec)
-                        }
-                    }
+                    Orientation.Horizontal
                 )
+                .then(momentumAnimation.modifier)
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, trackBackdrop),
                     shape = { ContinuousCapsule },
                     highlight = {
-                        val progress = progressAnimation.value
+                        val progress = momentumAnimation.progress
                         Highlight.AmbientDefault.copy(alpha = progress)
                     },
                     shadow = {
                         Shadow(
                             radius = 4f.dp,
-                            color = Color.Black.copy(0.05f)
+                            color = Color.Black.copy(alpha = 0.05f)
                         )
                     },
                     innerShadow = {
-                        val progress = progressAnimation.value
+                        val progress = momentumAnimation.progress
                         InnerShadow(
                             radius = 4f.dp * progress,
                             alpha = progress
                         )
                     },
                     effects = {
-                        refractionWithDispersion(6f.dp.toPx(), size.height / 2f)
+                        val progress = momentumAnimation.progress
+                        blur(8f.dp.toPx() * (1f - progress))
+                        refractionWithDispersion(
+                            height = 6f.dp.toPx() * progress,
+                            amount = size.height / 2f * progress
+                        )
                     },
                     layerBlock = {
-                        val progress = progressAnimation.value
-                        val scale = lerp(1f, 1.5f, progress)
-                        scaleX = scale
-                        scaleY = scale
+                        scaleX = momentumAnimation.scaleX
+                        scaleY = momentumAnimation.scaleY
+                        val velocity = momentumAnimation.velocity / 5000f
+                        scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.15f, 0.15f)
+                        scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.15f, 0.15f)
                     },
                     onDrawSurface = {
-                        val progress = progressAnimation.value.fastCoerceIn(0f, 1f)
-                        drawRect(Color.White.copy(1f - progress))
+                        val progress = momentumAnimation.progress
+                        drawRect(Color.White.copy(alpha = 1f - progress))
                     }
                 )
                 .size(40f.dp, 24f.dp)

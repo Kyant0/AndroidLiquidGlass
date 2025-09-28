@@ -3,6 +3,7 @@ package com.kyant.backdrop.catalog.components
 import android.graphics.RuntimeShader
 import android.os.Build
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,8 +38,6 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.util.VelocityTracker
-import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -51,6 +51,7 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.catalog.utils.inspectDragGestures
+import com.kyant.backdrop.catalog.utils.rememberMomentumAnimation
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.refraction
@@ -60,9 +61,12 @@ import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.sign
 
 @Composable
 fun LiquidBottomTabs(
@@ -104,10 +108,15 @@ fun LiquidBottomTabs(
 
         val animationScope = rememberCoroutineScope()
         var pressStartPosition by remember { mutableStateOf(Offset.Zero) }
-        val progressAnimation = remember { Animatable(0f) }
-        val scaleXAnimation = remember { Animatable(0f) }
-        val scaleYAnimation = remember { Animatable(0f) }
-        val velocityAnimation = remember { Animatable(0f) }
+        val offsetAnimation = remember { Animatable(0f) }
+        val panelOffset by remember(density) {
+            derivedStateOf {
+                val fraction = (offsetAnimation.value / constraints.maxWidth).fastCoerceIn(-1f, 1f)
+                with(density) {
+                    4f.dp.toPx() * fraction.sign * EaseOut.transform(abs(fraction))
+                }
+            }
+        }
         val tabOffsetAnimation = remember(selectedTabIndex, tabWidth) {
             Animatable(
                 Snapshot.withoutReadObservation {
@@ -115,29 +124,9 @@ fun LiquidBottomTabs(
                 }
             )
         }
+        var isDragging by remember { mutableStateOf(false) }
 
-        val onDragStart = {
-            animationScope.launch {
-                launch {
-                    progressAnimation.animateTo(
-                        1f,
-                        spring(1f, 800f, 0.001f)
-                    )
-                }
-                launch {
-                    scaleXAnimation.animateTo(
-                        1f,
-                        spring(0.3f, 300f, 0.001f)
-                    )
-                }
-                launch {
-                    scaleYAnimation.animateTo(
-                        1f,
-                        spring(0.5f, 300f, 0.001f)
-                    )
-                }
-            }
-        }
+        val momentumAnimation = rememberMomentumAnimation(maxScale = 1.333f)
 
         val onDragStop = {
             animationScope.launch {
@@ -152,24 +141,6 @@ fun LiquidBottomTabs(
                         )
                     }
                 }
-                launch {
-                    progressAnimation.animateTo(
-                        0f,
-                        spring(1f, 800f, 0.001f)
-                    )
-                }
-                launch {
-                    scaleXAnimation.animateTo(
-                        0f,
-                        spring(0.3f, 300f, 0.001f)
-                    )
-                }
-                launch {
-                    scaleYAnimation.animateTo(
-                        0f,
-                        spring(0.5f, 300f, 0.001f)
-                    )
-                }
             }
         }
 
@@ -179,25 +150,29 @@ fun LiquidBottomTabs(
         }
 
         LaunchedEffect(Unit) {
+            var job: Job? = null
+
             snapshotFlow { selectedTabIndex() }
                 .drop(1)
                 .collect { index ->
                     val targetOffset = index * tabWidth
-                    if (progressAnimation.targetValue != 1f) {
-                        launch {
-                            onDragStart()
-                            delay(200)
-                            onDragStop()
-                        }
-                    } else {
-                        onDragStop()
-                    }
                     launch {
                         tabOffsetAnimation.animateTo(
                             targetOffset,
                             spring(1f, 800f, 0.5f)
                         )
                     }
+
+                    job?.cancel()
+                    job = null
+                    if (!isDragging) {
+                        job = launch {
+                            momentumAnimation.startPressingAnimation()
+                            delay(200L)
+                            momentumAnimation.endPressingAnimation()
+                        }
+                    }
+                    isDragging = false
                 }
         }
 
@@ -223,7 +198,7 @@ half4 main(float2 coord) {
         }
 
         val drawInteractiveHighlightModifier = Modifier.drawWithContent {
-            val progress = progressAnimation.value.fastCoerceIn(0f, 1f)
+            val progress = momentumAnimation.progress
             if (progress > 0f) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && interactiveHighlightShader is RuntimeShader) {
                     drawRect(
@@ -258,6 +233,9 @@ half4 main(float2 coord) {
 
         Row(
             Modifier
+                .graphicsLayer {
+                    translationX = panelOffset
+                }
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { ContinuousCapsule },
@@ -267,7 +245,7 @@ half4 main(float2 coord) {
                         refraction(24f.dp.toPx(), 24f.dp.toPx())
                     },
                     layerBlock = {
-                        val progress = progressAnimation.value
+                        val progress = momentumAnimation.progress
                         val scale = lerp(1f, 1f + 2f.dp.toPx() / size.height, progress)
                         scaleX = scale
                         scaleY = scale
@@ -295,11 +273,14 @@ half4 main(float2 coord) {
         ) {
             Box(
                 Modifier
+                    .graphicsLayer {
+                        translationX = panelOffset
+                    }
                     .drawBackdrop(
                         backdrop = backdrop,
                         shape = { ContinuousCapsule },
                         highlight = {
-                            val progress = progressAnimation.value
+                            val progress = momentumAnimation.progress
                             Highlight.Default.copy(alpha = progress)
                         },
                         effects = {
@@ -316,10 +297,11 @@ half4 main(float2 coord) {
             Box(
                 Modifier
                     .graphicsLayer {
-                        val progress = progressAnimation.value
+                        val progress = momentumAnimation.progress
                         val scale = lerp(1f, 1f + 2f.dp.toPx() / size.height, progress)
                         scaleX = scale
                         scaleY = scale
+                        translationX = panelOffset
                     }
                     .drawBehind {
                         drawLayer(tabsLayer)
@@ -332,102 +314,83 @@ half4 main(float2 coord) {
         Box(
             Modifier
                 .layout { measurable, constraints ->
-                    val padding = (4f.dp.toPx() * (1f - progressAnimation.value)).fastRoundToInt()
+                    val progress = momentumAnimation.progress
+                    val padding = (4f.dp.toPx() * (1f - progress)).fastRoundToInt()
                     val placeable = measurable.measure(constraints.offset(-padding * 2, 0))
                     layout(placeable.width + padding, placeable.height) {
                         placeable.place(padding, 0)
                     }
                 }
                 .graphicsLayer {
-                    translationX = tabOffsetAnimation.value.fastCoerceIn(0f, size.width * (tabsCount - 1))
+                    translationX =
+                        tabOffsetAnimation.value.fastCoerceIn(0f, size.width * (tabsCount - 1)) +
+                                panelOffset
                 }
                 .pointerInput(Unit) {
-                    val velocityTracker = VelocityTracker()
-
-                    val updateVelocity: (Float) -> Unit = { v ->
-                        val alpha = 0.05f
-                        val targetVelocity = velocityAnimation.velocity * (1f - alpha) + v * alpha
-                        animationScope.launch {
-                            velocityAnimation.snapTo(targetVelocity)
-                        }
-                    }
-                    val settleVelocity: () -> Unit = {
-                        animationScope.launch {
-                            velocityAnimation.animateTo(
-                                0f,
-                                spring(0.5f, 500f, 1f)
-                            )
-                        }
-                    }
-
                     inspectDragGestures(
                         onDragStart = { down ->
-                            velocityTracker.addPointerInputChange(down)
-
+                            isDragging = true
                             pressStartPosition = down.position
-                            onDragStart()
                         },
-                        onDragEnd = { change ->
-                            velocityTracker.addPointerInputChange(change)
-                            settleVelocity()
-                            velocityTracker.resetTracking()
-
+                        onDragEnd = {
                             settle()
                             onDragStop()
+                            animationScope.launch {
+                                offsetAnimation.animateTo(
+                                    0f,
+                                    spring(1f, 300f, 0.5f)
+                                )
+                            }
                         },
                         onDragCancel = {
-                            settleVelocity()
-                            velocityTracker.resetTracking()
-
                             settle()
                             onDragStop()
                         }
-                    ) { change, dragAmount ->
-                        velocityTracker.addPointerInputChange(change)
-                        updateVelocity(velocityTracker.calculateVelocity().x)
-
-                        val targetOffset =
+                    ) { _, dragAmount ->
+                        val targetTabOffset =
                             (tabOffsetAnimation.value + dragAmount.x)
-                                .fastCoerceIn(0f, size.width.toFloat() * 3)
-                        animationScope.launch {
-                            tabOffsetAnimation.snapTo(targetOffset)
-                        }
+                                .fastCoerceIn(0f, size.width.toFloat() * (tabsCount - 1))
+                        animationScope.launch { tabOffsetAnimation.snapTo(targetTabOffset) }
+
+                        val targetOffset = offsetAnimation.value + dragAmount.x
+                        animationScope.launch { offsetAnimation.snapTo(targetOffset) }
                     }
                 }
+                .then(momentumAnimation.modifier)
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
                     shape = { ContinuousCapsule },
                     highlight = {
-                        val progress = progressAnimation.value
+                        val progress = momentumAnimation.progress
                         Highlight.Default.copy(alpha = progress)
                     },
                     shadow = {
-                        val progress = progressAnimation.value
+                        val progress = momentumAnimation.progress
                         Shadow(alpha = progress)
                     },
                     innerShadow = {
-                        val progress = progressAnimation.value
+                        val progress = momentumAnimation.progress
                         InnerShadow(
                             radius = 8f.dp * progress,
                             alpha = progress
                         )
                     },
                     effects = {
-                        val progress = progressAnimation.value
+                        val progress = momentumAnimation.progress
                         refractionWithDispersion(
                             10f.dp.toPx() * progress,
                             12f.dp.toPx() * progress
                         )
                     },
                     layerBlock = {
-                        scaleX = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleXAnimation.value)
-                        scaleY = lerp(1f, 1f + 20f.dp.toPx() / size.height, scaleYAnimation.value)
-                        val velocity = velocityAnimation.value / size.width
-                        scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
+                        scaleX = momentumAnimation.scaleX
+                        scaleY = momentumAnimation.scaleY
+                        val velocity = momentumAnimation.velocity / 5000f
+                        scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.15f, 0.15f)
                         scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.15f, 0.15f)
                     },
                     onDrawSurface = {
-                        val progress = progressAnimation.value
+                        val progress = momentumAnimation.progress
                         drawRect(
                             if (isLightTheme) Color.Black.copy(0.1f)
                             else Color.White.copy(0.1f),
