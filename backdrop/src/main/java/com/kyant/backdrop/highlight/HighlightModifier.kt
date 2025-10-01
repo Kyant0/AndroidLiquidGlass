@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.CompositingStrategy
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -19,6 +20,8 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.util.fastCoerceAtMost
 import com.kyant.backdrop.RuntimeShaderCacheImpl
 import com.kyant.backdrop.ShapeProvider
@@ -94,7 +97,16 @@ internal class HighlightNode(
         val maskLayer = maskLayer
         if (highlightLayer != null && maskLayer != null) {
             val size = size
-            val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)
+            val density: Density = this
+            val layoutDirection = layoutDirection
+
+            val safeSize =
+                IntSize(
+                    ceil(size.width).toInt() + 2,
+                    ceil(size.height).toInt() + 2
+                )
+
+            val outline = shapeProvider.shape.createOutline(size, layoutDirection, density)
 
             configurePaint(highlight)
 
@@ -110,13 +122,21 @@ internal class HighlightNode(
                     prevStyle = style
                 }
             }
-            highlightLayer.record { drawHighlight(outline) }
+            highlightLayer.record(safeSize) {
+                translate(1f, 1f) {
+                    drawHighlight(outline)
+                }
+            }
 
             maskLayer.alpha = highlight.alpha
             maskLayer.blendMode = style.blendMode
-            maskLayer.record { drawLayer(highlightLayer) }
+            maskLayer.record(safeSize) {
+                drawLayer(highlightLayer)
+            }
 
-            drawLayer(maskLayer)
+            translate(-1f, -1f) {
+                drawLayer(maskLayer)
+            }
         }
     }
 

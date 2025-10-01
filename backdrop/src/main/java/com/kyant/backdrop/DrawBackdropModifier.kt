@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -30,7 +31,7 @@ import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.toIntSize
+import androidx.compose.ui.unit.IntSize
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightElement
@@ -38,6 +39,7 @@ import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.InnerShadowElement
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.backdrop.shadow.ShadowElement
+import kotlin.math.ceil
 
 private val DefaultHighlight = { Highlight.Default }
 private val DefaultShadow = { Shadow.Default }
@@ -259,35 +261,59 @@ private class DrawBackdropNode(
     private val recordBackdropBlock: (DrawScope.() -> Unit) = {
         onDrawBackdrop {
             with(backdrop) {
-                drawBackdrop(
-                    density = requireDensity(),
-                    coordinates = layoutCoordinates,
-                    layerBlock = layerBlock
-                )
+                translate(1f, 1f) {
+                    drawBackdrop(
+                        density = requireDensity(),
+                        coordinates = layoutCoordinates,
+                        layerBlock = layerBlock
+                    )
+                }
             }
         }
     }
     private val drawBackdropLayer: DrawScope.() -> Unit = {
         val layer = backdropGraphicsLayer
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && layer != null) {
-            layer.record(
-                density = requireDensity(),
-                layoutDirection = layoutDirection,
-                size = size.toIntSize(),
-                block = recordBackdropBlock
-            )
-            drawLayer(layer)
-        } else {
-            recordBackdropBlock()
+        if (layer != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val safeSize =
+                    IntSize(
+                        ceil(size.width).toInt() + 2,
+                        ceil(size.height).toInt() + 2
+                    )
+                layer.record(
+                    density = requireDensity(),
+                    layoutDirection = layoutDirection,
+                    size = safeSize,
+                    block = recordBackdropBlock
+                )
+                translate(-1f, -1f) {
+                    drawLayer(layer)
+                }
+            } else {
+                recordBackdropBlock()
+            }
         }
     }
     private val drawContentLayer: ContentDrawScope.() -> Unit = draw@{
         val layer = contentGraphicsLayer
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && layer != null) {
-            layer.record { this@draw.onDrawContent() }
-            drawLayer(layer)
-        } else {
-            onDrawContent()
+        if (layer != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val safeSize =
+                    IntSize(
+                        ceil(size.width).toInt() + 2,
+                        ceil(size.height).toInt() + 2
+                    )
+                layer.record(safeSize) {
+                    translate(1f, 1f) {
+                        this@draw.onDrawContent()
+                    }
+                }
+                translate(-1f, -1f) {
+                    drawLayer(layer)
+                }
+            } else {
+                onDrawContent()
+            }
         }
     }
 

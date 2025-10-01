@@ -22,6 +22,7 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.unit.Density
 import com.kyant.backdrop.ShapeProvider
 
 internal class InnerShadowElement(
@@ -84,11 +85,14 @@ internal class InnerShadowNode(
         val shadowLayer = shadowLayer
         if (shadowLayer != null) {
             val size = size
+            val density: Density = this
+            val layoutDirection = layoutDirection
+
             val radius = shadow.radius.toPx()
             val offsetX = shadow.offset.x.toPx()
             val offsetY = shadow.offset.y.toPx()
 
-            val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)
+            val outline = shapeProvider.shape.createOutline(size, layoutDirection, density)
 
             configurePaint(shadow)
 

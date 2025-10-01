@@ -21,6 +21,7 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import com.kyant.backdrop.ShapeProvider
 import kotlin.math.ceil
@@ -80,6 +81,9 @@ internal class ShadowNode(
         val shadowLayer = shadowLayer
         if (shadowLayer != null) {
             val size = size
+            val density: Density = this
+            val layoutDirection = layoutDirection
+
             val radius = shadow.radius.toPx()
             val offsetX = shadow.offset.x.toPx()
             val offsetY = shadow.offset.y.toPx()
@@ -87,13 +91,13 @@ internal class ShadowNode(
                 ceil(size.width + radius * 4f + offsetX).toInt(),
                 ceil(size.height + radius * 4f + offsetY).toInt()
             )
-            val outline = shapeProvider.shape.createOutline(size, layoutDirection, this)
+            val outline = shapeProvider.shape.createOutline(size, layoutDirection, density)
 
             configurePaint(shadow)
 
             shadowLayer.alpha = shadow.alpha
             shadowLayer.blendMode = shadow.blendMode
-            shadowLayer.record(size = shadowSize) {
+            shadowLayer.record(shadowSize) {
                 translate(radius * 2f + offsetX, radius * 2f + offsetY) {
                     drawShadow(outline, offsetX, offsetY)
                 }
