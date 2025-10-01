@@ -18,7 +18,7 @@ import androidx.compose.ui.util.fastCoerceAtMost
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.AmbientHighlightShaderString
 import com.kyant.backdrop.DefaultHighlightShaderString
-import com.kyant.backdrop.RuntimeShaderCacheScope
+import com.kyant.backdrop.RuntimeShaderCache
 import kotlin.math.PI
 
 @Immutable
@@ -31,7 +31,7 @@ interface HighlightStyle {
     @RequiresApi(Build.VERSION_CODES.S)
     fun DrawScope.createRenderEffect(
         shape: Shape,
-        shaderCache: RuntimeShaderCacheScope
+        runtimeShaderCache: RuntimeShaderCache
     ): RenderEffect?
 
     @Immutable
@@ -43,7 +43,7 @@ interface HighlightStyle {
         @RequiresApi(Build.VERSION_CODES.S)
         override fun DrawScope.createRenderEffect(
             shape: Shape,
-            shaderCache: RuntimeShaderCacheScope
+            runtimeShaderCache: RuntimeShaderCache
         ): RenderEffect? = null
     }
 
@@ -58,10 +58,10 @@ interface HighlightStyle {
         @RequiresApi(Build.VERSION_CODES.S)
         override fun DrawScope.createRenderEffect(
             shape: Shape,
-            shaderCache: RuntimeShaderCacheScope
+            runtimeShaderCache: RuntimeShaderCache
         ): RenderEffect? {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val shader = shaderCache.obtainRuntimeShader("Dynamic", DefaultHighlightShaderString)
+                val shader = runtimeShaderCache.obtainRuntimeShader("Default", DefaultHighlightShaderString)
                 shader.apply {
                     setFloatUniform("size", size.width, size.height)
                     setFloatUniform("cornerRadii", getCornerRadii(shape))
@@ -85,10 +85,10 @@ interface HighlightStyle {
         @RequiresApi(Build.VERSION_CODES.S)
         override fun DrawScope.createRenderEffect(
             shape: Shape,
-            shaderCache: RuntimeShaderCacheScope
+            runtimeShaderCache: RuntimeShaderCache
         ): RenderEffect? {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val shader = shaderCache.obtainRuntimeShader("Ambient", AmbientHighlightShaderString)
+                val shader = runtimeShaderCache.obtainRuntimeShader("Ambient", AmbientHighlightShaderString)
                 shader.apply {
                     setFloatUniform("size", size.width, size.height)
                     setFloatUniform("cornerRadii", getCornerRadii(shape))

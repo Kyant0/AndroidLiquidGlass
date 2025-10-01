@@ -139,9 +139,13 @@ internal class ShadowNode(
 
         when (outline) {
             is Outline.Rectangle -> {
-                canvas.drawRect(0f, 0f, size.width, size.height, paint)
+                val left = outline.rect.left
+                val top = outline.rect.top
+                val right = outline.rect.right
+                val bottom = outline.rect.bottom
+                canvas.drawRect(left, top, right, bottom, paint)
                 canvas.translate(-offsetX, -offsetY)
-                canvas.drawRect(0f, 0f, size.width, size.height, ShadowMaskPaint)
+                canvas.drawRect(left, top, right, bottom, ShadowMaskPaint)
                 canvas.translate(offsetX, offsetY)
             }
 
@@ -154,11 +158,14 @@ internal class ShadowNode(
                     canvas.drawPath(path, ShadowMaskPaint)
                     canvas.translate(offsetX, offsetY)
                 } else {
-                    val rr = outline.roundRect
+                    val left = outline.roundRect.left
+                    val top = outline.roundRect.top
+                    val right = outline.roundRect.right
+                    val bottom = outline.roundRect.bottom
                     val radius = outline.roundRect.topLeftCornerRadius.x
-                    canvas.drawRoundRect(rr.left, rr.top, rr.right, rr.bottom, radius, radius, paint)
+                    canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint)
                     canvas.translate(-offsetX, -offsetY)
-                    canvas.drawRoundRect(rr.left, rr.top, rr.right, rr.bottom, radius, radius, ShadowMaskPaint)
+                    canvas.drawRoundRect(left, top, right, bottom, radius, radius, ShadowMaskPaint)
                     canvas.translate(offsetX, offsetY)
                 }
             }

@@ -20,7 +20,7 @@ import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.util.fastCoerceAtMost
-import com.kyant.backdrop.RuntimeShaderCacheScopeImpl
+import com.kyant.backdrop.RuntimeShaderCacheImpl
 import com.kyant.backdrop.ShapeProvider
 import kotlin.math.ceil
 
@@ -78,7 +78,7 @@ internal class HighlightNode(
         }
     private var clipPath: Path? = null
 
-    private val runtimeShaderCacheScope = RuntimeShaderCacheScopeImpl()
+    private val runtimeShaderCache = RuntimeShaderCacheImpl()
 
     private var prevStyle: HighlightStyle? = null
 
@@ -104,7 +104,7 @@ internal class HighlightNode(
                     highlightLayer.renderEffect = with(style) {
                         createRenderEffect(
                             shape = shapeProvider.shape,
-                            shaderCache = runtimeShaderCacheScope
+                            runtimeShaderCache = runtimeShaderCache
                         )
                     }
                     prevStyle = style
@@ -140,6 +140,7 @@ internal class HighlightNode(
             maskLayer = null
         }
         clipPath = null
+        runtimeShaderCache.clear()
         prevStyle = null
     }
 
@@ -164,8 +165,12 @@ internal class HighlightNode(
 
         when (outline) {
             is Outline.Rectangle -> {
-                canvas.clipRect(0f, 0f, size.width, size.height)
-                canvas.drawRect(0f, 0f, size.width, size.height, paint)
+                val left = outline.rect.left
+                val top = outline.rect.top
+                val right = outline.rect.right
+                val bottom = outline.rect.bottom
+                canvas.clipRect(left, top, right, bottom)
+                canvas.drawRect(left, top, right, bottom, paint)
             }
 
             is Outline.Rounded -> {
@@ -175,12 +180,15 @@ internal class HighlightNode(
                     canvas.clipPath(path)
                     canvas.drawPath(path, paint)
                 } else {
-                    val rr = outline.roundRect
+                    val left = outline.roundRect.left
+                    val top = outline.roundRect.top
+                    val right = outline.roundRect.right
+                    val bottom = outline.roundRect.bottom
                     val radius = outline.roundRect.topLeftCornerRadius.x
                     val clipPath = clipPath?.apply { rewind() } ?: Path().also { clipPath = it }
-                    clipPath.addRoundRect(rr.left, rr.top, rr.right, rr.bottom, radius, radius, Path.Direction.CW)
+                    clipPath.addRoundRect(left, top, right, bottom, radius, radius, Path.Direction.CW)
                     canvas.clipPath(clipPath)
-                    canvas.drawRoundRect(rr.left, rr.top, rr.right, rr.bottom, radius, radius, paint)
+                    canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint)
                 }
             }
 

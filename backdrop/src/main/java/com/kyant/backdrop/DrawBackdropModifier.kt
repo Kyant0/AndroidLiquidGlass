@@ -282,10 +282,12 @@ private class DrawBackdropNode(
         }
     }
     private val drawContentLayer: ContentDrawScope.() -> Unit = draw@{
-        val contentLayer = contentGraphicsLayer
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && contentLayer != null) {
-            contentLayer.record { this@draw.onDrawContent() }
-            drawLayer(contentLayer)
+        val layer = contentGraphicsLayer
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && layer != null) {
+            layer.record { this@draw.onDrawContent() }
+            drawLayer(layer)
+        } else {
+            onDrawContent()
         }
     }
 
@@ -402,7 +404,8 @@ private class DrawBackdropNode(
             graphicsContext.releaseGraphicsLayer(layer)
             contentGraphicsLayer = null
         }
-        layoutCoordinates = null
         effectScope?.reset()
+        layoutCoordinates = null
+        exportedBackdrop?.currentCoordinates = null
     }
 }
