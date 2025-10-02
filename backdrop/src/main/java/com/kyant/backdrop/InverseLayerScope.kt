@@ -32,6 +32,8 @@ internal class InverseLayerScope : GraphicsLayerScope {
     override var translationX: Float = 0f
     override var translationY: Float = 0f
     override var shadowElevation: Float = 0f
+    override var ambientShadowColor: Color = DefaultShadowColor
+    override var spotShadowColor: Color = DefaultShadowColor
     override var rotationX: Float = 0f
     override var rotationY: Float = 0f
     override var rotationZ: Float = 0f
@@ -40,11 +42,9 @@ internal class InverseLayerScope : GraphicsLayerScope {
     override var shape: Shape = RectangleShape
     override var clip: Boolean = false
     override var renderEffect: RenderEffect? = null
-    override var ambientShadowColor: Color = DefaultShadowColor
-    override var spotShadowColor: Color = DefaultShadowColor
-    override var compositingStrategy: CompositingStrategy = CompositingStrategy.Auto
     override var blendMode: BlendMode = BlendMode.SrcOver
     override var colorFilter: ColorFilter? = null
+    override var compositingStrategy: CompositingStrategy = CompositingStrategy.Auto
 
     private var matrix: Matrix? = null
 
@@ -66,13 +66,31 @@ internal class InverseLayerScope : GraphicsLayerScope {
     }
 
     fun reset() {
+        size = Size.Unspecified
+        density = 1f
+        fontScale = 1f
+
         scaleX = 1f
         scaleY = 1f
+        alpha = 1f
         translationX = 0f
         translationY = 0f
+        shadowElevation = 0f
+        ambientShadowColor = DefaultShadowColor
+        spotShadowColor = DefaultShadowColor
         rotationX = 0f
         rotationY = 0f
         rotationZ = 0f
+        cameraDistance = DefaultCameraDistance
+        transformOrigin = TransformOrigin.Center
+        shape = RectangleShape
+        clip = false
+        renderEffect = null
+        blendMode = BlendMode.SrcOver
+        colorFilter = null
+        compositingStrategy = CompositingStrategy.Auto
+
+        matrix = null
     }
 
     private fun DrawTransform.inverseTransformAtTopLeft(

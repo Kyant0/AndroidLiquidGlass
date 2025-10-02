@@ -80,6 +80,8 @@ internal class InnerShadowNode(
     override fun ContentDrawScope.draw() {
         drawContent()
 
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+
         val shadow = shadow() ?: return
 
         val shadowLayer = shadowLayer
