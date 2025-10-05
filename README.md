@@ -1,4 +1,4 @@
-# Backdrop (Liquid Glass)
+# Android Liquid Glass (Backdrop)
 
 ![frontPhoto](artworks/banner.jpg)
 
@@ -19,6 +19,7 @@ The library doesn't provide any high level components yet.
 But there are some demo components in the [Catalog](./catalog/release/catalog-release.apk) app:
 
 - [LiquidButton](/catalog/src/main/java/com/kyant/backdrop/catalog/components/LiquidButton.kt)
+- [LiquidToggle](/catalog/src/main/java/com/kyant/backdrop/catalog/components/LiquidToggle.kt)
 - [LiquidSlider](/catalog/src/main/java/com/kyant/backdrop/catalog/components/LiquidSlider.kt)
 - [LiquidBottomTabs](/catalog/src/main/java/com/kyant/backdrop/catalog/components/LiquidBottomTabs.kt)
 
