@@ -16,7 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
 
@@ -40,7 +40,7 @@ fun ScrollContainerContent() {
                             shape = { ContinuousRoundedRectangle(32f.dp) },
                             effects = {
                                 vibrancy()
-                                refraction(16f.dp.toPx(), 32f.dp.toPx())
+                                lens(16f.dp.toPx(), 32f.dp.toPx())
                             }
                         )
                         .height(160f.dp)

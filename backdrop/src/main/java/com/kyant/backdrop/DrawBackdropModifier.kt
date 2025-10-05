@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.draw
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -31,7 +31,6 @@ import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightElement
@@ -39,7 +38,6 @@ import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.InnerShadowElement
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.backdrop.shadow.ShadowElement
-import kotlin.math.ceil
 
 private val DefaultHighlight = { Highlight.Default }
 private val DefaultShadow = { Shadow.Default }
@@ -258,13 +256,11 @@ private class DrawBackdropNode(
     private val recordBackdropBlock: (DrawScope.() -> Unit) = {
         onDrawBackdrop {
             with(backdrop) {
-                translate(1f, 1f) {
-                    drawBackdrop(
-                        density = requireDensity(),
-                        coordinates = layoutCoordinates,
-                        layerBlock = layerBlock
-                    )
-                }
+                drawBackdrop(
+                    density = requireDensity(),
+                    coordinates = layoutCoordinates,
+                    layerBlock = layerBlock
+                )
             }
         }
     }
@@ -272,39 +268,26 @@ private class DrawBackdropNode(
     private val drawBackdropLayer: DrawScope.() -> Unit = {
         val layer = backdropGraphicsLayer
         if (layer != null) {
-            val safeSize =
-                IntSize(
-                    ceil(size.width).toInt() + 2,
-                    ceil(size.height).toInt() + 2
-                )
-            layer.record(
-                density = requireDensity(),
-                layoutDirection = layoutDirection,
-                size = safeSize,
-                block = recordBackdropBlock
-            )
-            translate(-1f, -1f) {
-                drawLayer(layer)
-            }
+            recordLayer(layer, block = recordBackdropBlock)
+            drawLayer(layer)
         }
     }
 
-    private val drawContentLayer: ContentDrawScope.() -> Unit = draw@{
+    private val drawContentLayer: ContentDrawScope.() -> Unit = drawContent@{
         val layer = contentGraphicsLayer
         if (layer != null) {
-            val safeSize =
-                IntSize(
-                    ceil(size.width).toInt() + 2,
-                    ceil(size.height).toInt() + 2
-                )
-            layer.record(safeSize) {
-                translate(1f, 1f) {
-                    this@draw.onDrawContent()
+            recordLayer(layer) {
+                this@drawContent.draw(
+                    density = drawContext.density,
+                    layoutDirection = drawContext.layoutDirection,
+                    canvas = drawContext.canvas,
+                    size = drawContext.size,
+                    graphicsLayer = drawContext.graphicsLayer
+                ) {
+                    this@drawContent.onDrawContent()
                 }
             }
-            translate(-1f, -1f) {
-                drawLayer(layer)
-            }
+            drawLayer(layer)
         }
     }
 
@@ -330,11 +313,13 @@ private class DrawBackdropNode(
         if (drawContent) drawContent()
         onDrawFront?.invoke(this)
 
-        exportedBackdrop?.graphicsLayer?.record {
-            onDrawBehind?.invoke(this)
-            drawBackdropLayer()
-            onDrawSurface?.invoke(this)
-            onDrawFront?.invoke(this)
+        exportedBackdrop?.graphicsLayer?.let { layer ->
+            recordLayer(layer) {
+                onDrawBehind?.invoke(this)
+                drawBackdropLayer()
+                onDrawSurface?.invoke(this)
+                onDrawFront?.invoke(this)
+            }
         }
     }
 

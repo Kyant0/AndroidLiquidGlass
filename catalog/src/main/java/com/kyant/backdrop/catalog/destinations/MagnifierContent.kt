@@ -28,8 +28,8 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.utils.LoremIpsum
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.dispersion
-import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.effects.DefaultChromaticAberration
+import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -86,14 +86,11 @@ fun MagnifierContent() {
                     shape = { ContinuousCapsule },
                     innerShadow = { InnerShadow(radius = 16f.dp) },
                     effects = {
-                        refraction(
-                            height = 8f.dp.toPx(),
-                            amount = 24f.dp.toPx(),
-                            hasDepthEffect = true
-                        )
-                        dispersion(
-                            height = 8f.dp.toPx(),
-                            amount = 8f.dp.toPx()
+                        lens(
+                            8f.dp.toPx(),
+                            24f.dp.toPx(),
+                            hasDepthEffect = true,
+                            chromaticAberration = DefaultChromaticAberration
                         )
                     },
                     onDrawBackdrop = { drawBackdrop ->

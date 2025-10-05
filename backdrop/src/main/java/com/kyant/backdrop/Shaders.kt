@@ -80,22 +80,24 @@ half4 main(float2 coord) {
     float4 maxGradRadius = float4(min(halfSize.x, halfSize.y));
     float4 gradRadius = min(cornerRadii * 1.5, maxGradRadius);
     float2 normal = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
+    float d = circleMap(1.0 - -sd / refractionHeight) * refractionAmount;
+    float2 dir = normalize(normal + depthEffect * normalize(centeredCoord));
     
-    float refractedDistance = circleMap(1.0 - -sd / refractionHeight) * refractionAmount;
-    float2 refractedDirection = normalize(normal + depthEffect * normalize(centeredCoord));
-    float2 refractedCoord = coord + refractedDistance * refractedDirection;
+    float2 refractedCoord = coord + d * dir;
     
     return content.eval(refractedCoord);
 }"""
 
 @Language("AGSL")
-internal const val RoundedRectDispersionShaderString = """
+internal val RoundedRectRefractionWithDispersionShaderString = """
 uniform shader content;
 
 uniform float2 size;
 uniform float4 cornerRadii;
-uniform float dispersionHeight;
-uniform float dispersionAmount;
+uniform float refractionHeight;
+uniform float refractionAmount;
+uniform float depthEffect;
+uniform float2 chromaticAberration;
 
 $RoundedRectSDF
 
@@ -103,43 +105,61 @@ float circleMap(float x) {
     return 1.0 - sqrt(1.0 - x * x);
 }
 
+float dispersionIntensity(float2 normal, int n) {
+    return 1.0 + dot(chromaticAberration, normal) * float(n) / 3.0;
+}
+
 half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
     float2 centeredCoord = coord - halfSize;
     float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadii);
-    if (-sd >= dispersionHeight) {
+    if (-sd >= refractionHeight) {
         return content.eval(coord);
     }
     sd = min(sd, 0.0);
     
-    float dispersionDistance = circleMap(1.0 - -sd / dispersionHeight) * dispersionAmount;
-    if (dispersionDistance < 2.0) {
-        half4 color = content.eval(coord);
-        return color;
-    }
-    
     float4 maxGradRadius = float4(min(halfSize.x, halfSize.y));
     float4 gradRadius = min(cornerRadii * 1.5, maxGradRadius);
     float2 normal = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
-    float2 tangent = float2(normal.y, -normal.x);
+    float d = circleMap(1.0 - -sd / refractionHeight) * refractionAmount;
+    float2 dir = normalize(normal + depthEffect * normalize(centeredCoord));
     
-    half4 dispersedColor = half4(0.0);
-    half4 weight = half4(0.0);
-    float maxI = ceil(min(dispersionDistance, 20.0));
-    for (float i = 0.0; i < 20.0; i++) {
-        float t = i / maxI;
-        if (t > 1.0) break;
-        half4 color = content.eval(coord + tangent * float2(t - 0.5) * dispersionDistance);
-        half rMask = step(0.5, t);
-        half gMask = step(0.25, t) * step(t, 0.75);
-        half bMask = step(t, 0.5);
-        half aMask = rMask + gMask + bMask;
-        half4 mask = half4(rMask, gMask, bMask, aMask);
-        dispersedColor += color * mask;
-        weight += mask;
-    }
+    half4 color = half4(0.0);
+    color.a = 0.0;
     
-    return dispersedColor / weight;
+    half4 redColor = content.eval(coord + d * dispersionIntensity(dir, 3) * dir);
+    color.r += redColor.r / 3.5;
+    color.a += redColor.a / 7.0;
+    
+    half4 orangeColor = content.eval(coord + d * dispersionIntensity(dir, 2) * dir);
+    color.r += orangeColor.r / 3.5;
+    color.g += orangeColor.g / 7.0;
+    color.a += orangeColor.a / 7.0;
+    
+    half4 yellowColor = content.eval(coord + d * dispersionIntensity(dir, 1) * dir);
+    color.r += yellowColor.r / 3.5;
+    color.g += yellowColor.g / 3.5;
+    color.a += yellowColor.a / 7.0;
+    
+    half4 greenColor = content.eval(coord + d * dispersionIntensity(dir, 0) * dir);
+    color.g += greenColor.g / 3.5;
+    color.a += greenColor.a / 7.0;
+    
+    half4 cyanColor = content.eval(coord + d * dispersionIntensity(dir, -1) * dir);
+    color.g += cyanColor.g / 3.5;
+    color.b += cyanColor.b / 3.0;
+    color.a += cyanColor.a / 7.0;
+    
+    half4 blueColor = content.eval(coord + d * dispersionIntensity(dir, -2) * dir);
+    color.b += blueColor.b / 3.0;
+    color.a += blueColor.a / 7.0;
+    
+    half4 purpleColor = content.eval(coord + d * dispersionIntensity(dir, -3) * dir);
+    color.r += purpleColor.r / 7.0;
+    color.b += purpleColor.b / 3.0;
+    color.a += purpleColor.a / 7.0;
+    
+    return color;
 }"""
 
 @Language("AGSL")

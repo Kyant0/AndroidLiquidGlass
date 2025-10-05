@@ -10,26 +10,28 @@ import androidx.compose.ui.unit.Density
 import com.kyant.backdrop.Backdrop
 
 @Composable
-fun rememberCanvasBackdrop(
-    onDraw: DrawScope.() -> Unit
+fun rememberBackdrop(
+    backdrop: Backdrop,
+    onDraw: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit
 ): Backdrop {
-    return remember(onDraw) {
-        CanvasBackdrop(onDraw)
+    return remember(backdrop, onDraw) {
+        Backdrop(backdrop, onDraw)
     }
 }
 
 @Immutable
-private class CanvasBackdrop(
-    val onDraw: DrawScope.() -> Unit
+private class Backdrop(
+    val backdrop: Backdrop,
+    val onDraw: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit
 ) : Backdrop {
 
-    override val isCoordinatesDependent: Boolean = false
+    override val isCoordinatesDependent: Boolean = backdrop.isCoordinatesDependent
 
     override fun DrawScope.drawBackdrop(
         density: Density,
         coordinates: LayoutCoordinates?,
         layerBlock: (GraphicsLayerScope.() -> Unit)?
     ) {
-        onDraw()
+        onDraw { with(backdrop) { drawBackdrop(density, coordinates, layerBlock) } }
     }
 }

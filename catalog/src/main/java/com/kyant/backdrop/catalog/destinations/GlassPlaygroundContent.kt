@@ -34,8 +34,7 @@ import com.kyant.backdrop.catalog.components.LiquidButton
 import com.kyant.backdrop.catalog.components.LiquidSlider
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.refraction
-import com.kyant.backdrop.effects.refractionWithDispersion
+import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -57,7 +56,7 @@ fun GlassPlaygroundContent() {
     var blurRadiusDp by remember { mutableFloatStateOf(0f) }
     var refractionHeightFrac by remember { mutableFloatStateOf(0.1f) }
     var refractionAmountFrac by remember { mutableFloatStateOf(0.2f) }
-    var dispersionIntensity by remember { mutableFloatStateOf(0f) }
+    var chromaticAberration by remember { mutableFloatStateOf(0f) }
 
     BackdropDemoScaffold { backdrop ->
         Box(
@@ -72,11 +71,11 @@ fun GlassPlaygroundContent() {
                         val minDimension = size.minDimension
                         vibrancy()
                         blur(blurRadiusDp.dp.toPx())
-                        refractionWithDispersion(
-                            height = refractionHeightFrac * minDimension * 0.5f,
-                            amount = refractionAmountFrac * minDimension,
+                        lens(
+                            refractionHeight = refractionHeightFrac * minDimension * 0.5f,
+                            refractionAmount = refractionAmountFrac * minDimension,
                             hasDepthEffect = true,
-                            dispersionIntensity = dispersionIntensity
+                            chromaticAberration = Offset(chromaticAberration, chromaticAberration)
                         )
                     },
                     layerBlock = {
@@ -134,7 +133,7 @@ fun GlassPlaygroundContent() {
                             effects = {
                                 vibrancy()
                                 blur(4f.dp.toPx())
-                                refraction(16f.dp.toPx(), 32f.dp.toPx())
+                                lens(16f.dp.toPx(), 32f.dp.toPx())
                             },
                             exportedBackdrop = sheetBackdrop,
                             onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) }
@@ -150,6 +149,7 @@ fun GlassPlaygroundContent() {
                             value = { cornerRadiusFrac },
                             onValueChange = { cornerRadiusFrac = it },
                             valueRange = 0f..1f,
+                            visibilityThreshold = 0.001f,
                             backdrop = sheetBackdrop
                         )
                     }
@@ -159,6 +159,7 @@ fun GlassPlaygroundContent() {
                             value = { blurRadiusDp },
                             onValueChange = { blurRadiusDp = it },
                             valueRange = 0f..32f,
+                            visibilityThreshold = 0.01f,
                             backdrop = sheetBackdrop
                         )
                     }
@@ -168,6 +169,7 @@ fun GlassPlaygroundContent() {
                             value = { refractionHeightFrac },
                             onValueChange = { refractionHeightFrac = it },
                             valueRange = 0f..1f,
+                            visibilityThreshold = 0.001f,
                             backdrop = sheetBackdrop
                         )
                     }
@@ -177,15 +179,17 @@ fun GlassPlaygroundContent() {
                             value = { refractionAmountFrac },
                             onValueChange = { refractionAmountFrac = it },
                             valueRange = 0f..1f,
+                            visibilityThreshold = 0.001f,
                             backdrop = sheetBackdrop
                         )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(8f.dp)) {
-                        BasicText("Dispersion intensity")
+                        BasicText("Chromatic aberration")
                         LiquidSlider(
-                            value = { dispersionIntensity },
-                            onValueChange = { dispersionIntensity = it },
+                            value = { chromaticAberration },
+                            onValueChange = { chromaticAberration = it },
                             valueRange = 0f..1f,
+                            visibilityThreshold = 0.001f,
                             backdrop = sheetBackdrop
                         )
                     }

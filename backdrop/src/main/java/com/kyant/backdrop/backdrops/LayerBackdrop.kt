@@ -9,7 +9,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -19,22 +18,22 @@ import androidx.compose.ui.unit.Density
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.InverseLayerScope
 
-private val DefaultDrawLayer: ContentDrawScope.() -> Unit = { drawContent() }
+private val DefaultOnDraw: ContentDrawScope.() -> Unit = { drawContent() }
 
 @Composable
 fun rememberLayerBackdrop(
     graphicsLayer: GraphicsLayer = rememberGraphicsLayer(),
-    drawLayer: ContentDrawScope.() -> Unit = DefaultDrawLayer
+    onDraw: ContentDrawScope.() -> Unit = DefaultOnDraw
 ): LayerBackdrop {
-    return remember(graphicsLayer, drawLayer) {
-        LayerBackdrop(graphicsLayer, drawLayer)
+    return remember(graphicsLayer, onDraw) {
+        LayerBackdrop(graphicsLayer, onDraw)
     }
 }
 
 @Stable
 class LayerBackdrop internal constructor(
     val graphicsLayer: GraphicsLayer,
-    internal val drawLayer: ContentDrawScope.() -> Unit
+    internal val onDraw: ContentDrawScope.() -> Unit
 ) : Backdrop {
 
     override val isCoordinatesDependent: Boolean = true
@@ -51,17 +50,13 @@ class LayerBackdrop internal constructor(
         val currentCoordinates = currentCoordinates ?: return
         val offset = currentCoordinates.localPositionOf(coordinates ?: return)
         val layerBlock = layerBlock
-        if (layerBlock != null) {
-            withTransform({
+        withTransform({
+            if (layerBlock != null) {
                 with(obtainInverseLayerScope()) { inverseTransform(density, layerBlock) }
-                translate(-offset.x, -offset.y)
-            }) {
-                drawLayer(graphicsLayer)
             }
-        } else {
-            translate(-offset.x, -offset.y) {
-                drawLayer(graphicsLayer)
-            }
+            translate(-offset.x, -offset.y)
+        }) {
+            drawLayer(graphicsLayer)
         }
     }
 

@@ -9,6 +9,7 @@ import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.platform.InspectorInfo
+import com.kyant.backdrop.recordLayer
 
 fun Modifier.layerBackdrop(backdrop: LayerBackdrop): Modifier =
     this then LayerBackdropElement(backdrop)
@@ -51,11 +52,11 @@ private class LayerBackdropNode(
 
     override val shouldAutoInvalidate: Boolean = false
 
-    private val recordBlock: DrawScope.() -> Unit = { backdrop.drawLayer(this as ContentDrawScope) }
+    private val recordBlock: DrawScope.() -> Unit = { backdrop.onDraw(this as ContentDrawScope) }
 
     override fun ContentDrawScope.draw() {
         drawContent()
-        backdrop.graphicsLayer.record(block = recordBlock)
+        recordLayer(backdrop.graphicsLayer, block = recordBlock)
     }
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {

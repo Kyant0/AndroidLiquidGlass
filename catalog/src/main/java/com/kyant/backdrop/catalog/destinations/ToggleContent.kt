@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -18,11 +18,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
-import com.kyant.backdrop.catalog.components.LiquidSlider
+import com.kyant.backdrop.catalog.components.LiquidToggle
 import com.kyant.capsule.ContinuousRoundedRectangle
 
 @Composable
-fun SliderContent() {
+fun ToggleContent() {
     val isLightTheme = !isSystemInDarkTheme()
     val backgroundColor =
         if (isLightTheme) Color(0xFFFFFFFF)
@@ -33,13 +33,11 @@ fun SliderContent() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16f.dp)
         ) {
-            var value by rememberSaveable { mutableFloatStateOf(50f) }
+            var selected by rememberSaveable { mutableStateOf(false) }
 
-            LiquidSlider(
-                value = { value },
-                onValueChange = { value = it },
-                valueRange = 0f..100f,
-                visibilityThreshold = 0.01f,
+            LiquidToggle(
+                selected = { selected },
+                onSelect = { selected = it },
                 backdrop = backdrop,
                 modifier = Modifier.padding(horizontal = 32f.dp)
             )
@@ -51,11 +49,9 @@ fun SliderContent() {
                     .background(backgroundColor)
                     .padding(24f.dp)
             ) {
-                LiquidSlider(
-                    value = { value },
-                    onValueChange = { value = it },
-                    valueRange = 0f..100f,
-                    visibilityThreshold = 0.01f,
+                LiquidToggle(
+                    selected = { selected },
+                    onSelect = { selected = it },
                     backdrop = rememberCanvasBackdrop { drawRect(backgroundColor) },
                     modifier = Modifier.padding(horizontal = 32f.dp)
                 )

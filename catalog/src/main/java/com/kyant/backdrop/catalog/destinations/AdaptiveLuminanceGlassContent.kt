@@ -33,7 +33,7 @@ import com.kyant.backdrop.catalog.Block
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
-import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.Dispatchers
@@ -115,7 +115,7 @@ fun AdaptiveLuminanceGlassContent() {
                             if (l > 0f) lerp(8f.dp.toPx(), 16f.dp.toPx(), l)
                             else lerp(8f.dp.toPx(), 2f.dp.toPx(), -l)
                         )
-                        refraction(24f.dp.toPx(), size.minDimension / 2f, true)
+                        lens(24f.dp.toPx(), size.minDimension / 2f, true)
                     },
                     layerBlock = {
                         val offset = offsetAnimation.value

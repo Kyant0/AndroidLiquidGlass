@@ -28,7 +28,7 @@ import com.kyant.backdrop.catalog.utils.LoremIpsum
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
-import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -67,7 +67,7 @@ fun DialogContent() {
                             saturation = 1.5f
                         )
                         blur(if (isLightTheme) 16f.dp.toPx() else 8f.dp.toPx())
-                        refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
+                        lens(24f.dp.toPx(), 48f.dp.toPx(), true)
                     },
                     onDrawSurface = { drawRect(containerColor) }
                 )

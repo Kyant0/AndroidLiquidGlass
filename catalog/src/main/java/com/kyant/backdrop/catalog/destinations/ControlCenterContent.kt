@@ -47,7 +47,7 @@ import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.utils.ProgressConverter
 import com.kyant.backdrop.catalog.utils.rememberUISensor
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightStyle
@@ -116,7 +116,7 @@ fun ControlCenterContent() {
     val glassEffects: BackdropEffectScope.() -> Unit = {
         val progress = safeEnterProgressAnimation.value
         vibrancy()
-        refraction(
+        lens(
             24f.dp.toPx() * progress,
             48f.dp.toPx() * progress,
             true

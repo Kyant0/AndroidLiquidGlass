@@ -4,6 +4,7 @@ enum class CatalogDestination {
     Home,
 
     Buttons,
+    Toggle,
     Slider,
     BottomTabs,
     Dialog,

@@ -23,7 +23,7 @@ import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.refraction
+import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -54,12 +54,12 @@ fun LockScreenContent() {
                         effects = {
                             vibrancy()
                             blur(4f.dp.toPx())
-                            refraction(16f.dp.toPx(), size.minDimension / 2f, true)
+                            lens(12f.dp.toPx(), 24f.dp.toPx(), true)
                         },
                         onDrawSurface = { drawRect(Color.White.copy(0.1f)) },
                         contentEffects = {
                             blur(4f.dp.toPx())
-                            refraction(8f.dp.toPx(), 24f.dp.toPx())
+                            lens(8f.dp.toPx(), 24f.dp.toPx())
                         }
                     )
                     .fillMaxWidth()
@@ -74,11 +74,11 @@ fun LockScreenContent() {
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(2f.dp)) {
                     BasicText(
-                        "Instagram",
+                        "Kyant",
                         style = TextStyle(Color.White, 15f.sp)
                     )
                     BasicText(
-                        "Kyant shared a photo.",
+                        "Shared a photo.",
                         Modifier.graphicsLayer(blendMode = BlendMode.Plus),
                         style = TextStyle(Color.White.copy(0.5f), 15f.sp)
                     )

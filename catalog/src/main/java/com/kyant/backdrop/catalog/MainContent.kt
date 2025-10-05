@@ -18,6 +18,7 @@ import com.kyant.backdrop.catalog.destinations.LockScreenContent
 import com.kyant.backdrop.catalog.destinations.MagnifierContent
 import com.kyant.backdrop.catalog.destinations.ScrollContainerContent
 import com.kyant.backdrop.catalog.destinations.SliderContent
+import com.kyant.backdrop.catalog.destinations.ToggleContent
 
 @Composable
 fun MainContent() {
@@ -31,6 +32,7 @@ fun MainContent() {
         CatalogDestination.Home -> HomeContent(onNavigate = { destination = it })
 
         CatalogDestination.Buttons -> ButtonsContent()
+        CatalogDestination.Toggle -> ToggleContent()
         CatalogDestination.Slider -> SliderContent()
         CatalogDestination.BottomTabs -> BottomTabsContent()
         CatalogDestination.Dialog -> DialogContent()

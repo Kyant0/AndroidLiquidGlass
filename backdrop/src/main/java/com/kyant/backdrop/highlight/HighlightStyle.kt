@@ -49,11 +49,14 @@ interface HighlightStyle {
 
     @Immutable
     data class Default(
-        override val color: Color = Color.White.copy(alpha = 0.5f),
-        override val blendMode: BlendMode = BlendMode.Plus,
+        val intensity: Float = 0.5f,
         val angle: Float = 45f,
         @param:FloatRange(from = 0.0) val falloff: Float = 1f
     ) : HighlightStyle {
+
+        override val color: Color = Color.White.copy(alpha = intensity)
+
+        override val blendMode: BlendMode = BlendMode.Plus
 
         @RequiresApi(Build.VERSION_CODES.S)
         override fun DrawScope.createRenderEffect(
@@ -78,9 +81,12 @@ interface HighlightStyle {
 
     @Immutable
     data class Ambient(
-        override val color: Color = Color.White.copy(alpha = 0.5f),
-        override val blendMode: BlendMode = DrawScope.DefaultBlendMode
+        val intensity: Float = 0.5f
     ) : HighlightStyle {
+
+        override val color: Color = Color.White.copy(alpha = intensity)
+
+        override val blendMode: BlendMode = DrawScope.DefaultBlendMode
 
         @RequiresApi(Build.VERSION_CODES.S)
         override fun DrawScope.createRenderEffect(
@@ -126,16 +132,14 @@ fun lerp(start: HighlightStyle, stop: HighlightStyle, fraction: Float): Highligh
     }
     if (start is HighlightStyle.Default && stop is HighlightStyle.Default) {
         return HighlightStyle.Default(
-            color = lerp(start.color, stop.color, fraction),
-            blendMode = if (fraction < 0.5f) start.blendMode else stop.blendMode,
+            intensity = lerp(start.intensity, stop.intensity, fraction),
             angle = lerp(start.angle, stop.angle, fraction),
             falloff = lerp(start.falloff, stop.falloff, fraction)
         )
     }
     if (start is HighlightStyle.Ambient && stop is HighlightStyle.Ambient) {
         return HighlightStyle.Ambient(
-            color = lerp(start.color, stop.color, fraction),
-            blendMode = if (fraction < 0.5f) start.blendMode else stop.blendMode
+            intensity = lerp(start.intensity, stop.intensity, fraction)
         )
     }
     return if (fraction < 0.5f) start else stop
