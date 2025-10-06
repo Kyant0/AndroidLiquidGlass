@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.unit.Density
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.InverseLayerScope
@@ -47,13 +48,13 @@ class LayerBackdrop internal constructor(
         coordinates: LayoutCoordinates?,
         layerBlock: (GraphicsLayerScope.() -> Unit)?
     ) {
+        val coordinates = coordinates ?: return
         val currentCoordinates = currentCoordinates ?: return
-        val offset = currentCoordinates.localPositionOf(coordinates ?: return)
-        val layerBlock = layerBlock
         withTransform({
             if (layerBlock != null) {
                 with(obtainInverseLayerScope()) { inverseTransform(density, layerBlock) }
             }
+            val offset = coordinates.positionInWindow() - currentCoordinates.positionInWindow()
             translate(-offset.x, -offset.y)
         }) {
             drawLayer(graphicsLayer)
