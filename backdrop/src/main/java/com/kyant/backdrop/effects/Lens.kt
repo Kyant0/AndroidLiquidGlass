@@ -10,43 +10,6 @@ import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.RoundedRectRefractionShaderString
 import com.kyant.backdrop.RoundedRectRefractionWithDispersionShaderString
 
-@Deprecated(
-    message = "Use lens() instead",
-    replaceWith = ReplaceWith("lens(height, amount, hasDepthEffect)")
-)
-fun BackdropEffectScope.refraction(
-    height: Float,
-    amount: Float = height,
-    hasDepthEffect: Boolean = false
-) {
-    lens(
-        refractionHeight = height,
-        refractionAmount = amount,
-        hasDepthEffect = hasDepthEffect
-    )
-}
-
-@Deprecated(
-    message = "Use lens() with chromaticAberration parameter instead",
-    replaceWith =
-        ReplaceWith("lens(height, amount, hasDepthEffect)")
-)
-fun BackdropEffectScope.refractionWithDispersion(
-    height: Float,
-    amount: Float = height,
-    hasDepthEffect: Boolean = false,
-    dispersionIntensity: Float = 1f
-) {
-    lens(
-        refractionHeight = height,
-        refractionAmount = amount,
-        hasDepthEffect = hasDepthEffect,
-        chromaticAberration = DefaultChromaticAberration * dispersionIntensity
-    )
-}
-
-val DefaultChromaticAberration: Offset = Offset(1f / 2f, 1f / 6f)
-
 fun BackdropEffectScope.lens(
     refractionHeight: Float,
     refractionAmount: Float = refractionHeight,
@@ -87,6 +50,8 @@ fun BackdropEffectScope.lens(
         }
     effect(effect)
 }
+
+val DefaultChromaticAberration: Offset = Offset(1f / 2f, 1f / 6f)
 
 private val BackdropEffectScope.cornerRadii: FloatArray?
     get() {
