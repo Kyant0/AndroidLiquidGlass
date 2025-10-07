@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
@@ -69,6 +71,7 @@ fun LiquidSlider(
     ) {
         val trackWidth = constraints.maxWidth
 
+        val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
         val animationScope = rememberCoroutineScope()
         var didDrag by remember { mutableStateOf(false) }
         val dampedDragAnimation = remember(animationScope) {
@@ -89,9 +92,10 @@ fun LiquidSlider(
                     if (!didDrag) {
                         didDrag = dragAmount.x != 0f
                     }
+                    val delta = (valueRange.endInclusive - valueRange.start) * (dragAmount.x / trackWidth)
                     onValueChange(
-                        (targetValue + (valueRange.endInclusive - valueRange.start) * (dragAmount.x / trackWidth))
-                            .coerceIn(valueRange)
+                        if (isLtr) (targetValue + delta).coerceIn(valueRange)
+                        else (targetValue - delta).coerceIn(valueRange)
                     )
                 }
             )
@@ -112,8 +116,10 @@ fun LiquidSlider(
                     .background(trackColor)
                     .pointerInput(animationScope) {
                         detectTapGestures { position ->
+                            val delta = (valueRange.endInclusive - valueRange.start) * (position.x / trackWidth)
                             val targetValue =
-                                (valueRange.start + (valueRange.endInclusive - valueRange.start) * (position.x / trackWidth))
+                                (if (isLtr) valueRange.start + delta
+                                else valueRange.endInclusive - delta)
                                     .coerceIn(valueRange)
                             dampedDragAnimation.animateToValue(targetValue)
                             onValueChange(targetValue)
@@ -143,7 +149,7 @@ fun LiquidSlider(
                 .graphicsLayer {
                     translationX =
                         (-size.width / 2f + trackWidth * dampedDragAnimation.progress)
-                            .fastCoerceIn(-size.width / 4f, trackWidth - size.width * 3f / 4f)
+                            .fastCoerceIn(-size.width / 4f, trackWidth - size.width * 3f / 4f) * if (isLtr) 1f else -1f
                 }
                 .then(dampedDragAnimation.modifier)
                 .drawBackdrop(

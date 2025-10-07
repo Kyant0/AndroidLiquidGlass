@@ -21,9 +21,11 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.lerp
@@ -59,6 +61,7 @@ fun LiquidToggle(
         else Color(0xFF787880).copy(0.36f)
 
     val density = LocalDensity.current
+    val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
     val dragWidth = with(density) { 20f.dp.toPx() }
     val animationScope = rememberCoroutineScope()
     var didDrag by remember { mutableStateOf(false) }
@@ -86,7 +89,10 @@ fun LiquidToggle(
                 if (!didDrag) {
                     didDrag = dragAmount.x != 0f
                 }
-                fraction = (fraction + dragAmount.x / dragWidth).fastCoerceIn(0f, 1f)
+                val delta = dragAmount.x / dragWidth
+                fraction =
+                    if (isLtr) (fraction + delta).fastCoerceIn(0f, 1f)
+                    else (fraction - delta).fastCoerceIn(0f, 1f)
             }
         )
     }
@@ -129,7 +135,9 @@ fun LiquidToggle(
                 .graphicsLayer {
                     val fraction = dampedDragAnimation.value
                     val padding = 2f.dp.toPx()
-                    translationX = lerp(padding, padding + dragWidth, fraction)
+                    translationX =
+                        if (isLtr) lerp(padding, padding + dragWidth, fraction)
+                        else lerp(-padding, -(padding + dragWidth), fraction)
                 }
                 .semantics {
                     role = Role.Switch
