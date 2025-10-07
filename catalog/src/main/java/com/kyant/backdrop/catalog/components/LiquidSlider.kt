@@ -159,6 +159,15 @@ fun LiquidSlider(
                         }
                     ),
                     shape = { ContinuousCapsule },
+                    effects = {
+                        val progress = dampedDragAnimation.pressProgress
+                        blur(8f.dp.toPx() * (1f - progress))
+                        lens(
+                            10f.dp.toPx() * progress,
+                            14f.dp.toPx() * progress,
+                            chromaticAberration = DefaultChromaticAberration
+                        )
+                    },
                     highlight = {
                         val progress = dampedDragAnimation.pressProgress
                         Highlight.Ambient.copy(
@@ -178,15 +187,6 @@ fun LiquidSlider(
                         InnerShadow(
                             radius = 4f.dp * progress,
                             alpha = progress
-                        )
-                    },
-                    effects = {
-                        val progress = dampedDragAnimation.pressProgress
-                        blur(8f.dp.toPx() * (1f - progress))
-                        lens(
-                            10f.dp.toPx() * progress,
-                            14f.dp.toPx() * progress,
-                            chromaticAberration = DefaultChromaticAberration
                         )
                     },
                     layerBlock = {

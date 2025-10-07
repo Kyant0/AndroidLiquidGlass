@@ -84,7 +84,6 @@ fun MagnifierContent() {
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, contentBackdrop, cursorBackdrop),
                     shape = { ContinuousCapsule },
-                    innerShadow = { InnerShadow(radius = 16f.dp) },
                     effects = {
                         lens(
                             8f.dp.toPx(),
@@ -93,6 +92,7 @@ fun MagnifierContent() {
                             chromaticAberration = DefaultChromaticAberration
                         )
                     },
+                    innerShadow = { InnerShadow(radius = 16f.dp) },
                     onDrawBackdrop = { drawBackdrop ->
                         withTransform(
                             {

@@ -60,7 +60,6 @@ fun DialogContent() {
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { ContinuousRoundedRectangle(48f.dp) },
-                    highlight = { Highlight.Plain },
                     effects = {
                         colorControls(
                             brightness = if (isLightTheme) 0.2f else 0f,
@@ -69,6 +68,7 @@ fun DialogContent() {
                         blur(if (isLightTheme) 16f.dp.toPx() else 8f.dp.toPx())
                         lens(24f.dp.toPx(), 48f.dp.toPx(), depthEffect = true)
                     },
+                    highlight = { Highlight.Plain },
                     onDrawSurface = { drawRect(containerColor) }
                 )
                 .fillMaxWidth()

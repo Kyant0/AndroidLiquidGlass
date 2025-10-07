@@ -66,7 +66,6 @@ fun GlassPlaygroundContent() {
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { ContinuousRoundedRectangle(256f.dp / 2f * cornerRadiusFrac) },
-                    highlight = { Highlight.Plain },
                     effects = {
                         val minDimension = size.minDimension
                         vibrancy()
@@ -78,6 +77,7 @@ fun GlassPlaygroundContent() {
                             chromaticAberration = Offset(chromaticAberration, chromaticAberration)
                         )
                     },
+                    highlight = { Highlight.Plain },
                     layerBlock = {
                         val offset = offsetAnimation.value
                         val zoom = zoomAnimation.value
@@ -129,12 +129,12 @@ fun GlassPlaygroundContent() {
                         .drawBackdrop(
                             backdrop = backdrop,
                             shape = { ContinuousRoundedRectangle(32f.dp) },
-                            highlight = { Highlight.Plain },
                             effects = {
                                 vibrancy()
                                 blur(4f.dp.toPx())
                                 lens(16f.dp.toPx(), 32f.dp.toPx())
                             },
+                            highlight = { Highlight.Plain },
                             exportedBackdrop = sheetBackdrop,
                             onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) }
                         )
