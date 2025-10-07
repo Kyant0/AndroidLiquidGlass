@@ -12,10 +12,8 @@ import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.util.fastCoerceAtMost
-import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.AmbientHighlightShaderString
 import com.kyant.backdrop.DefaultHighlightShaderString
 import com.kyant.backdrop.RuntimeShaderCache
@@ -49,7 +47,7 @@ interface HighlightStyle {
 
     @Immutable
     data class Default(
-        val intensity: Float = 0.5f,
+        @param:FloatRange(from = 0.0, to = 1.0) val intensity: Float = 0.5f,
         val angle: Float = 45f,
         @param:FloatRange(from = 0.0) val falloff: Float = 1f
     ) : HighlightStyle {
@@ -81,7 +79,7 @@ interface HighlightStyle {
 
     @Immutable
     data class Ambient(
-        val intensity: Float = 0.5f
+        @param:FloatRange(from = 0.0, to = 1.0) val intensity: Float = 0.38f
     ) : HighlightStyle {
 
         override val color: Color = Color.White.copy(alpha = intensity)
@@ -120,29 +118,6 @@ interface HighlightStyle {
         @Stable
         val Plain: Plain = Plain()
     }
-}
-
-@Stable
-fun lerp(start: HighlightStyle, stop: HighlightStyle, fraction: Float): HighlightStyle {
-    if (start is HighlightStyle.Plain && stop is HighlightStyle.Plain) {
-        return HighlightStyle.Plain(
-            color = lerp(start.color, stop.color, fraction),
-            blendMode = if (fraction < 0.5f) start.blendMode else stop.blendMode
-        )
-    }
-    if (start is HighlightStyle.Default && stop is HighlightStyle.Default) {
-        return HighlightStyle.Default(
-            intensity = lerp(start.intensity, stop.intensity, fraction),
-            angle = lerp(start.angle, stop.angle, fraction),
-            falloff = lerp(start.falloff, stop.falloff, fraction)
-        )
-    }
-    if (start is HighlightStyle.Ambient && stop is HighlightStyle.Ambient) {
-        return HighlightStyle.Ambient(
-            intensity = lerp(start.intensity, stop.intensity, fraction)
-        )
-    }
-    return if (fraction < 0.5f) start else stop
 }
 
 private fun DrawScope.getCornerRadii(shape: Shape): FloatArray {

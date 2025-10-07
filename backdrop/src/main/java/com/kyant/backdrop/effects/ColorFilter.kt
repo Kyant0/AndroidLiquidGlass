@@ -5,6 +5,7 @@ import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.RenderEffect
 import android.os.Build
+import androidx.annotation.FloatRange
 import androidx.compose.ui.graphics.asAndroidColorFilter
 import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.GammaAdjustmentShaderString
@@ -26,7 +27,7 @@ fun BackdropEffectScope.colorFilter(colorFilter: androidx.compose.ui.graphics.Co
     colorFilter(colorFilter.asAndroidColorFilter())
 }
 
-fun BackdropEffectScope.opacity(alpha: Float) {
+fun BackdropEffectScope.opacity(@FloatRange(from = 0.0, to = 1.0) alpha: Float) {
     val colorMatrix = ColorMatrix(
         floatArrayOf(
             1f, 0f, 0f, 0f, 0f,

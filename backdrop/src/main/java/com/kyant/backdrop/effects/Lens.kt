@@ -2,6 +2,7 @@ package com.kyant.backdrop.effects
 
 import android.graphics.RenderEffect
 import android.os.Build
+import androidx.annotation.FloatRange
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.LayoutDirection
@@ -11,8 +12,8 @@ import com.kyant.backdrop.RoundedRectRefractionShaderString
 import com.kyant.backdrop.RoundedRectRefractionWithDispersionShaderString
 
 fun BackdropEffectScope.lens(
-    refractionHeight: Float,
-    refractionAmount: Float,
+    @FloatRange(from = 0.0) refractionHeight: Float,
+    @FloatRange(from = 0.0) refractionAmount: Float,
     chromaticAberration: Offset = Offset.Zero,
     depthEffect: Boolean = false
 ) {

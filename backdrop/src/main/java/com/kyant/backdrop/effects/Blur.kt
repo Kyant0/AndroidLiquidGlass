@@ -1,15 +1,12 @@
 package com.kyant.backdrop.effects
 
 import android.graphics.RenderEffect
+import android.graphics.Shader
 import android.os.Build
-import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.toAndroidTileMode
+import androidx.annotation.FloatRange
 import com.kyant.backdrop.BackdropEffectScope
 
-fun BackdropEffectScope.blur(
-    blurRadius: Float,
-    tileMode: TileMode = TileMode.Clamp
-) {
+fun BackdropEffectScope.blur(@FloatRange(from = 0.0) blurRadius: Float) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
     if (blurRadius <= 0f) return
 
@@ -20,13 +17,13 @@ fun BackdropEffectScope.blur(
                 blurRadius,
                 blurRadius,
                 currentEffect,
-                tileMode.toAndroidTileMode()
+                Shader.TileMode.CLAMP
             )
         } else {
             RenderEffect.createBlurEffect(
                 blurRadius,
                 blurRadius,
-                tileMode.toAndroidTileMode()
+                Shader.TileMode.CLAMP
             )
         }
 }
