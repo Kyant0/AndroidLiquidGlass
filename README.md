@@ -2,7 +2,7 @@
 
 ![frontPhoto](artworks/banner.jpg)
 
-Liquid Glass effect for Android Jetpack Compose.
+A customizable Liquid Glass effect library for Jetpack Compose.
 
 ## Docs
 
@@ -12,9 +12,8 @@ Liquid Glass effect for Android Jetpack Compose.
 
 ## Components
 
-The library doesn't provide any high level components yet.
-
-But there are some demo components in the [Catalog](./catalog/release/catalog-release.apk) app:
+The library does not include any high-level components; you will need to create your own.
+Below are some example components:
 
 - [LiquidButton](/catalog/src/main/java/com/kyant/backdrop/catalog/components/LiquidButton.kt)
 - [LiquidToggle](/catalog/src/main/java/com/kyant/backdrop/catalog/components/LiquidToggle.kt)
@@ -23,10 +22,10 @@ But there are some demo components in the [Catalog](./catalog/release/catalog-re
 
 ## Demos
 
-- [Catalog](./catalog/release/catalog-release.apk)
+- [Backdrop Catalog](./catalog/release/catalog-release.apk)
 
-![Catalog screenshot](artworks/catalog.jpg)
+![Screenshots of Backdrop Catalog](artworks/catalog_app.jpg)
 
-- **(Deprecated)** [Playground app](./app/release/app-release.apk), Android 13 and above is required.
+- **(Deprecated)** [Liquid Glass Playground](./app/release/app-release.apk) (Android 13+)
 
-![Playground screenshot](artworks/playground_app.jpg)
+<img alt="Screenshots of Liquid Glass Playground" height="400" src="artworks/playground_app.jpg"/>
