@@ -11,7 +11,6 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.draw
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -276,17 +275,7 @@ private class DrawBackdropNode(
     private val drawContentLayer: ContentDrawScope.() -> Unit = drawContent@{
         val layer = contentGraphicsLayer
         if (layer != null) {
-            recordLayer(layer) {
-                this@drawContent.draw(
-                    density = drawContext.density,
-                    layoutDirection = drawContext.layoutDirection,
-                    canvas = drawContext.canvas,
-                    size = drawContext.size,
-                    graphicsLayer = drawContext.graphicsLayer
-                ) {
-                    this@drawContent.onDrawContent()
-                }
-            }
+            recordLayer(layer) { this@drawContent.onDrawContent() }
             drawLayer(layer)
         }
     }
