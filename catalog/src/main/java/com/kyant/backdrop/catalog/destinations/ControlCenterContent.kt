@@ -119,7 +119,7 @@ fun ControlCenterContent() {
         lens(
             24f.dp.toPx() * progress,
             48f.dp.toPx() * progress,
-            true
+            depthEffect = true
         )
     }
 

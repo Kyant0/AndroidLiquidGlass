@@ -54,7 +54,7 @@ fun LockScreenContent() {
                         effects = {
                             vibrancy()
                             blur(4f.dp.toPx())
-                            lens(12f.dp.toPx(), 24f.dp.toPx(), true)
+                            lens(12f.dp.toPx(), 24f.dp.toPx(), depthEffect = true)
                         },
                         onDrawSurface = { drawRect(Color.White.copy(0.1f)) },
                         contentEffects = {

@@ -12,9 +12,9 @@ import com.kyant.backdrop.RoundedRectRefractionWithDispersionShaderString
 
 fun BackdropEffectScope.lens(
     refractionHeight: Float,
-    refractionAmount: Float = refractionHeight,
-    hasDepthEffect: Boolean = false,
-    chromaticAberration: Offset = Offset.Zero
+    refractionAmount: Float,
+    chromaticAberration: Offset = Offset.Zero,
+    depthEffect: Boolean = false
 ) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
     if (refractionHeight <= 0f || refractionAmount <= 0f) return
@@ -29,7 +29,7 @@ fun BackdropEffectScope.lens(
                         setFloatUniform("cornerRadii", cornerRadii)
                         setFloatUniform("refractionHeight", refractionHeight)
                         setFloatUniform("refractionAmount", -refractionAmount)
-                        setFloatUniform("depthEffect", if (hasDepthEffect) 1f else 0f)
+                        setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)
                     }
                 } else {
                     obtainRuntimeShader(
@@ -40,7 +40,7 @@ fun BackdropEffectScope.lens(
                         setFloatUniform("cornerRadii", cornerRadii)
                         setFloatUniform("refractionHeight", refractionHeight)
                         setFloatUniform("refractionAmount", -refractionAmount)
-                        setFloatUniform("depthEffect", if (hasDepthEffect) 1f else 0f)
+                        setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)
                         setFloatUniform("chromaticAberration", chromaticAberration.x, chromaticAberration.y)
                     }
                 }

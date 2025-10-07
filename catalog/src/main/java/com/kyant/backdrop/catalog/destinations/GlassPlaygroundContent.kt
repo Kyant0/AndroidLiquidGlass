@@ -74,7 +74,7 @@ fun GlassPlaygroundContent() {
                         lens(
                             refractionHeight = refractionHeightFrac * minDimension * 0.5f,
                             refractionAmount = refractionAmountFrac * minDimension,
-                            hasDepthEffect = true,
+                            depthEffect = true,
                             chromaticAberration = Offset(chromaticAberration, chromaticAberration)
                         )
                     },

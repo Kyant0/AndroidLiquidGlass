@@ -67,7 +67,7 @@ fun DialogContent() {
                             saturation = 1.5f
                         )
                         blur(if (isLightTheme) 16f.dp.toPx() else 8f.dp.toPx())
-                        lens(24f.dp.toPx(), 48f.dp.toPx(), true)
+                        lens(24f.dp.toPx(), 48f.dp.toPx(), depthEffect = true)
                     },
                     onDrawSurface = { drawRect(containerColor) }
                 )

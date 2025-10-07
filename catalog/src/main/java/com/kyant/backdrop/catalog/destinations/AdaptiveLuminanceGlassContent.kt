@@ -115,7 +115,7 @@ fun AdaptiveLuminanceGlassContent() {
                             if (l > 0f) lerp(8f.dp.toPx(), 16f.dp.toPx(), l)
                             else lerp(8f.dp.toPx(), 2f.dp.toPx(), -l)
                         )
-                        lens(24f.dp.toPx(), size.minDimension / 2f, true)
+                        lens(24f.dp.toPx(), size.minDimension / 2f, depthEffect = true)
                     },
                     layerBlock = {
                         val offset = offsetAnimation.value

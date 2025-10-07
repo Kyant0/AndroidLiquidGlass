@@ -89,7 +89,7 @@ fun MagnifierContent() {
                         lens(
                             8f.dp.toPx(),
                             24f.dp.toPx(),
-                            hasDepthEffect = true,
+                            depthEffect = true,
                             chromaticAberration = DefaultChromaticAberration
                         )
                     },
