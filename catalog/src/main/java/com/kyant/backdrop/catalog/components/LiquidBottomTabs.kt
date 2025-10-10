@@ -16,10 +16,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,7 +98,6 @@ fun LiquidBottomTabs(
         }
 
         val animationScope = rememberCoroutineScope()
-        var didDrag by remember { mutableStateOf(false) }
         val dampedDragAnimation = remember(animationScope) {
             DampedDragAnimation(
                 animationScope = animationScope,
@@ -111,12 +108,10 @@ fun LiquidBottomTabs(
                 pressedScale = 78f / 56f,
                 onDragStarted = {},
                 onDragStopped = {
-                    if (didDrag) {
-                        val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
-                        if (selectedTabIndex() != targetIndex) {
-                            onTabSelected(targetIndex)
-                        }
-                        didDrag = false
+                    val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
+                    animateToValue(targetIndex.toFloat())
+                    if (selectedTabIndex() != targetIndex) {
+                        onTabSelected(targetIndex)
                     }
                     animationScope.launch {
                         offsetAnimation.animateTo(
@@ -126,9 +121,6 @@ fun LiquidBottomTabs(
                     }
                 },
                 onDrag = { _, dragAmount ->
-                    if (!didDrag) {
-                        didDrag = dragAmount.x != 0f
-                    }
                     updateValue(
                         (targetValue + dragAmount.x / tabWidth).fastCoerceIn(0f, (tabsCount - 1).toFloat())
                     )
