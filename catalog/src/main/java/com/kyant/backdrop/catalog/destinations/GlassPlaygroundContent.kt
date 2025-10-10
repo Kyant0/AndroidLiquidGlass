@@ -54,7 +54,7 @@ fun GlassPlaygroundContent() {
 
     var cornerRadiusFrac by remember { mutableFloatStateOf(0.5f) }
     var blurRadiusDp by remember { mutableFloatStateOf(0f) }
-    var refractionHeightFrac by remember { mutableFloatStateOf(0.1f) }
+    var refractionHeightFrac by remember { mutableFloatStateOf(0.2f) }
     var refractionAmountFrac by remember { mutableFloatStateOf(0.2f) }
     var chromaticAberration by remember { mutableFloatStateOf(0f) }
 
@@ -74,7 +74,7 @@ fun GlassPlaygroundContent() {
                             refractionHeight = refractionHeightFrac * minDimension * 0.5f,
                             refractionAmount = refractionAmountFrac * minDimension,
                             depthEffect = true,
-                            chromaticAberration = Offset(chromaticAberration, chromaticAberration)
+                            chromaticAberration = chromaticAberration > 0f
                         )
                     },
                     highlight = { Highlight.Plain },

@@ -97,7 +97,7 @@ uniform float4 cornerRadii;
 uniform float refractionHeight;
 uniform float refractionAmount;
 uniform float depthEffect;
-uniform float2 chromaticAberration;
+uniform float chromaticAberration;
 
 $RoundedRectSDF
 
@@ -105,8 +105,10 @@ float circleMap(float x) {
     return 1.0 - sqrt(1.0 - x * x);
 }
 
-float dispersionIntensity(float2 normal, int n) {
-    return 1.0 + dot(chromaticAberration, normal) * float(n) / 3.0;
+float2 dispersionVec(float2 coord, float2 normal, int n) {
+    float intensity = 1.0 + chromaticAberration * float(n) / 3.0 * (coord.x * coord.y / (size.x * size.y * 0.25));
+    float2 dir = normal;
+    return intensity * dir;
 }
 
 half4 main(float2 coord) {
@@ -127,37 +129,37 @@ half4 main(float2 coord) {
     half4 color = half4(0.0);
     color.a = 0.0;
     
-    half4 redColor = content.eval(coord + d * dispersionIntensity(dir, 3) * dir);
-    color.r += redColor.r / 3.5;
-    color.a += redColor.a / 7.0;
+    half4 red = content.eval(coord + d * dispersionVec(centeredCoord, dir, 3));
+    color.r += red.r / 3.5;
+    color.a += red.a / 7.0;
     
-    half4 orangeColor = content.eval(coord + d * dispersionIntensity(dir, 2) * dir);
-    color.r += orangeColor.r / 3.5;
-    color.g += orangeColor.g / 7.0;
-    color.a += orangeColor.a / 7.0;
+    half4 orange = content.eval(coord + d * dispersionVec(centeredCoord, dir, 2));
+    color.r += orange.r / 3.5;
+    color.g += orange.g / 7.0;
+    color.a += orange.a / 7.0;
     
-    half4 yellowColor = content.eval(coord + d * dispersionIntensity(dir, 1) * dir);
-    color.r += yellowColor.r / 3.5;
-    color.g += yellowColor.g / 3.5;
-    color.a += yellowColor.a / 7.0;
+    half4 yellow = content.eval(coord + d * dispersionVec(centeredCoord, dir, 1));
+    color.r += yellow.r / 3.5;
+    color.g += yellow.g / 3.5;
+    color.a += yellow.a / 7.0;
     
-    half4 greenColor = content.eval(coord + d * dispersionIntensity(dir, 0) * dir);
-    color.g += greenColor.g / 3.5;
-    color.a += greenColor.a / 7.0;
+    half4 green = content.eval(coord + d * dispersionVec(centeredCoord, dir, 0));
+    color.g += green.g / 3.5;
+    color.a += green.a / 7.0;
     
-    half4 cyanColor = content.eval(coord + d * dispersionIntensity(dir, -1) * dir);
-    color.g += cyanColor.g / 3.5;
-    color.b += cyanColor.b / 3.0;
-    color.a += cyanColor.a / 7.0;
+    half4 cyan = content.eval(coord + d * dispersionVec(centeredCoord, dir, -1));
+    color.g += cyan.g / 3.5;
+    color.b += cyan.b / 3.0;
+    color.a += cyan.a / 7.0;
     
-    half4 blueColor = content.eval(coord + d * dispersionIntensity(dir, -2) * dir);
-    color.b += blueColor.b / 3.0;
-    color.a += blueColor.a / 7.0;
+    half4 blue = content.eval(coord + d * dispersionVec(centeredCoord, dir, -2));
+    color.b += blue.b / 3.0;
+    color.a += blue.a / 7.0;
     
-    half4 purpleColor = content.eval(coord + d * dispersionIntensity(dir, -3) * dir);
-    color.r += purpleColor.r / 7.0;
-    color.b += purpleColor.b / 3.0;
-    color.a += purpleColor.a / 7.0;
+    half4 purple = content.eval(coord + d * dispersionVec(centeredCoord, dir, -3));
+    color.r += purple.r / 7.0;
+    color.b += purple.b / 3.0;
+    color.a += purple.a / 7.0;
     
     return color;
 }"""

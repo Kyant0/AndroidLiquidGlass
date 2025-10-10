@@ -42,7 +42,6 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.catalog.utils.DampedDragAnimation
 import com.kyant.backdrop.catalog.utils.InteractiveHighlight
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.DefaultChromaticAberration
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
@@ -245,9 +244,9 @@ fun LiquidBottomTabs(
                     effects = {
                         val progress = dampedDragAnimation.pressProgress
                         lens(
+                            10f.dp.toPx() * progress,
                             12f.dp.toPx() * progress,
-                            12f.dp.toPx() * progress,
-                            chromaticAberration = DefaultChromaticAberration
+                            chromaticAberration = true
                         )
                     },
                     highlight = {

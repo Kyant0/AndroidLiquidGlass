@@ -4,7 +4,6 @@ import android.graphics.RenderEffect
 import android.os.Build
 import androidx.annotation.FloatRange
 import androidx.compose.foundation.shape.CornerBasedShape
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.util.fastCoerceAtMost
 import com.kyant.backdrop.BackdropEffectScope
@@ -14,8 +13,8 @@ import com.kyant.backdrop.RoundedRectRefractionWithDispersionShaderString
 fun BackdropEffectScope.lens(
     @FloatRange(from = 0.0) refractionHeight: Float,
     @FloatRange(from = 0.0) refractionAmount: Float,
-    chromaticAberration: Offset = Offset.Zero,
-    depthEffect: Boolean = false
+    depthEffect: Boolean = false,
+    chromaticAberration: Boolean = false
 ) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
     if (refractionHeight <= 0f || refractionAmount <= 0f) return
@@ -24,7 +23,7 @@ fun BackdropEffectScope.lens(
     val effect =
         if (cornerRadii != null) {
             val shader =
-                if (chromaticAberration == Offset.Zero) {
+                if (!chromaticAberration) {
                     obtainRuntimeShader("Refraction", RoundedRectRefractionShaderString).apply {
                         setFloatUniform("size", size.width, size.height)
                         setFloatUniform("cornerRadii", cornerRadii)
@@ -42,7 +41,7 @@ fun BackdropEffectScope.lens(
                         setFloatUniform("refractionHeight", refractionHeight)
                         setFloatUniform("refractionAmount", -refractionAmount)
                         setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)
-                        setFloatUniform("chromaticAberration", chromaticAberration.x, chromaticAberration.y)
+                        setFloatUniform("chromaticAberration", 1f)
                     }
                 }
             RenderEffect.createRuntimeShaderEffect(shader, "content")
@@ -51,8 +50,6 @@ fun BackdropEffectScope.lens(
         }
     effect(effect)
 }
-
-val DefaultChromaticAberration: Offset = Offset(1f / 2f, 1f / 6f)
 
 private val BackdropEffectScope.cornerRadii: FloatArray?
     get() {

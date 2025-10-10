@@ -28,7 +28,6 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.utils.LoremIpsum
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.DefaultChromaticAberration
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.capsule.ContinuousCapsule
@@ -89,7 +88,7 @@ fun MagnifierContent() {
                             8f.dp.toPx(),
                             24f.dp.toPx(),
                             depthEffect = true,
-                            chromaticAberration = DefaultChromaticAberration
+                            chromaticAberration = true
                         )
                     },
                     innerShadow = { InnerShadow(radius = 16f.dp) },
