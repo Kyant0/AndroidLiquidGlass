@@ -1,22 +1,19 @@
 package com.kyant.backdrop.shadow
 
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.os.Build
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.layer.CompositingStrategy
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.invalidateDraw
@@ -24,6 +21,7 @@ import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Density
 import com.kyant.backdrop.ShapeProvider
+import com.kyant.backdrop.clipOutline
 
 internal class InnerShadowElement(
     val shapeProvider: ShapeProvider,
@@ -95,6 +93,12 @@ internal class InnerShadowNode(
             val offsetY = shadow.offset.y.toPx()
 
             val outline = shapeProvider.shape.createOutline(size, layoutDirection, density)
+            val clipPath =
+                if (outline is Outline.Rounded) {
+                    clipPath ?: Path().also { clipPath = it }
+                } else {
+                    null
+                }
 
             configurePaint(shadow)
 
@@ -109,9 +113,22 @@ internal class InnerShadowNode(
                     }
                 prevRadius = radius
             }
-            shadowLayer.record { drawShadow(outline, -offsetX, -offsetY) }
+            shadowLayer.record {
+                val canvas = drawContext.canvas
+                canvas.save()
+                canvas.clipOutline(outline, clipPath)
+                canvas.drawOutline(outline, paint)
+                canvas.translate(offsetX, offsetY)
+                canvas.drawOutline(outline, ShadowMaskPaint)
+                canvas.translate(-offsetX, -offsetY)
+                canvas.restore()
+            }
 
-            drawMaskedShadow(outline, shadowLayer)
+            val canvas = drawContext.canvas
+            canvas.save()
+            canvas.clipOutline(outline, clipPath)
+            drawLayer(shadowLayer)
+            canvas.restore()
         }
     }
 
@@ -132,107 +149,18 @@ internal class InnerShadowNode(
     }
 
     private fun DrawScope.configurePaint(shadow: InnerShadow) {
-        paint.color = shadow.color.toArgb()
-    }
-
-    private fun DrawScope.drawShadow(outline: Outline, offsetX: Float, offsetY: Float) {
-        val canvas = drawContext.canvas.nativeCanvas
-
-        @Suppress("UseKtx")
-        canvas.save()
-
-        when (outline) {
-            is Outline.Rectangle -> {
-                val left = outline.rect.left
-                val top = outline.rect.top
-                val right = outline.rect.right
-                val bottom = outline.rect.bottom
-                canvas.clipRect(left, top, right, bottom)
-                canvas.drawRect(left, top, right, bottom, paint)
-                canvas.translate(-offsetX, -offsetY)
-                canvas.drawRect(left, top, right, bottom, ShadowMaskPaint)
-                canvas.translate(offsetX, offsetY)
-            }
-
-            is Outline.Rounded -> {
-                @Suppress("INVISIBLE_REFERENCE")
-                val path = outline.roundRectPath?.asAndroidPath()
-                if (path != null) {
-                    canvas.clipPath(path)
-                    canvas.drawPath(path, paint)
-                    canvas.translate(-offsetX, -offsetY)
-                    canvas.drawPath(path, ShadowMaskPaint)
-                    canvas.translate(offsetX, offsetY)
-                } else {
-                    val left = outline.roundRect.left
-                    val top = outline.roundRect.top
-                    val right = outline.roundRect.right
-                    val bottom = outline.roundRect.bottom
-                    val radius = outline.roundRect.topLeftCornerRadius.x
-                    val clipPath = clipPath?.apply { rewind() } ?: Path().also { clipPath = it }
-                    clipPath.addRoundRect(left, top, right, bottom, radius, radius, Path.Direction.CW)
-                    canvas.clipPath(clipPath)
-                    canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint)
-                    canvas.translate(-offsetX, -offsetY)
-                    canvas.drawRoundRect(left, top, right, bottom, radius, radius, ShadowMaskPaint)
-                    canvas.translate(offsetX, offsetY)
-                }
-            }
-
-            is Outline.Generic -> {
-                val path = outline.path.asAndroidPath()
-                canvas.clipPath(path)
-                canvas.drawPath(path, paint)
-                canvas.translate(-offsetX, -offsetY)
-                canvas.drawPath(path, ShadowMaskPaint)
-                canvas.translate(offsetX, offsetY)
-            }
-        }
-
-        canvas.restore()
+        paint.color = shadow.color
     }
 
     private fun DrawScope.drawMaskedShadow(outline: Outline, layer: GraphicsLayer) {
-        val canvas = drawContext.canvas.nativeCanvas
-
-        @Suppress("UseKtx")
+        val canvas = drawContext.canvas
         canvas.save()
-
-        when (outline) {
-            is Outline.Rectangle -> {
-                canvas.clipRect(0f, 0f, size.width, size.height)
-            }
-
-            is Outline.Rounded -> {
-                @Suppress("INVISIBLE_REFERENCE")
-                val path = outline.roundRectPath?.asAndroidPath()
-                if (path != null) {
-                    canvas.clipPath(path)
-                } else {
-                    val rr = outline.roundRect
-                    val radius = outline.roundRect.topLeftCornerRadius.x
-                    val clipPath = clipPath?.apply { rewind() } ?: Path().also { clipPath = it }
-                    clipPath.addRoundRect(rr.left, rr.top, rr.right, rr.bottom, radius, radius, Path.Direction.CW)
-                    canvas.clipPath(clipPath)
-                }
-            }
-
-            is Outline.Generic -> {
-                val path = outline.path.asAndroidPath()
-                canvas.clipPath(path)
-            }
-        }
-
+        canvas.clipOutline(outline, clipPath)
         drawLayer(layer)
-
         canvas.restore()
     }
 }
 
 private val ShadowMaskPaint = Paint().apply {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        blendMode = android.graphics.BlendMode.CLEAR
-    } else {
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-    }
+    blendMode = BlendMode.Clear
 }
