@@ -6,23 +6,23 @@ import android.os.Build
 import androidx.annotation.FloatRange
 import com.kyant.backdrop.BackdropEffectScope
 
-fun BackdropEffectScope.blur(@FloatRange(from = 0.0) blurRadius: Float) {
+fun BackdropEffectScope.blur(@FloatRange(from = 0.0) radius: Float) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-    if (blurRadius <= 0f) return
+    if (radius <= 0f) return
 
     val currentEffect = renderEffect
     renderEffect =
         if (currentEffect != null) {
             RenderEffect.createBlurEffect(
-                blurRadius,
-                blurRadius,
+                radius,
+                radius,
                 currentEffect,
                 Shader.TileMode.CLAMP
             )
         } else {
             RenderEffect.createBlurEffect(
-                blurRadius,
-                blurRadius,
+                radius,
+                radius,
                 Shader.TileMode.CLAMP
             )
         }
