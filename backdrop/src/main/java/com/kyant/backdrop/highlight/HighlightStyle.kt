@@ -8,9 +8,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RenderEffect
+import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.util.fastCoerceAtMost
@@ -27,10 +26,10 @@ interface HighlightStyle {
     val blendMode: BlendMode
 
     @RequiresApi(Build.VERSION_CODES.S)
-    fun DrawScope.createRenderEffect(
+    fun DrawScope.createShader(
         shape: Shape,
         runtimeShaderCache: RuntimeShaderCache
-    ): RenderEffect?
+    ): Shader?
 
     @Immutable
     data class Plain(
@@ -39,10 +38,10 @@ interface HighlightStyle {
     ) : HighlightStyle {
 
         @RequiresApi(Build.VERSION_CODES.S)
-        override fun DrawScope.createRenderEffect(
+        override fun DrawScope.createShader(
             shape: Shape,
             runtimeShaderCache: RuntimeShaderCache
-        ): RenderEffect? = null
+        ): Shader? = null
     }
 
     @Immutable
@@ -57,20 +56,20 @@ interface HighlightStyle {
         override val blendMode: BlendMode = BlendMode.Plus
 
         @RequiresApi(Build.VERSION_CODES.S)
-        override fun DrawScope.createRenderEffect(
+        override fun DrawScope.createShader(
             shape: Shape,
             runtimeShaderCache: RuntimeShaderCache
-        ): RenderEffect? {
+        ): Shader? {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val shader = runtimeShaderCache.obtainRuntimeShader("Default", DefaultHighlightShaderString)
-                shader.apply {
+                runtimeShaderCache.obtainRuntimeShader(
+                    "Default",
+                    DefaultHighlightShaderString
+                ).apply {
                     setFloatUniform("size", size.width, size.height)
                     setFloatUniform("cornerRadii", getCornerRadii(shape))
                     setFloatUniform("angle", angle * (PI / 180f).toFloat())
                     setFloatUniform("falloff", falloff)
                 }
-                android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
-                    .asComposeRenderEffect()
             } else {
                 null
             }
@@ -87,20 +86,20 @@ interface HighlightStyle {
         override val blendMode: BlendMode = DrawScope.DefaultBlendMode
 
         @RequiresApi(Build.VERSION_CODES.S)
-        override fun DrawScope.createRenderEffect(
+        override fun DrawScope.createShader(
             shape: Shape,
             runtimeShaderCache: RuntimeShaderCache
-        ): RenderEffect? {
+        ): Shader? {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val shader = runtimeShaderCache.obtainRuntimeShader("Ambient", AmbientHighlightShaderString)
-                shader.apply {
+                runtimeShaderCache.obtainRuntimeShader(
+                    "Ambient",
+                    AmbientHighlightShaderString
+                ).apply {
                     setFloatUniform("size", size.width, size.height)
                     setFloatUniform("cornerRadii", getCornerRadii(shape))
                     setFloatUniform("angle", 45f * (PI / 180f).toFloat())
                     setFloatUniform("falloff", 1f)
                 }
-                android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content")
-                    .asComposeRenderEffect()
             } else {
                 null
             }
@@ -121,9 +120,9 @@ interface HighlightStyle {
 }
 
 private fun DrawScope.getCornerRadii(shape: Shape): FloatArray {
-    val shape = shape as? CornerBasedShape ?: return FloatArray(4) { size.minDimension / 2f }
     val size = size
     val maxRadius = size.minDimension / 2f
+    val shape = shape as? CornerBasedShape ?: return FloatArray(4) { maxRadius }
     val isLtr = layoutDirection == LayoutDirection.Ltr
     val topLeft =
         if (isLtr) shape.topStart.toPx(size, this)

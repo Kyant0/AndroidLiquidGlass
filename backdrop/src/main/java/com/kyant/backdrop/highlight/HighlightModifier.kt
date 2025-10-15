@@ -11,7 +11,6 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.layer.CompositingStrategy
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.node.DrawModifierNode
@@ -73,7 +72,6 @@ internal class HighlightNode(
     override val shouldAutoInvalidate: Boolean = false
 
     private var highlightLayer: GraphicsLayer? = null
-    private var maskLayer: GraphicsLayer? = null
 
     private val paint =
         Paint().apply {
@@ -94,8 +92,7 @@ internal class HighlightNode(
         drawContent()
 
         val highlightLayer = highlightLayer
-        val maskLayer = maskLayer
-        if (highlightLayer != null && maskLayer != null) {
+        if (highlightLayer != null) {
             val size = size
             val density: Density = this
             val layoutDirection = layoutDirection
@@ -116,18 +113,8 @@ internal class HighlightNode(
 
             configurePaint(highlight)
 
-            val style = highlight.style
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (prevStyle != style) {
-                    highlightLayer.renderEffect = with(style) {
-                        createRenderEffect(
-                            shape = shapeProvider.shape,
-                            runtimeShaderCache = runtimeShaderCache
-                        )
-                    }
-                    prevStyle = style
-                }
-            }
+            highlightLayer.alpha = highlight.alpha
+            highlightLayer.blendMode = highlight.style.blendMode
             highlightLayer.record(safeSize) {
                 translate(1f, 1f) {
                     val canvas = drawContext.canvas
@@ -138,14 +125,8 @@ internal class HighlightNode(
                 }
             }
 
-            maskLayer.alpha = highlight.alpha
-            maskLayer.blendMode = style.blendMode
-            maskLayer.record(safeSize) {
-                drawLayer(highlightLayer)
-            }
-
             translate(-1f, -1f) {
-                drawLayer(maskLayer)
+                drawLayer(highlightLayer)
             }
         }
     }
@@ -153,10 +134,6 @@ internal class HighlightNode(
     override fun onAttach() {
         val graphicsContext = requireGraphicsContext()
         highlightLayer = graphicsContext.createGraphicsLayer()
-        maskLayer =
-            graphicsContext.createGraphicsLayer().apply {
-                compositingStrategy = CompositingStrategy.Offscreen
-            }
     }
 
     override fun onDetach() {
@@ -164,10 +141,6 @@ internal class HighlightNode(
         highlightLayer?.let { layer ->
             graphicsContext.releaseGraphicsLayer(layer)
             highlightLayer = null
-        }
-        maskLayer?.let { layer ->
-            graphicsContext.releaseGraphicsLayer(layer)
-            maskLayer = null
         }
         clipPath = null
         runtimeShaderCache.clear()
@@ -185,5 +158,13 @@ internal class HighlightNode(
             } else {
                 null
             }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            paint.shader = with(highlight.style) {
+                createShader(
+                    shape = shapeProvider.shape,
+                    runtimeShaderCache = runtimeShaderCache
+                )
+            }
+        }
     }
 }

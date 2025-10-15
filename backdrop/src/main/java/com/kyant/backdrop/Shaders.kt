@@ -166,8 +166,6 @@ half4 main(float2 coord) {
 
 @Language("AGSL")
 internal const val DefaultHighlightShaderString = """
-uniform shader content;
-
 uniform float2 size;
 uniform float4 cornerRadii;
 uniform float angle;
@@ -184,13 +182,11 @@ half4 main(float2 coord) {
     float2 grad = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
     float2 normal = float2(-cos(angle), -sin(angle));
     float intensity = pow(abs(dot(normal, grad)), falloff);
-    return content.eval(coord) * intensity;
+    return half4(intensity);
 }"""
 
 @Language("AGSL")
 internal const val AmbientHighlightShaderString = """
-uniform shader content;
-
 uniform float2 size;
 uniform float4 cornerRadii;
 uniform float angle;
@@ -207,16 +203,13 @@ half4 main(float2 coord) {
     float2 grad = gradSdRoundedRectangle(centeredCoord, halfSize, gradRadius);
     float2 normal = float2(-cos(angle), -sin(angle));
     float d = dot(normal, grad);
-    float alpha = content.eval(coord).a;
     float intensity = pow(abs(d), falloff);
     
     if (d > 0.0) {
-        return half4(0.0, 0.0, 0.0, 1.0) * intensity * alpha;
+        return half4(0.0, 0.0, 0.0, 1.0) * intensity;
+    } else {
+        return half4(1.0) * intensity;
     }
-    if (d < 0.0) {
-        return half4(1.0) * intensity * alpha;
-    }
-    return half4(0.0);
 }"""
 
 @Language("AGSL")
