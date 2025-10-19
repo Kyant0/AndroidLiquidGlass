@@ -25,7 +25,6 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.ObserverModifierNode
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.observeReads
-import androidx.compose.ui.node.requireDensity
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
@@ -227,7 +226,7 @@ private class DrawBackdropNode(
         onDrawBackdrop {
             with(backdrop) {
                 drawBackdrop(
-                    density = requireDensity(),
+                    density = effectScope,
                     coordinates = layoutCoordinates,
                     layerBlock = layerBlock
                 )
@@ -302,8 +301,7 @@ private class DrawBackdropNode(
 
     private fun updateEffects() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            effectScope.renderEffect = null
-            effects(effectScope)
+            effectScope.apply(effects)
             graphicsLayer?.renderEffect = effectScope.renderEffect?.asComposeRenderEffect()
         }
     }

@@ -57,6 +57,11 @@ internal abstract class BackdropEffectScopeImpl : BackdropEffectScope, RuntimeSh
         return changed
     }
 
+    fun apply(effects: BackdropEffectScope.() -> Unit) {
+        renderEffect = null
+        effects()
+    }
+
     fun reset() {
         density = 1f
         fontScale = 1f
