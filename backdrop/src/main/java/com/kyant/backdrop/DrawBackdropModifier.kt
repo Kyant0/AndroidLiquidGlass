@@ -2,6 +2,7 @@ package com.kyant.backdrop
 
 import android.os.Build
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.setValue
@@ -23,12 +24,12 @@ import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.ObserverModifierNode
-import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightElement
@@ -222,7 +223,15 @@ private class DrawBackdropNode(
 
     private var layoutCoordinates: LayoutCoordinates? by mutableStateOf(null, neverEqualPolicy())
 
+    private var padding by mutableFloatStateOf(0f)
+
     private val recordBackdropBlock: (DrawScope.() -> Unit) = {
+        val canvas = drawContext.canvas
+        val padding = padding
+
+        if (padding != 0f) {
+            canvas.translate(padding, padding)
+        }
         onDrawBackdrop {
             with(backdrop) {
                 drawBackdrop(
@@ -232,12 +241,28 @@ private class DrawBackdropNode(
                 )
             }
         }
+        if (padding != 0f) {
+            canvas.translate(-padding, -padding)
+        }
     }
 
     private val drawBackdropLayer: DrawScope.() -> Unit = {
         val layer = graphicsLayer
         if (layer != null) {
-            recordLayer(layer, block = recordBackdropBlock)
+            val padding = padding
+
+            recordLayer(
+                layer,
+                size = IntSize(
+                    size.width.toInt() + padding.toInt() * 2,
+                    size.height.toInt() + padding.toInt() * 2
+                ),
+                block = recordBackdropBlock
+            )
+
+            layer.topLeft =
+                if (padding != 0f) IntOffset(-padding.toInt(), -padding.toInt())
+                else IntOffset.Zero
             drawLayer(layer)
         }
     }
@@ -292,7 +317,6 @@ private class DrawBackdropNode(
 
     fun invalidateDrawCache() {
         observeEffects()
-        invalidateDraw()
     }
 
     private fun observeEffects() {
@@ -303,6 +327,7 @@ private class DrawBackdropNode(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             effectScope.apply(effects)
             graphicsLayer?.renderEffect = effectScope.renderEffect?.asComposeRenderEffect()
+            padding = effectScope.padding
         }
     }
 

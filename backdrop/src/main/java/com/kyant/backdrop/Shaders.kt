@@ -57,6 +57,7 @@ internal const val RoundedRectRefractionShaderString = """
 uniform shader content;
 
 uniform float2 size;
+uniform float2 offset;
 uniform float4 cornerRadii;
 uniform float refractionHeight;
 uniform float refractionAmount;
@@ -70,7 +71,7 @@ float circleMap(float x) {
 
 half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
-    float2 centeredCoord = coord - halfSize;
+    float2 centeredCoord = (coord + offset) - halfSize;
     float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadii);
     if (-sd >= refractionHeight) {
         return content.eval(coord);
@@ -93,6 +94,7 @@ internal val RoundedRectRefractionWithDispersionShaderString = """
 uniform shader content;
 
 uniform float2 size;
+uniform float2 offset;
 uniform float4 cornerRadii;
 uniform float refractionHeight;
 uniform float refractionAmount;
@@ -113,7 +115,7 @@ float2 dispersionVec(float2 coord, float2 normal, int n) {
 
 half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
-    float2 centeredCoord = coord - halfSize;
+    float2 centeredCoord = (coord + offset) - halfSize;
     float sd = sdRoundedRectangle(centeredCoord, halfSize, cornerRadii);
     if (-sd >= refractionHeight) {
         return content.eval(coord);

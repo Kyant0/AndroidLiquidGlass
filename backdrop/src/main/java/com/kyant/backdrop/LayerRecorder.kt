@@ -8,18 +8,18 @@ import androidx.compose.ui.node.requireDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.toIntSize
 
-context(drawScope: DrawScope, node: DelegatableNode)
-internal fun recordLayer(
+context(node: DelegatableNode)
+internal fun DrawScope.recordLayer(
     layer: GraphicsLayer,
-    size: IntSize = drawScope.size.toIntSize(),
+    size: IntSize = this.size.toIntSize(),
     block: DrawScope.() -> Unit
 ) {
     layer.record(
         density = node.requireDensity(),
-        layoutDirection = drawScope.layoutDirection,
+        layoutDirection = layoutDirection,
         size = size
     ) {
-        drawScope.draw(
+        this@recordLayer.draw(
             density = drawContext.density,
             layoutDirection = drawContext.layoutDirection,
             canvas = drawContext.canvas,

@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.annotation.FloatRange
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.util.fastCoerceAtMost
 import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.RoundedRectRefractionShaderString
@@ -19,31 +20,36 @@ fun BackdropEffectScope.lens(
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
     if (refractionHeight <= 0f || refractionAmount <= 0f) return
 
+    if (padding > 0f) {
+        padding = (padding - refractionHeight).fastCoerceAtLeast(0f)
+    }
+
     val cornerRadii = cornerRadii
     val effect =
         if (cornerRadii != null) {
             val shader =
                 if (!chromaticAberration) {
-                    obtainRuntimeShader("Refraction", RoundedRectRefractionShaderString).apply {
-                        setFloatUniform("size", size.width, size.height)
-                        setFloatUniform("cornerRadii", cornerRadii)
-                        setFloatUniform("refractionHeight", refractionHeight)
-                        setFloatUniform("refractionAmount", -refractionAmount)
-                        setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)
-                    }
+                    obtainRuntimeShader(
+                        "Refraction",
+                        RoundedRectRefractionShaderString
+                    )
                 } else {
                     obtainRuntimeShader(
                         "RefractionWithDispersion",
                         RoundedRectRefractionWithDispersionShaderString
-                    ).apply {
-                        setFloatUniform("size", size.width, size.height)
-                        setFloatUniform("cornerRadii", cornerRadii)
-                        setFloatUniform("refractionHeight", refractionHeight)
-                        setFloatUniform("refractionAmount", -refractionAmount)
-                        setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)
-                        setFloatUniform("chromaticAberration", 1f)
-                    }
+                    )
                 }
+            shader.apply {
+                setFloatUniform("size", size.width, size.height)
+                setFloatUniform("offset", -padding, -padding)
+                setFloatUniform("cornerRadii", cornerRadii)
+                setFloatUniform("refractionHeight", refractionHeight)
+                setFloatUniform("refractionAmount", -refractionAmount)
+                setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)
+                if (chromaticAberration) {
+                    setFloatUniform("chromaticAberration", 1f)
+                }
+            }
             RenderEffect.createRuntimeShaderEffect(shader, "content")
         } else {
             throwUnsupportedSDFException()

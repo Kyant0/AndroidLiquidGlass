@@ -18,6 +18,8 @@ sealed interface BackdropEffectScope : Density, RuntimeShaderCache {
 
     val shape: Shape
 
+    var padding: Float
+
     var renderEffect: RenderEffect?
 }
 
@@ -27,6 +29,7 @@ internal abstract class BackdropEffectScopeImpl : BackdropEffectScope, RuntimeSh
     override var fontScale: Float = 1f
     override var size: Size = Size.Unspecified
     override var layoutDirection: LayoutDirection = LayoutDirection.Ltr
+    override var padding: Float = 0f
     override var renderEffect: RenderEffect? = null
 
     private val runtimeShaderCache = RuntimeShaderCacheImpl()
@@ -58,6 +61,7 @@ internal abstract class BackdropEffectScopeImpl : BackdropEffectScope, RuntimeSh
     }
 
     fun apply(effects: BackdropEffectScope.() -> Unit) {
+        padding = 0f
         renderEffect = null
         effects()
     }
@@ -67,6 +71,7 @@ internal abstract class BackdropEffectScopeImpl : BackdropEffectScope, RuntimeSh
         fontScale = 1f
         size = Size.Unspecified
         layoutDirection = LayoutDirection.Ltr
+        padding = 0f
         renderEffect = null
         runtimeShaderCache.clear()
     }
