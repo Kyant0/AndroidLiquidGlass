@@ -84,15 +84,16 @@ private class CombinedBackdrops(
     vararg val backdrops: Backdrop
 ) : Backdrop {
 
-    override val isCoordinatesDependent: Boolean = backdrops.any { it.isCoordinatesDependent }
+    override val isCoordinatesDependent: Boolean =
+        backdrops.any { it.isCoordinatesDependent }
 
     override fun DrawScope.drawBackdrop(
         density: Density,
         coordinates: LayoutCoordinates?,
         layerBlock: (GraphicsLayerScope.() -> Unit)?
     ) {
-        backdrops.forEach {
-            with(it) { drawBackdrop(density, coordinates, layerBlock) }
+        backdrops.forEach { backdrop ->
+            with(backdrop) { drawBackdrop(density, coordinates, layerBlock) }
         }
     }
 }

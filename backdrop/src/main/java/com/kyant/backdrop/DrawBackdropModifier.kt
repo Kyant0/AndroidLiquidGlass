@@ -342,7 +342,7 @@ private class DrawBackdropNode(
                     layoutCoordinates = null
                 }
             }
-            exportedBackdrop?.currentCoordinates = coordinates
+            exportedBackdrop?.layerCoordinates = coordinates
         }
     }
 
@@ -382,6 +382,6 @@ private class DrawBackdropNode(
 
         effectScope.reset()
         layoutCoordinates = null
-        exportedBackdrop?.currentCoordinates = null
+        exportedBackdrop?.layerCoordinates = null
     }
 }
