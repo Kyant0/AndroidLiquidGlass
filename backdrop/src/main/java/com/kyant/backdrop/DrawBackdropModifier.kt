@@ -42,6 +42,41 @@ private val DefaultHighlight = { Highlight.Default }
 private val DefaultShadow = { Shadow.Default }
 private val DefaultOnDrawBackdrop: DrawScope.(DrawScope.() -> Unit) -> Unit = { it() }
 
+fun Modifier.drawPlainBackdrop(
+    backdrop: Backdrop,
+    shape: () -> Shape,
+    effects: BackdropEffectScope.() -> Unit,
+    layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
+    exportedBackdrop: LayerBackdrop? = null,
+    onDrawBehind: (DrawScope.() -> Unit)? = null,
+    onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdrop,
+    onDrawSurface: (DrawScope.() -> Unit)? = null,
+    onDrawFront: (DrawScope.() -> Unit)? = null
+): Modifier {
+    val shapeProvider = ShapeProvider(shape)
+    return this
+        .then(
+            if (layerBlock != null) {
+                Modifier.graphicsLayer(layerBlock)
+            } else {
+                Modifier
+            }
+        )
+        .then(
+            DrawBackdropElement(
+                backdrop = backdrop,
+                shapeProvider = shapeProvider,
+                effects = effects,
+                layerBlock = layerBlock,
+                exportedBackdrop = exportedBackdrop,
+                onDrawBehind = onDrawBehind,
+                onDrawBackdrop = onDrawBackdrop,
+                onDrawSurface = onDrawSurface,
+                onDrawFront = onDrawFront
+            )
+        )
+}
+
 fun Modifier.drawBackdrop(
     backdrop: Backdrop,
     shape: () -> Shape,
