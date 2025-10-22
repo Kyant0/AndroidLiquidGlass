@@ -252,7 +252,7 @@ fun LiquidBottomTabs(
                         val progress = dampedDragAnimation.pressProgress
                         lens(
                             10f.dp.toPx() * progress,
-                            12f.dp.toPx() * progress,
+                            14f.dp.toPx() * progress,
                             chromaticAberration = true
                         )
                     },
