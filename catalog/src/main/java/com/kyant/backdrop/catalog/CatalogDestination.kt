@@ -14,6 +14,7 @@ enum class CatalogDestination {
 
     GlassPlayground,
     AdaptiveLuminanceGlass,
+    ProgressiveBlur,
     ScrollContainer,
     LazyScrollContainer,
 }

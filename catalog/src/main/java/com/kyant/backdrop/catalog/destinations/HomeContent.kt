@@ -55,6 +55,7 @@ fun HomeContent(onNavigate: (CatalogDestination) -> Unit) {
             Subtitle("Experiments")
             ListItem({ onNavigate(CatalogDestination.GlassPlayground) }, "Glass playground")
             ListItem({ onNavigate(CatalogDestination.AdaptiveLuminanceGlass) }, "Adaptive luminance glass")
+            ListItem({ onNavigate(CatalogDestination.ProgressiveBlur) }, "Progressive blur")
             ListItem({ onNavigate(CatalogDestination.ScrollContainer) }, "Scroll container")
             ListItem({ onNavigate(CatalogDestination.LazyScrollContainer) }, "Lazy scroll container")
         }
