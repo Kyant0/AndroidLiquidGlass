@@ -71,5 +71,5 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.material.ripple)
-    implementation("com.github.Kyant0:Capsule:2.1.0")
+    implementation("io.github.kyant0:capsule:2.1.1")
 }
