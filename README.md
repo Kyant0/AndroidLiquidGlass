@@ -6,7 +6,7 @@ A customizable Liquid Glass effect library for Jetpack Compose.
 
 ## Docs
 
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.kyant0/backdrop)](https://central.sonatype.com/artifact/io.github.kyant0/backdrop[)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.kyant0/backdrop)](https://central.sonatype.com/artifact/io.github.kyant0/backdrop)
 
 [Documentation](https://kyant.gitbook.io/backdrop)
 
