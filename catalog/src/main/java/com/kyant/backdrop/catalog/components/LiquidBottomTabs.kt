@@ -25,10 +25,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -77,13 +77,7 @@ fun LiquidBottomTabs(
     val tabsBackdrop = rememberLayerBackdrop()
 
     BoxWithConstraints(
-        modifier
-            .layout { measurable, constraints ->
-                val placeable = measurable.measure(constraints.copy(maxHeight = 64f.dp.roundToPx()))
-                layout(placeable.width, placeable.height) {
-                    placeable.place(0, 0)
-                }
-            },
+        modifier,
         contentAlignment = Alignment.CenterStart
     ) {
         val density = LocalDensity.current
@@ -277,6 +271,9 @@ fun LiquidBottomTabs(
                         val velocity = dampedDragAnimation.velocity / 10f
                         scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
                         scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
+                    },
+                    onDrawBehind = {
+                        drawRect(Color.Red, blendMode = BlendMode.Clear)
                     },
                     onDrawSurface = {
                         val progress = dampedDragAnimation.pressProgress
