@@ -6,15 +6,17 @@ plugins {
 
 android {
     namespace = "com.kyant.backdrop.catalog"
-    compileSdk = 36
+    compileSdk {
+        version = release(36)
+    }
     buildToolsVersion = "36.1.0"
 
     defaultConfig {
         applicationId = "com.kyant.backdrop.catalog"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0.0-dev"
+        versionName = "1.0.0"
         androidResources.localeFilters += arrayOf("en")
     }
 
@@ -24,14 +26,6 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             vcsInfo.include = false
-        }
-    }
-    kotlin {
-        jvmToolchain(21)
-        compilerOptions {
-            freeCompilerArgs.addAll(
-                "-Xlambdas=class"
-            )
         }
     }
     buildFeatures {
@@ -62,9 +56,16 @@ android {
         checkReleaseBuilds = false
     }
 }
+kotlin {
+    jvmToolchain(21)
+    compilerOptions {
+        freeCompilerArgs.addAll(
+            "-Xlambdas=class"
+        )
+    }
+}
 
 dependencies {
-    implementation(project(":backdrop"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)
@@ -72,4 +73,5 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.material.ripple)
     implementation("io.github.kyant0:capsule:2.1.1")
+    implementation(project(":backdrop"))
 }
