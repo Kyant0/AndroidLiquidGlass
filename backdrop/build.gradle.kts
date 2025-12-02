@@ -46,7 +46,7 @@ mavenPublishing {
     publishToMavenCentral()
     signAllPublications()
 
-    coordinates("io.github.kyant0", "backdrop", "1.0.0")
+    coordinates("io.github.kyant0", "backdrop", "1.0.1")
 
     pom {
         name.set("Backdrop")
