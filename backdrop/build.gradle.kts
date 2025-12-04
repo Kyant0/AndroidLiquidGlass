@@ -27,6 +27,7 @@ android {
         compose = true
     }
 }
+
 kotlin {
     jvmToolchain(21)
     compilerOptions {
@@ -46,7 +47,7 @@ mavenPublishing {
     publishToMavenCentral()
     signAllPublications()
 
-    coordinates("io.github.kyant0", "backdrop", "1.0.1")
+    coordinates("io.github.kyant0", "backdrop", "1.0.2")
 
     pom {
         name.set("Backdrop")

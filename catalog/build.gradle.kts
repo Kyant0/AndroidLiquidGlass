@@ -56,6 +56,7 @@ android {
         checkReleaseBuilds = false
     }
 }
+
 kotlin {
     jvmToolchain(21)
     compilerOptions {
@@ -72,6 +73,6 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.material.ripple)
-    implementation("io.github.kyant0:capsule:2.1.1")
+    implementation("io.github.kyant0:capsule:2.1.2")
     implementation(project(":backdrop"))
 }
