@@ -2,8 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    // Note: google-services plugin applied conditionally - add google-services.json to enable FCM
-    alias(libs.plugins.google.services) apply false
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -13,12 +12,21 @@ android {
     }
     buildToolsVersion = "36.1.0"
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../keystore/vormex-release.keystore")
+            storePassword = "vormex123"
+            keyAlias = "vormex"
+            keyPassword = "vormex123"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.vormex.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
         androidResources.localeFilters += arrayOf("en")
         buildConfigField("String", "API_BASE_URL", "\"https://vormex-backend.onrender.com/api\"")
         buildConfigField("String", "SOCKET_BASE_URL", "\"https://vormex-backend.onrender.com\"")
@@ -30,6 +38,7 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             vcsInfo.include = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     buildFeatures {

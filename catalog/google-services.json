@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "387598849331",
+    "project_id": "vormex-c42f6",
+    "storage_bucket": "vormex-c42f6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:387598849331:android:40d68cba81613c84f8da46",
+        "android_client_info": {
+          "package_name": "com.kyant.backdrop.catalog"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "387598849331-trgjnannsfecgn2qfnvu7nles8sb39oh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4SxOM5n4jIvJmLBIEFJ_wbnGZljyuy5g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "387598849331-trgjnannsfecgn2qfnvu7nles8sb39oh.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "387598849331-rrbvfb9v7i69k3ie0s7e967eislde7gl.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.vormex"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:387598849331:android:b21df0934d1cc2a0f8da46",
+        "android_client_info": {
+          "package_name": "com.vormex.android"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "387598849331-trgjnannsfecgn2qfnvu7nles8sb39oh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4SxOM5n4jIvJmLBIEFJ_wbnGZljyuy5g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "387598849331-trgjnannsfecgn2qfnvu7nles8sb39oh.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "387598849331-rrbvfb9v7i69k3ie0s7e967eislde7gl.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.vormex"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

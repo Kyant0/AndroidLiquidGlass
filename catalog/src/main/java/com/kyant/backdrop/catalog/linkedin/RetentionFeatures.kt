@@ -1598,6 +1598,7 @@ fun LiveActivityBanner(
     activityData: LiveActivityData,
     backdrop: LayerBackdrop,
     contentColor: Color,
+    isGlassTheme: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     if (activityData.activeNow <= 0) return
@@ -1617,16 +1618,18 @@ fun LiveActivityBanner(
     Box(
         modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(12f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(16f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color(0xFF4CAF50).copy(alpha = 0.15f))
-                }
+            .then(
+                if (isGlassTheme) Modifier.drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { RoundedRectangle(12f.dp) },
+                    effects = {
+                        vibrancy()
+                        blur(16f.dp.toPx())
+                    },
+                    onDrawSurface = {
+                        drawRect(Color(0xFF4CAF50).copy(alpha = 0.15f))
+                    }
+                ) else Modifier.background(Color(0xFF4CAF50).copy(alpha = 0.12f), RoundedCornerShape(12.dp))
             )
             .padding(12.dp)
     ) {

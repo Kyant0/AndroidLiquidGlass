@@ -18,9 +18,12 @@ import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -1160,6 +1163,38 @@ object ApiClient {
             val response = client.post("$BASE_URL/chat/conversations/$conversationId/messages") {
                 header("Authorization", "Bearer $token")
                 setBody(SendMessageRequest(content, contentType, mediaUrl, mediaType, fileName, fileSize, replyToId))
+            }
+            if (response.status.isSuccess()) Result.success(response.body())
+            else Result.failure(Exception((response.body<ApiError>()).getErrorMessage()))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Upload a file for chat (image, video, document, or audio).
+     * Backend expects multipart field "file". Returns mediaUrl, fileName, fileSize, mediaType.
+     */
+    suspend fun uploadChatMedia(
+        context: Context,
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String
+    ): Result<UploadChatMediaResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.post("$BASE_URL/chat/upload") {
+                header("Authorization", "Bearer $token")
+                setBody(MultiPartFormDataContent(formData {
+                    append(
+                        "file",
+                        fileBytes,
+                        Headers.build {
+                            append(HttpHeaders.ContentType, mimeType)
+                            append(HttpHeaders.ContentDisposition, "filename=${fileName}")
+                        }
+                    )
+                }))
             }
             if (response.status.isSuccess()) Result.success(response.body())
             else Result.failure(Exception((response.body<ApiError>()).getErrorMessage()))
@@ -2492,6 +2527,17 @@ object ApiClient {
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+    
+    /**
+     * Register FCM device token asynchronously (fire and forget)
+     */
+    fun registerDeviceTokenAsync(context: Context, token: String, platform: String) {
+        GlobalScope.launch(Dispatchers.IO) {
+            registerDeviceToken(context, token, platform)
+                .onSuccess { println("📱 Device token registered successfully") }
+                .onFailure { e -> println("📱 Failed to register device token: ${e.message}") }
         }
     }
     

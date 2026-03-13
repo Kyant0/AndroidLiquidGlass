@@ -98,7 +98,7 @@ object SettingsPreferences {
     // ==================== APPEARANCE GETTERS ====================
     
     fun themeMode(context: Context): Flow<String> =
-        context.settingsDataStore.data.map { it[THEME_MODE] ?: "system" }
+        context.settingsDataStore.data.map { it[THEME_MODE] ?: "glass" }
     
     fun dynamicColors(context: Context): Flow<Boolean> =
         context.settingsDataStore.data.map { it[DYNAMIC_COLORS] ?: true }

@@ -4,9 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,13 +13,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,6 +39,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 
@@ -177,6 +178,10 @@ enum class RewardCardType {
     HIDDEN_GEM
 }
 
+enum class SwipeDirection {
+    LEFT, RIGHT, UP, NONE
+}
+
 @Composable
 fun SwipeableRewardCardsOverlay(
     dailyMatches: List<DailyMatchUser>,
@@ -185,26 +190,45 @@ fun SwipeableRewardCardsOverlay(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    currentTheme: String = "glass",
     onMatchClick: (String) -> Unit,
     onHiddenGemConnect: () -> Unit,
     onDismissAll: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Build list of cards: Hidden gem at bottom (rendered first), daily matches on top
+    // Theme-aware colors
+    val (backgroundColor, cardBackgroundColor, overlayColor) = remember(currentTheme) {
+        when (currentTheme) {
+            "light" -> Triple(
+                Color.White,
+                Color(0xFFF5F5F5),
+                Color.Black.copy(alpha = 0.5f)
+            )
+            "dark" -> Triple(
+                Color(0xFF1A1A1A),
+                Color(0xFF2D2D2D),
+                Color.Black.copy(alpha = 0.7f)
+            )
+            else -> Triple( // glass
+                Color.Transparent,
+                Color.White.copy(alpha = 0.1f),
+                Color.Black.copy(alpha = 0.6f)
+            )
+        }
+    }
+    
+    val textColor = remember(currentTheme) {
+        when (currentTheme) {
+            "light" -> Color(0xFF1A1A1A)
+            else -> Color.White
+        }
+    }
+    
+    // Build list of cards
     val cards = remember(dailyMatches, hiddenGem) {
         val list = mutableListOf<RewardCard>()
         
-        // Hidden gem goes first (will be at bottom of stack visually)
-        if (hiddenGem != null) {
-            list.add(RewardCard(
-                id = "hidden_gem",
-                type = RewardCardType.HIDDEN_GEM,
-                user = hiddenGem,
-                message = hiddenGemMessage
-            ))
-        }
-        
-        // Add up to 3 daily match cards (first match will be on top)
+        // Add daily matches first (will be on top)
         dailyMatches.take(3).forEachIndexed { index, match ->
             list.add(RewardCard(
                 id = "match_$index",
@@ -218,17 +242,28 @@ fun SwipeableRewardCardsOverlay(
             ))
         }
         
+        // Hidden gem at end (will be at bottom)
+        if (hiddenGem != null) {
+            list.add(RewardCard(
+                id = "hidden_gem",
+                type = RewardCardType.HIDDEN_GEM,
+                user = hiddenGem,
+                message = hiddenGemMessage
+            ))
+        }
+        
         list
     }
     
-    // Track which cards are still visible (indices: 0 = bottom, last = top)
-    // We use the indices in order, so the LAST card is on top
-    var cardStack by remember { mutableStateOf(cards.indices.toList()) }
+    // Current card index (0 = top card)
+    var currentIndex by remember { mutableStateOf(0) }
     var showOverlay by remember { mutableStateOf(cards.isNotEmpty()) }
     
+    val remainingCards = cards.size - currentIndex
+    
     // Auto-dismiss overlay when all cards are swiped
-    LaunchedEffect(cardStack) {
-        if (cardStack.isEmpty() && cards.isNotEmpty()) {
+    LaunchedEffect(currentIndex) {
+        if (currentIndex >= cards.size && cards.isNotEmpty()) {
             delay(300)
             showOverlay = false
             onDismissAll()
@@ -237,113 +272,139 @@ fun SwipeableRewardCardsOverlay(
     
     AnimatedVisibility(
         visible = showOverlay && cards.isNotEmpty(),
-        enter = fadeIn(),
-        exit = fadeOut(),
+        enter = fadeIn(animationSpec = tween(300)),
+        exit = fadeOut(animationSpec = tween(300)),
         modifier = modifier
     ) {
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.7f))
+                .background(overlayColor)
                 .clickable(enabled = false) { },
             contentAlignment = Alignment.Center
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(24.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
             ) {
                 // Header
                 BasicText(
                     text = "✨ Today's Rewards",
                     style = TextStyle(
-                        color = Color.White,
-                        fontSize = 24.sp,
+                        color = textColor,
+                        fontSize = 26.sp,
                         fontWeight = FontWeight.Bold
                     )
                 )
                 
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(6.dp))
                 
                 BasicText(
-                    text = "Tap to view profile • Swipe up to dismiss",
+                    text = "Swipe left to skip • Swipe right to connect",
                     style = TextStyle(
-                        color = Color.White.copy(alpha = 0.7f),
+                        color = textColor.copy(alpha = 0.6f),
+                        fontSize = 13.sp
+                    )
+                )
+                
+                Spacer(Modifier.height(32.dp))
+                
+                // Stacked cards container
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(320.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Render visible cards (max 3 visible at once)
+                    val visibleCount = minOf(3, cards.size - currentIndex)
+                    
+                    for (i in (visibleCount - 1) downTo 0) {
+                        val cardIndex = currentIndex + i
+                        if (cardIndex < cards.size) {
+                            val card = cards[cardIndex]
+                            val isTopCard = i == 0
+                            
+                            SwipeableStackedCard(
+                                card = card,
+                                stackPosition = i,
+                                isTopCard = isTopCard,
+                                backdrop = backdrop,
+                                contentColor = if (currentTheme == "light") Color(0xFF1A1A1A) else contentColor,
+                                accentColor = accentColor,
+                                cardBackgroundColor = cardBackgroundColor,
+                                currentTheme = currentTheme,
+                                onSwipe = { direction ->
+                                    when (direction) {
+                                        SwipeDirection.RIGHT -> {
+                                            // Connect action
+                                            when (card.type) {
+                                                RewardCardType.DAILY_MATCH -> {
+                                                    (card.user as? DailyMatchUser)?.id?.let { onMatchClick(it) }
+                                                }
+                                                RewardCardType.HIDDEN_GEM -> {
+                                                    onHiddenGemConnect()
+                                                }
+                                            }
+                                        }
+                                        SwipeDirection.LEFT, SwipeDirection.UP -> {
+                                            // Skip - just move to next
+                                        }
+                                        SwipeDirection.NONE -> {}
+                                    }
+                                    currentIndex++
+                                },
+                                onClick = {
+                                    when (card.type) {
+                                        RewardCardType.DAILY_MATCH -> {
+                                            (card.user as? DailyMatchUser)?.id?.let { onMatchClick(it) }
+                                        }
+                                        RewardCardType.HIDDEN_GEM -> {
+                                            (card.user as? HiddenGemUser)?.id?.let { onMatchClick(it) }
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.zIndex((visibleCount - i).toFloat())
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(Modifier.height(16.dp))
+                
+                // Card counter
+                BasicText(
+                    text = "$remainingCards cards remaining",
+                    style = TextStyle(
+                        color = textColor.copy(alpha = 0.5f),
                         fontSize = 13.sp
                     )
                 )
                 
                 Spacer(Modifier.height(24.dp))
                 
-                // Stacked cards
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(280.dp),
-                    contentAlignment = Alignment.TopCenter
-                ) {
-                    // Render cards from bottom to top
-                    cardStack.forEachIndexed { stackIndex, cardIndex ->
-                        if (cardIndex < cards.size) {
-                            val card = cards[cardIndex]
-                            val isTopCard = stackIndex == cardStack.size - 1
-                            val distanceFromTop = cardStack.size - 1 - stackIndex
-                            
-                            StackedCard(
-                                card = card,
-                                stackPosition = distanceFromTop,
-                                isTopCard = isTopCard,
-                                totalCards = cardStack.size,
-                                backdrop = backdrop,
-                                contentColor = contentColor,
-                                accentColor = accentColor,
-                                onSwipeAway = {
-                                    cardStack = cardStack - cardIndex
-                                },
-                                onClick = {
-                                    when (card.type) {
-                                        RewardCardType.DAILY_MATCH -> {
-                                            (card.user as? DailyMatchUser)?.id?.let { 
-                                                onMatchClick(it)
-                                            }
-                                        }
-                                        RewardCardType.HIDDEN_GEM -> {
-                                            (card.user as? HiddenGemUser)?.id?.let {
-                                                onMatchClick(it)
-                                            }
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.zIndex((cardStack.size - distanceFromTop).toFloat())
-                            )
-                        }
-                    }
-                }
-                
-                // Card counter
-                BasicText(
-                    text = "${cardStack.size} cards remaining",
-                    style = TextStyle(
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 12.sp
-                    )
-                )
-                
-                Spacer(Modifier.height(20.dp))
-                
                 // Skip all button
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(24.dp))
-                        .background(Color.White.copy(alpha = 0.15f))
+                        .background(
+                            when (currentTheme) {
+                                "light" -> Color(0xFFE0E0E0)
+                                "dark" -> Color(0xFF3D3D3D)
+                                else -> Color.White.copy(alpha = 0.15f)
+                            }
+                        )
                         .clickable { 
-                            cardStack = emptyList()
+                            currentIndex = cards.size
                         }
-                        .padding(horizontal = 32.dp, vertical = 14.dp)
+                        .padding(horizontal = 36.dp, vertical = 14.dp)
                 ) {
                     BasicText(
                         text = "Skip All",
                         style = TextStyle(
-                            color = Color.White,
+                            color = textColor,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -355,25 +416,37 @@ fun SwipeableRewardCardsOverlay(
 }
 
 @Composable
-private fun StackedCard(
+private fun SwipeableStackedCard(
     card: RewardCard,
     stackPosition: Int, // 0 = top, 1 = second, etc.
     isTopCard: Boolean,
-    totalCards: Int,
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
-    onSwipeAway: () -> Unit,
+    cardBackgroundColor: Color,
+    currentTheme: String,
+    onSwipe: (SwipeDirection) -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    
+    // Drag state
+    var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
     var isDismissing by remember { mutableStateOf(false) }
-    val dismissThreshold = 120f
+    var dismissDirection by remember { mutableStateOf(SwipeDirection.NONE) }
     
-    // Animate offset
-    val animatedOffsetY by animateFloatAsState(
-        targetValue = if (isDismissing) -800f else offsetY,
+    val swipeThreshold = with(density) { 120.dp.toPx() }
+    
+    // Animated values
+    val animatedOffsetX by animateFloatAsState(
+        targetValue = when {
+            isDismissing && dismissDirection == SwipeDirection.LEFT -> -1000f
+            isDismissing && dismissDirection == SwipeDirection.RIGHT -> 1000f
+            else -> offsetX
+        },
         animationSpec = if (isDismissing) {
             tween(300, easing = FastOutSlowInEasing)
         } else {
@@ -381,31 +454,52 @@ private fun StackedCard(
         },
         finishedListener = {
             if (isDismissing) {
-                onSwipeAway()
+                onSwipe(dismissDirection)
+            }
+        },
+        label = "offsetX"
+    )
+    
+    val animatedOffsetY by animateFloatAsState(
+        targetValue = when {
+            isDismissing && dismissDirection == SwipeDirection.UP -> -800f
+            else -> offsetY
+        },
+        animationSpec = if (isDismissing) {
+            tween(300, easing = FastOutSlowInEasing)
+        } else {
+            spring(stiffness = Spring.StiffnessMedium)
+        },
+        finishedListener = {
+            if (isDismissing && dismissDirection == SwipeDirection.UP) {
+                onSwipe(dismissDirection)
             }
         },
         label = "offsetY"
     )
     
-    // Stack visual effects
-    val stackScale = 1f - (stackPosition * 0.05f)
-    val stackOffset = stackPosition * 12f // Vertical offset for stacking
-    val stackAlpha = 1f - (stackPosition * 0.15f)
+    // Stack visual effects - MORE VISIBLE STACKING
+    val stackScale = 1f - (stackPosition * 0.06f)
+    val stackOffsetY = stackPosition * 20f // More vertical offset to see cards behind
+    val stackOffsetX = stackPosition * 8f // Slight horizontal offset
+    val stackRotation = stackPosition * 3f // Slight rotation for fanned effect
+    val stackAlpha = 1f - (stackPosition * 0.2f)
     
-    // Check if should dismiss
-    LaunchedEffect(offsetY) {
-        if (offsetY < -dismissThreshold && isTopCard && !isDismissing) {
-            isDismissing = true
-        }
-    }
+    // Card rotation based on drag
+    val dragRotation = if (isTopCard) (animatedOffsetX / 20f).coerceIn(-15f, 15f) else stackRotation
+    
+    // Swipe indicators
+    val swipeProgress = (animatedOffsetX.absoluteValue / swipeThreshold).coerceIn(0f, 1f)
+    val isSwipingRight = animatedOffsetX > 30
+    val isSwipingLeft = animatedOffsetX < -30
     
     val isGold = card.type == RewardCardType.HIDDEN_GEM
     
-    // Gold shimmer animation
+    // Shimmer animation for gold cards
     val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
     val shimmerOffset by infiniteTransition.animateFloat(
-        initialValue = -300f,
-        targetValue = 300f,
+        initialValue = -400f,
+        targetValue = 400f,
         animationSpec = infiniteRepeatable(
             animation = tween(2500, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
@@ -415,82 +509,183 @@ private fun StackedCard(
     
     Box(
         modifier
-            .fillMaxWidth()
-            .offset { IntOffset(0, (stackOffset + animatedOffsetY).roundToInt()) }
+            .fillMaxWidth(0.92f)
+            .offset { IntOffset(
+                (stackOffsetX + animatedOffsetX).roundToInt(),
+                (stackOffsetY + animatedOffsetY).roundToInt()
+            )}
             .graphicsLayer {
                 scaleX = stackScale
                 scaleY = stackScale
                 alpha = if (isDismissing) {
-                    (1f - (animatedOffsetY.absoluteValue / 400f)).coerceAtLeast(0f)
+                    (1f - swipeProgress).coerceAtLeast(0f)
                 } else {
                     stackAlpha
                 }
-                // Slight rotation when swiping
-                rotationX = if (isTopCard) animatedOffsetY / 30f else 0f
+                rotationZ = dragRotation
+                // Slight 3D effect
+                rotationY = if (isTopCard) animatedOffsetX / 40f else 0f
             }
             .then(
-                if (isTopCard) {
-                    Modifier.draggable(
-                        orientation = Orientation.Vertical,
-                        state = rememberDraggableState { delta ->
-                            // Only allow swiping up
-                            if (offsetY + delta < 0 || offsetY < 0) {
-                                offsetY += delta
+                if (isTopCard && !isDismissing) {
+                    Modifier.pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragEnd = {
+                                when {
+                                    offsetX > swipeThreshold -> {
+                                        isDismissing = true
+                                        dismissDirection = SwipeDirection.RIGHT
+                                    }
+                                    offsetX < -swipeThreshold -> {
+                                        isDismissing = true
+                                        dismissDirection = SwipeDirection.LEFT
+                                    }
+                                    offsetY < -swipeThreshold -> {
+                                        isDismissing = true
+                                        dismissDirection = SwipeDirection.UP
+                                    }
+                                    else -> {
+                                        offsetX = 0f
+                                        offsetY = 0f
+                                    }
+                                }
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                offsetX += dragAmount.x
+                                offsetY += dragAmount.y
                             }
-                        },
-                        onDragStopped = {
-                            if (offsetY > -dismissThreshold) {
-                                offsetY = 0f // Spring back
-                            }
-                        }
-                    )
+                        )
+                    }
                 } else Modifier
+            )
+            .shadow(
+                elevation = if (isTopCard) 12.dp else (8 - stackPosition * 2).coerceAtLeast(2).dp,
+                shape = RoundedCornerShape(24.dp),
+                ambientColor = Color.Black.copy(alpha = 0.3f)
             )
             .clip(RoundedCornerShape(24.dp))
             .then(
-                if (isGold) {
-                    Modifier
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    Color(0xFFFFD700).copy(alpha = 0.4f),
-                                    Color(0xFFFFA500).copy(alpha = 0.35f),
-                                    Color(0xFFFFD700).copy(alpha = 0.3f)
-                                ),
-                                start = Offset(shimmerOffset, 0f),
-                                end = Offset(shimmerOffset + 400f, 300f)
+                when {
+                    isGold -> {
+                        Modifier
+                            .background(
+                                when (currentTheme) {
+                                    "light" -> Color(0xFFFFF8E1)
+                                    "dark" -> Color(0xFF3D3520)
+                                    else -> Color.Transparent
+                                }
                             )
-                        )
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(24f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                            }
-                        )
-                } else {
-                    Modifier
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(24f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(20f.dp.toPx())
-                            }
-                        )
-                        .background(Color.White.copy(alpha = 0.12f))
+                            .then(
+                                if (currentTheme == "glass") {
+                                    Modifier.drawBackdrop(
+                                        backdrop = backdrop,
+                                        shape = { RoundedRectangle(24f.dp) },
+                                        effects = {
+                                            vibrancy()
+                                            blur(24f.dp.toPx())
+                                        }
+                                    )
+                                } else Modifier
+                            )
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFFFFD700).copy(alpha = if (currentTheme == "glass") 0.35f else 0.2f),
+                                        Color(0xFFFFA500).copy(alpha = if (currentTheme == "glass") 0.3f else 0.15f),
+                                        Color(0xFFFFD700).copy(alpha = if (currentTheme == "glass") 0.25f else 0.1f)
+                                    ),
+                                    start = Offset(shimmerOffset, 0f),
+                                    end = Offset(shimmerOffset + 500f, 400f)
+                                )
+                            )
+                    }
+                    currentTheme == "glass" -> {
+                        Modifier
+                            .drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedRectangle(24f.dp) },
+                                effects = {
+                                    vibrancy()
+                                    blur(20f.dp.toPx())
+                                }
+                            )
+                            .background(Color.White.copy(alpha = 0.15f))
+                    }
+                    currentTheme == "light" -> {
+                        Modifier.background(Color.White)
+                    }
+                    else -> { // dark
+                        Modifier.background(Color(0xFF2D2D2D))
+                    }
                 }
             )
-            .clickable(enabled = isTopCard) { onClick() }
-            .padding(16.dp)
+            .clickable(enabled = isTopCard && !isDismissing) { onClick() }
+            .padding(20.dp)
     ) {
+        // Swipe direction indicators (only on top card)
+        if (isTopCard && !isDismissing) {
+            // Connect indicator (right swipe)
+            AnimatedVisibility(
+                visible = isSwipingRight,
+                enter = fadeIn() + scaleIn(),
+                exit = fadeOut() + scaleOut(),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-8).dp, y = (-8).dp)
+            ) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF4CAF50).copy(alpha = 0.9f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    BasicText(
+                        text = "✓ Connect",
+                        style = TextStyle(
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            }
+            
+            // Skip indicator (left swipe)
+            AnimatedVisibility(
+                visible = isSwipingLeft,
+                enter = fadeIn() + scaleIn(),
+                exit = fadeOut() + scaleOut(),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 8.dp, y = (-8).dp)
+            ) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFE53935).copy(alpha = 0.9f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    BasicText(
+                        text = "✗ Skip",
+                        style = TextStyle(
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            }
+        }
+        
+        // Card content
         when (card.type) {
             RewardCardType.DAILY_MATCH -> DailyMatchStackedContent(
                 user = card.user as DailyMatchUser,
                 message = card.message,
                 contentColor = contentColor,
                 accentColor = accentColor,
+                currentTheme = currentTheme,
                 isTopCard = isTopCard
             )
             RewardCardType.HIDDEN_GEM -> HiddenGemStackedContent(
@@ -498,20 +693,21 @@ private fun StackedCard(
                 message = card.message,
                 contentColor = contentColor,
                 accentColor = accentColor,
+                currentTheme = currentTheme,
                 isTopCard = isTopCard
             )
         }
         
-        // Swipe hint on top card
-        if (isTopCard && offsetY == 0f) {
+        // Swipe hint handle on top card
+        if (isTopCard && offsetX == 0f && offsetY == 0f) {
             Box(
                 Modifier
                     .align(Alignment.TopCenter)
-                    .offset(y = (-8).dp)
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(contentColor.copy(alpha = 0.3f))
+                    .offset(y = (-12).dp)
+                    .width(44.dp)
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(contentColor.copy(alpha = 0.25f))
             )
         }
     }
@@ -523,6 +719,7 @@ private fun DailyMatchStackedContent(
     message: String,
     contentColor: Color,
     accentColor: Color,
+    currentTheme: String,
     isTopCard: Boolean
 ) {
     Column {
@@ -681,6 +878,7 @@ private fun HiddenGemStackedContent(
     message: String,
     contentColor: Color,
     accentColor: Color,
+    currentTheme: String,
     isTopCard: Boolean
 ) {
     Column {

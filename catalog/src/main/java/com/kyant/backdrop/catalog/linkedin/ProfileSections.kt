@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -80,7 +82,6 @@ private fun SectionCard(
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { RoundedRectangle(20f.dp) },
@@ -491,10 +492,10 @@ fun GitHubSection(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    GitHubStatItem("📦", "${stats.totalPublicRepos}", "Repos", contentColor)
-                    GitHubStatItem("⭐", "${stats.totalStars}", "Stars", contentColor)
-                    GitHubStatItem("🍴", "${stats.totalForks}", "Forks", contentColor)
-                    GitHubStatItem("👥", "${stats.followers}", "Followers", contentColor)
+                    GitHubStatItem(iconRes = R.drawable.ic_code, value = "${stats.totalPublicRepos}", label = "Repos", contentColor = contentColor)
+                    GitHubStatItem(iconRes = R.drawable.ic_favorite, value = "${stats.totalStars}", label = "Stars", contentColor = contentColor)
+                    GitHubStatItem(iconRes = R.drawable.ic_share, value = "${stats.totalForks}", label = "Forks", contentColor = contentColor)
+                    GitHubStatItem(iconRes = R.drawable.ic_users, value = "${stats.followers}", label = "Followers", contentColor = contentColor)
                 }
                 
                 // Top languages
@@ -583,7 +584,11 @@ fun GitHubSection(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    BasicText("⌘", style = TextStyle(contentColor, 32.sp))
+                    Image(
+                        painter = painterResource(R.drawable.ic_github),
+                        contentDescription = "GitHub",
+                        modifier = Modifier.size(40.dp)
+                    )
                     Spacer(Modifier.height(8.dp))
                     BasicText(
                         "Connect your GitHub",
@@ -613,9 +618,14 @@ fun GitHubSection(
 }
 
 @Composable
-private fun GitHubStatItem(icon: String, value: String, label: String, contentColor: Color) {
+private fun GitHubStatItem(iconRes: Int, value: String, label: String, contentColor: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        BasicText(icon, style = TextStyle(fontSize = 16.sp))
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = label,
+            modifier = Modifier.size(18.dp),
+            colorFilter = ColorFilter.tint(contentColor)
+        )
         BasicText(value, style = TextStyle(contentColor, 16.sp, FontWeight.Bold))
         BasicText(label, style = TextStyle(contentColor.copy(alpha = 0.6f), 10.sp))
     }
@@ -2634,6 +2644,107 @@ private fun FeedItemCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+            
+            // Display media preview (images/videos)
+            if (!item.images.isNullOrEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                val isVideo = item.contentType == "short_video"
+                val imageCount = item.images.size
+                
+                if (imageCount == 1) {
+                    // Single image/video
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(item.images.first())
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = if (isVideo) "Video thumbnail" else "Post image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        
+                        // Video play icon overlay
+                        if (isVideo) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.3f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.9f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    BasicText(
+                                        "▶",
+                                        style = TextStyle(
+                                            color = Color.Black,
+                                            fontSize = 20.sp
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Multiple images - show grid preview
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Show first 2-3 images
+                        item.images.take(3).forEachIndexed { index, imageUrl ->
+                            val isLastVisible = index == 2 || index == item.images.lastIndex
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(8.dp))
+                            ) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(imageUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Post image ${index + 1}",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                                
+                                // Show count overlay on last image if more images
+                                if (isLastVisible && imageCount > 3) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color.Black.copy(alpha = 0.6f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        BasicText(
+                                            "+${imageCount - 3}",
+                                            style = TextStyle(
+                                                color = Color.White,
+                                                fontSize = 20.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             
             Spacer(Modifier.height(8.dp))

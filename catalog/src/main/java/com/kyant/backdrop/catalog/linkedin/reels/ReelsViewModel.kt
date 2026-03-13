@@ -198,6 +198,37 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
     }
     
     /**
+     * Load a specific reel by ID and open it in the viewer (for deep links from notifications)
+     */
+    fun loadReelById(reelId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isViewerOpen = true,
+                isLoadingFeed = true,
+                feedError = null
+            )
+            
+            val result = ApiClient.getReel(context, reelId)
+            
+            result.onSuccess { reel ->
+                // Add the reel to feedReels and open at index 0
+                _uiState.value = _uiState.value.copy(
+                    feedReels = listOf(reel) + _uiState.value.feedReels.filter { it.id != reelId },
+                    isLoadingFeed = false,
+                    currentReelIndex = 0
+                )
+                preloadReelsAhead(0)
+            }.onFailure { error ->
+                _uiState.value = _uiState.value.copy(
+                    isLoadingFeed = false,
+                    feedError = error.message ?: "Failed to load reel",
+                    isViewerOpen = false
+                )
+            }
+        }
+    }
+
+    /**
      * Load reels and immediately open the viewer
      */
     fun loadAndOpenReels() {

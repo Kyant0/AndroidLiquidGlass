@@ -20,9 +20,11 @@ import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import com.kyant.backdrop.catalog.network.ChatSocketManager
+import com.kyant.backdrop.catalog.notifications.BatteryOptimizationHelper
 import com.kyant.backdrop.catalog.notifications.MessageNotificationManager
 import com.kyant.backdrop.catalog.notifications.VormexMessagingService
 import com.kyant.backdrop.catalog.onboarding.AppRoot
+import com.google.firebase.messaging.FirebaseMessaging
 
 /**
  * Deep link navigation state from push notifications
@@ -30,7 +32,10 @@ import com.kyant.backdrop.catalog.onboarding.AppRoot
 data class NotificationDeepLink(
     val action: String,
     val userId: String? = null,
-    val connectionId: String? = null
+    val connectionId: String? = null,
+    val postId: String? = null,
+    val reelId: String? = null,
+    val conversationId: String? = null
 )
 
 class MainActivity : ComponentActivity() {
@@ -49,6 +54,7 @@ class MainActivity : ComponentActivity() {
         if (isGranted) {
             Log.d(TAG, "Notification permission granted")
             initializeFirebaseMessaging()
+            requestBatteryOptimizationExemption()
         } else {
             Log.d(TAG, "Notification permission denied")
         }
@@ -110,13 +116,19 @@ class MainActivity : ComponentActivity() {
         if (action != null) {
             val userId = intent.getStringExtra(VormexMessagingService.EXTRA_USER_ID)
             val connectionId = intent.getStringExtra(VormexMessagingService.EXTRA_CONNECTION_ID)
+            val postId = intent.getStringExtra(VormexMessagingService.EXTRA_POST_ID)
+            val reelId = intent.getStringExtra(VormexMessagingService.EXTRA_REEL_ID)
+            val conversationId = intent.getStringExtra(VormexMessagingService.EXTRA_CONVERSATION_ID)
             
-            Log.d(TAG, "Handling deep link: action=$action, userId=$userId, connectionId=$connectionId")
+            Log.d(TAG, "Handling deep link: action=$action, userId=$userId, postId=$postId, reelId=$reelId, conversationId=$conversationId")
             
             pendingDeepLink = NotificationDeepLink(
                 action = action,
                 userId = userId,
-                connectionId = connectionId
+                connectionId = connectionId,
+                postId = postId,
+                reelId = reelId,
+                conversationId = conversationId
             )
         }
     }
@@ -130,6 +142,7 @@ class MainActivity : ComponentActivity() {
                 ) == PackageManager.PERMISSION_GRANTED -> {
                     // Permission already granted
                     initializeFirebaseMessaging()
+                    requestBatteryOptimizationExemption()
                 }
                 shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
                     // TODO: Show UI explaining why notifications are important
@@ -142,20 +155,50 @@ class MainActivity : ComponentActivity() {
         } else {
             // For Android 12 and below, no runtime permission needed
             initializeFirebaseMessaging()
+            requestBatteryOptimizationExemption()
+        }
+    }
+    
+    private fun requestBatteryOptimizationExemption() {
+        // Request battery optimization exemption for reliable background notifications
+        if (BatteryOptimizationHelper.shouldShowBatteryPrompt(this)) {
+            // Delay slightly to not overwhelm the user with permission dialogs
+            window.decorView.postDelayed({
+                BatteryOptimizationHelper.requestBatteryOptimizationExemption(this)
+            }, 2000)
         }
     }
     
     private fun initializeFirebaseMessaging() {
-        // TODO: Initialize Firebase Messaging when google-services.json is added
-        // FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-        //     if (!task.isSuccessful) {
-        //         Log.w(TAG, "Fetching FCM token failed", task.exception)
-        //         return@addOnCompleteListener
-        //     }
-        //     val token = task.result
-        //     Log.d(TAG, "FCM Token: $token")
-        // }
-        Log.d(TAG, "Firebase Messaging initialization skipped (google-services.json not configured)")
+        try {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (!task.isSuccessful) {
+                    Log.w(TAG, "Fetching FCM token failed", task.exception)
+                    return@addOnCompleteListener
+                }
+                val token = task.result
+                Log.d(TAG, "FCM Token: $token")
+                
+                // Register token with backend
+                com.kyant.backdrop.catalog.network.ApiClient.registerDeviceTokenAsync(
+                    this,
+                    token,
+                    "android"
+                )
+            }
+            
+            // Subscribe to general announcements topic
+            FirebaseMessaging.getInstance().subscribeToTopic("announcements")
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        Log.d(TAG, "Subscribed to announcements topic")
+                    }
+                }
+                
+            Log.d(TAG, "Firebase Messaging initialized")
+        } catch (e: Exception) {
+            Log.e(TAG, "Firebase Messaging initialization failed - check google-services.json", e)
+        }
     }
     
     private fun setupLocalNotifications() {

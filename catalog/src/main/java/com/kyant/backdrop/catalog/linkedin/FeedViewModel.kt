@@ -1158,10 +1158,29 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     }
     
     fun toggleLike(postId: String) {
+        // Optimistic UI update - update immediately before API call
+        val currentPost = _uiState.value.posts.find { it.id == postId }
+        val currentlyLiked = currentPost?.isLiked ?: false
+        val currentLikesCount = currentPost?.likesCount ?: 0
+        
+        // Update UI immediately with optimistic state
+        val optimisticPosts = _uiState.value.posts.map { post ->
+            if (post.id == postId) {
+                post.copy(
+                    isLiked = !currentlyLiked,
+                    likesCount = if (currentlyLiked) (currentLikesCount - 1).coerceAtLeast(0) else currentLikesCount + 1
+                )
+            } else {
+                post
+            }
+        }
+        _uiState.value = _uiState.value.copy(posts = optimisticPosts)
+        
+        // Then make API call and sync with server response
         viewModelScope.launch {
             ApiClient.toggleLike(context, postId)
                 .onSuccess { response ->
-                    // Update the post in our list
+                    // Update with actual server response
                     val updatedPosts = _uiState.value.posts.map { post ->
                         if (post.id == postId) {
                             post.copy(
@@ -1173,6 +1192,20 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         }
                     }
                     _uiState.value = _uiState.value.copy(posts = updatedPosts)
+                }
+                .onFailure {
+                    // Revert optimistic update on failure
+                    val revertedPosts = _uiState.value.posts.map { post ->
+                        if (post.id == postId) {
+                            post.copy(
+                                isLiked = currentlyLiked,
+                                likesCount = currentLikesCount
+                            )
+                        } else {
+                            post
+                        }
+                    }
+                    _uiState.value = _uiState.value.copy(posts = revertedPosts)
                 }
         }
     }

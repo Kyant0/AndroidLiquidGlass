@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -520,9 +521,7 @@ fun AppearanceSettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     
     // Collect appearance preferences
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "system")
-    val dynamicColors by SettingsPreferences.dynamicColors(context).collectAsState(initial = true)
-    val fontSize by SettingsPreferences.fontSize(context).collectAsState(initial = "medium")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
     val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
     
     Column(
@@ -539,104 +538,109 @@ fun AppearanceSettingsScreen(
         
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Theme
+            // Theme Section
             item {
-                SettingsSectionHeader("Theme", contentColor)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BasicText(
+                        "Choose Theme",
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    
+                    BasicText(
+                        "Select how Vormex looks to you",
+                        style = TextStyle(
+                            color = contentColor.copy(alpha = 0.6f),
+                            fontSize = 14.sp
+                        )
+                    )
+                }
             }
             
+            // Theme Preview Cards
             item {
-                SettingsOptionItem(
-                    title = "App Theme",
-                    subtitle = when (themeMode) {
-                        "light" -> "Light"
-                        "dark" -> "Dark"
-                        "system" -> "System default"
-                        else -> "System default"
-                    },
-                    icon = when (themeMode) {
-                        "light" -> "☀️"
-                        "dark" -> "🌙"
-                        else -> "🔄"
-                    },
-                    backdrop = backdrop,
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    options = listOf(
-                        "light" to "Light",
-                        "dark" to "Dark",
-                        "system" to "System default"
-                    ),
-                    selectedOption = themeMode,
-                    onOptionSelected = { 
-                        coroutineScope.launch { 
-                            SettingsPreferences.setThemeMode(context, it)
-                            onThemeChange(it)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Glass Theme Card
+                    ThemePreviewCard(
+                        modifier = Modifier.weight(1f),
+                        themeName = "Glass",
+                        themeKey = "glass",
+                        isSelected = themeMode == "glass",
+                        backdrop = backdrop,
+                        accentColor = accentColor,
+                        onClick = {
+                            coroutineScope.launch {
+                                SettingsPreferences.setThemeMode(context, "glass")
+                                onThemeChange("glass")
+                            }
                         }
-                    }
-                )
-            }
-            
-            item {
-                SettingsSwitchItem(
-                    title = "Dynamic Colors",
-                    subtitle = "Use colors from your wallpaper",
-                    icon = "🎨",
-                    checked = dynamicColors,
-                    backdrop = backdrop,
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    onCheckedChange = { 
-                        coroutineScope.launch { 
-                            SettingsPreferences.setDynamicColors(context, it) 
+                    )
+                    
+                    // Bright Theme Card
+                    ThemePreviewCard(
+                        modifier = Modifier.weight(1f),
+                        themeName = "Bright",
+                        themeKey = "light",
+                        isSelected = themeMode == "light",
+                        backdrop = backdrop,
+                        accentColor = accentColor,
+                        onClick = {
+                            coroutineScope.launch {
+                                SettingsPreferences.setThemeMode(context, "light")
+                                onThemeChange("light")
+                            }
                         }
-                    }
-                )
-            }
-            
-            // Text
-            item {
-                SettingsSectionHeader("Text", contentColor)
-            }
-            
-            item {
-                SettingsOptionItem(
-                    title = "Font Size",
-                    subtitle = when (fontSize) {
-                        "small" -> "Small"
-                        "medium" -> "Medium"
-                        "large" -> "Large"
-                        else -> "Medium"
-                    },
-                    icon = "🔤",
-                    backdrop = backdrop,
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    options = listOf(
-                        "small" to "Small",
-                        "medium" to "Medium",
-                        "large" to "Large"
-                    ),
-                    selectedOption = fontSize,
-                    onOptionSelected = { 
-                        coroutineScope.launch { 
-                            SettingsPreferences.setFontSize(context, it) 
+                    )
+                    
+                    // Dark Theme Card
+                    ThemePreviewCard(
+                        modifier = Modifier.weight(1f),
+                        themeName = "Dark",
+                        themeKey = "dark",
+                        isSelected = themeMode == "dark",
+                        backdrop = backdrop,
+                        accentColor = accentColor,
+                        onClick = {
+                            coroutineScope.launch {
+                                SettingsPreferences.setThemeMode(context, "dark")
+                                onThemeChange("dark")
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
             
-            // Accessibility
+            // Spacer
+            item { Spacer(Modifier.height(8.dp)) }
+            
+            // Accessibility Section
             item {
-                SettingsSectionHeader("Accessibility", contentColor)
+                BasicText(
+                    "Accessibility",
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
             }
             
             item {
                 SettingsSwitchItem(
                     title = "Reduce Animations",
-                    subtitle = "Minimize motion effects",
-                    icon = "🎬",
+                    subtitle = "Minimize motion effects for better accessibility",
+                    icon = "✨",
                     checked = reduceAnimations,
                     backdrop = backdrop,
                     contentColor = contentColor,
@@ -650,6 +654,189 @@ fun AppearanceSettingsScreen(
             }
             
             item { Spacer(Modifier.height(80.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun ThemePreviewCard(
+    modifier: Modifier = Modifier,
+    themeName: String,
+    themeKey: String,
+    isSelected: Boolean,
+    backdrop: LayerBackdrop,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    val borderColor by animateColorAsState(
+        targetValue = if (isSelected) accentColor else Color.Transparent,
+        label = "borderColor"
+    )
+    
+    Column(
+        modifier = modifier
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(20.dp) },
+                effects = {
+                    vibrancy()
+                    blur(12f.dp.toPx())
+                    lens(4f.dp.toPx(), 8f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(Color.White.copy(alpha = 0.15f))
+                }
+            )
+            .border(
+                width = if (isSelected) 3.dp else 0.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(20.dp)
+            )
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Theme Preview Box
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.7f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    when (themeKey) {
+                        "glass" -> Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF64B5F6),
+                                Color(0xFF42A5F5),
+                                Color(0xFF26C6DA),
+                                Color(0xFF4DD0E1)
+                            )
+                        )
+                        "light" -> Brush.linearGradient(
+                            colors = listOf(Color.White, Color(0xFFF5F5F5))
+                        )
+                        "dark" -> Brush.linearGradient(
+                            colors = listOf(Color(0xFF1A1A1A), Color.Black)
+                        )
+                        else -> Brush.linearGradient(
+                            colors = listOf(Color(0xFF64B5F6), Color(0xFF26C6DA))
+                        )
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            // Mini phone UI preview
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Status bar mockup
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(
+                            when (themeKey) {
+                                "dark" -> Color.White.copy(alpha = 0.2f)
+                                else -> Color.Black.copy(alpha = 0.1f)
+                            }
+                        )
+                )
+                
+                Spacer(Modifier.height(4.dp))
+                
+                // Content preview cards
+                repeat(3) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(16.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                when (themeKey) {
+                                    "dark" -> Color.White.copy(alpha = 0.15f)
+                                    "glass" -> Color.White.copy(alpha = 0.4f)
+                                    else -> Color.Black.copy(alpha = 0.08f)
+                                }
+                            )
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+                
+                Spacer(Modifier.weight(1f))
+                
+                // Nav bar mockup
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    repeat(5) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    when (themeKey) {
+                                        "dark" -> Color.White.copy(alpha = 0.3f)
+                                        else -> Color.Black.copy(alpha = 0.2f)
+                                    }
+                                )
+                        )
+                    }
+                }
+            }
+        }
+        
+        // Theme name and icon
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            BasicText(
+                when (themeKey) {
+                    "glass" -> "✨"
+                    "light" -> "☀️"
+                    "dark" -> "🌙"
+                    else -> "✨"
+                },
+                style = TextStyle(fontSize = 16.sp)
+            )
+            Spacer(Modifier.width(4.dp))
+            BasicText(
+                themeName,
+                style = TextStyle(
+                    color = if (isSelected) accentColor else Color.Black,
+                    fontSize = 14.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                )
+            )
+        }
+        
+        // Selection indicator
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(accentColor),
+                contentAlignment = Alignment.Center
+            ) {
+                BasicText(
+                    "✓",
+                    style = TextStyle(
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+        } else {
+            Spacer(Modifier.height(20.dp))
         }
     }
 }

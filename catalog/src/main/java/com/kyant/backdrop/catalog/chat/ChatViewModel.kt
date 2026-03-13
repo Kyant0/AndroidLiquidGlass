@@ -1,7 +1,12 @@
 package com.kyant.backdrop.catalog.chat
 
 import android.content.Context
+import android.media.MediaRecorder
+import android.os.Build
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -45,7 +50,12 @@ data class ChatUiState(
     // Socket connection state for UI feedback
     val socketConnected: Boolean = false,
     // Reply-to message (for swipe reply feature)
-    val replyToMessage: Message? = null
+    val replyToMessage: Message? = null,
+    // Attachment upload in progress
+    val isUploadingAttachment: Boolean = false,
+    val attachmentUploadError: String? = null,
+    // Voice recording
+    val isRecordingVoice: Boolean = false
 )
 
 class ChatViewModel(private val context: Context) : ViewModel() {
@@ -60,6 +70,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private val isoFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
     }
+    
+    private var mediaRecorder: MediaRecorder? = null
+    private var voiceRecordingFile: File? = null
 
     init {
         Log.d(TAG, "ChatViewModel init - connecting socket...")
@@ -317,6 +330,185 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         val cursor = _uiState.value.messagesNextCursor ?: return
         val convId = _uiState.value.selectedConversation?.id ?: return
         loadMessages(convId, cursor)
+    }
+
+    /**
+     * Add message immediately (optimistic) and upload in background. User can keep chatting.
+     */
+    fun uploadAndSendMessage(
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        caption: String = "",
+        replyToId: String? = null
+    ) {
+        val conv = _uiState.value.selectedConversation ?: return
+        val currentUserId = _uiState.value.currentUserId.orEmpty()
+        val contentType = when {
+            mimeType.startsWith("image/") -> "image"
+            mimeType.startsWith("video/") -> "video"
+            mimeType.startsWith("audio/") -> "audio"
+            else -> "document"
+        }
+        val pendingLabel = when (contentType) {
+            "image" -> "Photo"
+            "video" -> "Video"
+            "audio" -> "Voice"
+            else -> "Document"
+        }
+        val pendingId = "pending-${System.currentTimeMillis()}"
+        val nowIso = isoFormatter.format(Date())
+        val optimisticMessage = Message(
+            id = pendingId,
+            conversationId = conv.id,
+            senderId = currentUserId,
+            receiverId = conv.otherParticipant.id,
+            content = "Sending $pendingLabel...",
+            contentType = "pending",
+            status = "SENDING",
+            createdAt = nowIso,
+            updatedAt = nowIso
+        )
+        _uiState.update { state ->
+            state.copy(
+                messages = dedupeAndSortByCreatedAt(state.messages + optimisticMessage),
+                isUploadingAttachment = false,
+                attachmentUploadError = null
+            )
+        }
+        viewModelScope.launch {
+            val resultContentType = contentType
+            ApiClient.uploadChatMedia(context, fileBytes, fileName, mimeType)
+                .onSuccess { upload ->
+                    val content = caption.ifBlank { when (resultContentType) {
+                        "image" -> "📷 Photo"
+                        "video" -> "🎬 Video"
+                        "audio" -> "🎤 Voice message"
+                        else -> "📎 ${upload.fileName}"
+                    } }
+                    ApiClient.sendMessage(
+                        context,
+                        conv.id,
+                        content,
+                        resultContentType,
+                        mediaUrl = upload.mediaUrl,
+                        mediaType = upload.mediaType,
+                        fileName = upload.fileName,
+                        fileSize = upload.fileSize,
+                        replyToId = replyToId
+                    ).onSuccess { message ->
+                        _uiState.update { state ->
+                            val withoutPending = state.messages.filterNot { it.id == pendingId }
+                            val merged = dedupeAndSortByCreatedAt(withoutPending + message)
+                            state.copy(messages = merged, attachmentUploadError = null)
+                        }
+                        refreshConversations()
+                    }.onFailure { e ->
+                        _uiState.update { state ->
+                            val withoutPending = state.messages.filterNot { it.id == pendingId }
+                            state.copy(messages = withoutPending, attachmentUploadError = e.message)
+                        }
+                    }
+                }
+                .onFailure { e ->
+                    _uiState.update { state ->
+                        val withoutPending = state.messages.filterNot { it.id == pendingId }
+                        state.copy(messages = withoutPending, attachmentUploadError = e.message)
+                    }
+                }
+        }
+    }
+
+    fun clearAttachmentError() {
+        _uiState.update { it.copy(attachmentUploadError = null) }
+    }
+    
+    fun startVoiceRecording(context: Context) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val file = File(context.cacheDir, "chat_voice_${System.currentTimeMillis()}.m4a")
+                    voiceRecordingFile = file
+                    val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        MediaRecorder(context)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        MediaRecorder()
+                    }.apply {
+                        setAudioSource(MediaRecorder.AudioSource.MIC)
+                        setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                        setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                        setOutputFile(file.absolutePath)
+                        prepare()
+                        start()
+                    }
+                    mediaRecorder = recorder
+                    withContext(Dispatchers.Main) {
+                        _uiState.update { it.copy(isRecordingVoice = true) }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to start voice recording", e)
+                    withContext(Dispatchers.Main) {
+                        _uiState.update { it.copy(attachmentUploadError = "Could not start recording") }
+                    }
+                }
+            }
+        }
+    }
+    
+    fun stopVoiceRecordingAndSend(context: Context) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    mediaRecorder?.apply {
+                        stop()
+                        release()
+                    }
+                    mediaRecorder = null
+                    val file = voiceRecordingFile ?: return@withContext
+                    voiceRecordingFile = null
+                    val bytes = file.readBytes()
+                    file.delete()
+                    withContext(Dispatchers.Main) {
+                        _uiState.update { it.copy(isRecordingVoice = false) }
+                        uploadAndSendMessage(
+                            fileBytes = bytes,
+                            fileName = "voice.m4a",
+                            mimeType = "audio/mp4",
+                            caption = "",
+                            replyToId = _uiState.value.replyToMessage?.id
+                        )
+                        clearReplyTo()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to stop/send voice", e)
+                    withContext(Dispatchers.Main) {
+                        _uiState.update {
+                            it.copy(isRecordingVoice = false, attachmentUploadError = e.message)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    fun cancelVoiceRecording() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    mediaRecorder?.apply {
+                        stop()
+                        release()
+                    }
+                    mediaRecorder = null
+                    voiceRecordingFile?.delete()
+                    voiceRecordingFile = null
+                    withContext(Dispatchers.Main) {
+                        _uiState.update { it.copy(isRecordingVoice = false) }
+                    }
+                } catch (_: Exception) { }
+            }
+        }
     }
 
     fun sendMessage(content: String, replyToId: String? = null) {

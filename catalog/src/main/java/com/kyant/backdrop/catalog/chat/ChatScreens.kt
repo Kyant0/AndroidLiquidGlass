@@ -1,6 +1,8 @@
 package com.kyant.backdrop.catalog.chat
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -24,6 +27,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -50,11 +58,13 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +79,9 @@ import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.network.models.Conversation
 import com.kyant.backdrop.catalog.network.models.Message
+import com.kyant.backdrop.catalog.network.models.SharedPostContent
+import com.kyant.backdrop.catalog.linkedin.posts.FullScreenImageViewer
+import com.kyant.backdrop.catalog.linkedin.FullScreenVideoPlayer
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -84,9 +97,25 @@ import kotlin.math.roundToInt
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.MediaMetadataRetriever
+import android.net.Uri
 import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebView
+import android.webkit.WebViewClient
 
 /**
  * Main entry point for the Chat tab.
@@ -98,6 +127,7 @@ fun ChatTabContent(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    isGlassTheme: Boolean = true,
     openChatWithUserId: String? = null,
     onConsumedOpenChat: () -> Unit = {},
     onInChatThread: (Boolean) -> Unit = {},
@@ -152,6 +182,7 @@ fun ChatTabContent(
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             viewModel = viewModel,
             onNavigateToProfile = onNavigateToProfile
         )
@@ -160,6 +191,7 @@ fun ChatTabContent(
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             viewModel = viewModel
         )
     }
@@ -170,36 +202,88 @@ private fun ChatListScreen(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    isGlassTheme: Boolean,
     viewModel: ChatViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var searchQuery by remember { mutableStateOf("") }
+    
+    // Filter conversations based on search
+    val filteredConversations = if (searchQuery.isNotBlank()) {
+        uiState.conversations.filter { conv ->
+            val name = conv.otherParticipant.name ?: conv.otherParticipant.username ?: ""
+            name.contains(searchQuery, ignoreCase = true)
+        }
+    } else {
+        uiState.conversations
+    }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
+        
+        // Search Bar
         Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            Modifier
+                .fillMaxWidth()
+                .then(
+                    if (isGlassTheme) {
+                        Modifier
+                            .drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedRectangle(24f.dp) },
+                                effects = {
+                                    vibrancy()
+                                    blur(8f.dp.toPx())
+                                },
+                                onDrawSurface = {
+                                    drawRect(Color.White.copy(alpha = 0.25f))
+                                }
+                            )
+                    } else {
+                        Modifier
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(contentColor.copy(alpha = 0.08f))
+                    }
+                )
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BasicText(
-                "Messages",
-                style = TextStyle(contentColor, 22.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+            androidx.compose.foundation.Image(
+                painter = painterResource(R.drawable.ic_search),
+                contentDescription = "Search",
+                modifier = Modifier.size(18.dp),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor.copy(alpha = 0.6f))
             )
-            if (uiState.unreadCount > 0) {
-                Box(
-                    Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(accentColor),
-                    contentAlignment = Alignment.Center
-                ) {
-                    BasicText(
-                        if (uiState.unreadCount > 99) "99+" else uiState.unreadCount.toString(),
-                        style = TextStyle(Color.White, 12.sp)
-                    )
+            Spacer(Modifier.width(10.dp))
+            BasicTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.weight(1f),
+                textStyle = TextStyle(contentColor, 14.sp),
+                cursorBrush = SolidColor(contentColor),
+                singleLine = true,
+                decorationBox = { innerTextField ->
+                    if (searchQuery.isEmpty()) {
+                        BasicText(
+                            "Search conversations...",
+                            style = TextStyle(contentColor.copy(alpha = 0.5f), 14.sp)
+                        )
+                    }
+                    innerTextField()
                 }
+            )
+            if (searchQuery.isNotEmpty()) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(R.drawable.ic_close),
+                    contentDescription = "Clear",
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clickable { searchQuery = "" },
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor.copy(alpha = 0.6f))
+                )
             }
         }
+        
         Spacer(Modifier.height(12.dp))
 
         if (uiState.isLoadingConversations) {
@@ -217,17 +301,35 @@ private fun ChatListScreen(
             }
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)
             ) {
-                items(uiState.conversations, key = { it.id }) { conv ->
-                    ConversationRow(
+                // General section header
+                item {
+                    BasicText(
+                        "General",
+                        style = TextStyle(
+                            color = contentColor.copy(alpha = 0.6f),
+                            fontSize = 12.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                        ),
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 6.dp)
+                    )
+                }
+                
+                items(filteredConversations, key = { it.id }) { conv ->
+                    SwipeableConversationRow(
                         conversation = conv,
                         contentColor = contentColor,
                         accentColor = accentColor,
                         backdrop = backdrop,
-                        onClick = { viewModel.selectConversation(conv) }
+                        isGlassTheme = isGlassTheme,
+                        onClick = { viewModel.selectConversation(conv) },
+                        onClearChat = { /* TODO: Implement clear chat */ },
+                        onDelete = { /* TODO: Implement delete */ },
+                        onArchive = { /* TODO: Implement archive */ },
+                        onMarkUnread = { /* TODO: Implement mark unread */ }
                     )
                 }
             }
@@ -236,87 +338,284 @@ private fun ChatListScreen(
 }
 
 @Composable
-private fun ConversationRow(
+private fun SwipeableConversationRow(
     conversation: Conversation,
     contentColor: Color,
     accentColor: Color,
     backdrop: LayerBackdrop,
-    onClick: () -> Unit
+    isGlassTheme: Boolean,
+    onClick: () -> Unit,
+    onClearChat: () -> Unit,
+    onDelete: () -> Unit,
+    onArchive: () -> Unit,
+    onMarkUnread: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val swipeThreshold = with(density) { 80.dp.toPx() }
+    val offsetX = remember { Animatable(0f) }
+    var showActionMenu by remember { mutableStateOf(false) }
+    
     val other = conversation.otherParticipant
     val lastMsg = conversation.lastMessage
 
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(12f.dp.toPx())
-                    lens(6f.dp.toPx(), 12f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.08f))
-                }
-            )
-            .clickable(onClick = onClick)
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
+    Box(Modifier.fillMaxWidth()) {
+        // Background action buttons (revealed on swipe)
+        Row(
             Modifier
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(contentColor.copy(alpha = 0.15f))
+                .matchParentSize()
+                .padding(end = 4.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = other.profileImage,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            // Archive button
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF6C5CE7))
+                    .clickable {
+                        scope.launch { offsetX.animateTo(0f, tween(200)) }
+                        onArchive()
+                    },
+                contentAlignment = Alignment.Center
             ) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(R.drawable.ic_archive),
+                    contentDescription = "Archive",
+                    modifier = Modifier.size(20.dp),
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            // Delete button
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFF6B6B))
+                    .clickable {
+                        scope.launch { offsetX.animateTo(0f, tween(200)) }
+                        showActionMenu = true
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(R.drawable.ic_delete),
+                    contentDescription = "Delete",
+                    modifier = Modifier.size(20.dp),
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                )
+            }
+        }
+        
+        // Main conversation row (swipeable)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            scope.launch {
+                                if (offsetX.value < -swipeThreshold) {
+                                    offsetX.animateTo(-swipeThreshold * 1.3f, tween(200))
+                                } else {
+                                    offsetX.animateTo(0f, tween(200))
+                                }
+                            }
+                        },
+                        onHorizontalDrag = { _, dragAmount ->
+                            scope.launch {
+                                val newValue = offsetX.value + dragAmount
+                                offsetX.snapTo(newValue.coerceIn(-swipeThreshold * 1.5f, 0f))
+                            }
+                        }
+                    )
+                }
+                .then(
+                    if (isGlassTheme) {
+                        Modifier.drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { RoundedRectangle(12f.dp) },
+                            effects = {
+                                vibrancy()
+                                blur(8f.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(Color.White.copy(alpha = 0.3f))
+                            }
+                        )
+                    } else {
+                        Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(contentColor.copy(alpha = 0.08f))
+                    }
+                )
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(contentColor.copy(alpha = 0.15f))
+            ) {
+                AsyncImage(
+                    model = other.profileImage,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    BasicText(
+                        other.name ?: other.username ?: "Unknown",
+                        style = TextStyle(contentColor, 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    lastMsg?.createdAt?.let { time ->
+                        BasicText(
+                            formatTime(time),
+                            style = TextStyle(contentColor.copy(alpha = 0.6f), 11.sp)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
                 BasicText(
-                    other.name ?: other.username ?: "Unknown",
-                    style = TextStyle(contentColor, 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
+                    lastMsg?.content?.take(50)?.let { if (it.length >= 50) "$it..." else it } ?: "No messages yet",
+                    style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                lastMsg?.createdAt?.let { time ->
+            }
+            if (conversation.unreadCount > 0) {
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(accentColor),
+                    contentAlignment = Alignment.Center
+                ) {
                     BasicText(
-                        formatTime(time),
-                        style = TextStyle(contentColor.copy(alpha = 0.6f), 12.sp)
+                        if (conversation.unreadCount > 99) "99+" else conversation.unreadCount.toString(),
+                        style = TextStyle(Color.White, 10.sp)
                     )
                 }
             }
-            Spacer(Modifier.height(2.dp))
-            BasicText(
-                lastMsg?.content?.take(60)?.let { if (it.length >= 60) "$it..." else it } ?: "No messages yet",
-                style = TextStyle(contentColor.copy(alpha = 0.75f), 14.sp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
         }
-        if (conversation.unreadCount > 0) {
-            Spacer(Modifier.width(8.dp))
-            Box(
-                Modifier
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(accentColor),
-                contentAlignment = Alignment.Center
+        
+        // Action menu popup
+        if (showActionMenu) {
+            Popup(
+                alignment = Alignment.Center,
+                onDismissRequest = { showActionMenu = false },
+                properties = PopupProperties(focusable = true)
             ) {
-                BasicText(
-                    if (conversation.unreadCount > 99) "99+" else conversation.unreadCount.toString(),
-                    style = TextStyle(Color.White, 11.sp)
-                )
+                Box(
+                    Modifier
+                        .width(220.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF2a2a3e))
+                        .padding(8.dp)
+                ) {
+                    Column {
+                        // Clear Chat option
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    showActionMenu = false
+                                    onClearChat()
+                                }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.foundation.Image(
+                                painter = painterResource(R.drawable.ic_clear_chat),
+                                contentDescription = "Clear Chat",
+                                modifier = Modifier.size(20.dp),
+                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            BasicText("Clear Chat", style = TextStyle(Color.White, 14.sp))
+                        }
+                        
+                        // Delete User option
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    showActionMenu = false
+                                    onDelete()
+                                }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.foundation.Image(
+                                painter = painterResource(R.drawable.ic_delete),
+                                contentDescription = "Delete",
+                                modifier = Modifier.size(20.dp),
+                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFFFF6B6B))
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            BasicText("Delete Chat", style = TextStyle(Color(0xFFFF6B6B), 14.sp))
+                        }
+                        
+                        // Archive option
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    showActionMenu = false
+                                    onArchive()
+                                }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.foundation.Image(
+                                painter = painterResource(R.drawable.ic_archive),
+                                contentDescription = "Archive",
+                                modifier = Modifier.size(20.dp),
+                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            BasicText("Archive", style = TextStyle(Color.White, 14.sp))
+                        }
+                        
+                        // Mark Unread option
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    showActionMenu = false
+                                    onMarkUnread()
+                                }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.foundation.Image(
+                                painter = painterResource(R.drawable.ic_mark_unread),
+                                contentDescription = "Mark Unread",
+                                modifier = Modifier.size(20.dp),
+                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            BasicText("Mark as Unread", style = TextStyle(Color.White, 14.sp))
+                        }
+                    }
+                }
             }
         }
     }
@@ -327,6 +626,7 @@ private fun ChatThreadScreen(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    isGlassTheme: Boolean,
     viewModel: ChatViewModel,
     onNavigateToProfile: (String) -> Unit = {}
 ) {
@@ -343,6 +643,102 @@ private fun ChatThreadScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isMuted by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    
+    val focusManager = LocalFocusManager.current
+    // Attachment picker state
+    var showAttachmentOptions by remember { mutableStateOf(false) }
+    var pendingAttachmentUri by remember { mutableStateOf<Uri?>(null) }
+    // In-app media viewers
+    var selectedImageUrl by remember { mutableStateOf<String?>(null) }
+    var selectedVideoUrl by remember { mutableStateOf<String?>(null) }
+    var selectedDocumentUrl by remember { mutableStateOf<String?>(null) }
+    var pendingAttachmentMimeType by remember { mutableStateOf<String?>(null) }
+    var pendingAttachmentName by remember { mutableStateOf<String?>(null) }
+    
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            pendingAttachmentName = context.contentResolver.query(it, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (cursor.moveToFirst() && nameIndex >= 0) cursor.getString(nameIndex) else it.lastPathSegment ?: "image.jpg"
+            } ?: it.lastPathSegment ?: "image.jpg"
+            pendingAttachmentMimeType = context.contentResolver.getType(it) ?: "image/jpeg"
+            pendingAttachmentUri = it
+        }
+    }
+    val documentPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            pendingAttachmentName = context.contentResolver.query(it, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (cursor.moveToFirst() && nameIndex >= 0) cursor.getString(nameIndex) else it.lastPathSegment ?: "document"
+            } ?: it.lastPathSegment ?: "document"
+            pendingAttachmentMimeType = context.contentResolver.getType(it) ?: "application/octet-stream"
+            pendingAttachmentUri = it
+        }
+    }
+    
+    val voicePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) viewModel.startVoiceRecording(context)
+        else Toast.makeText(context, "Microphone permission needed for voice messages", Toast.LENGTH_SHORT).show()
+    }
+    
+    val scope = rememberCoroutineScope()
+    val videoMaxDurationMs = 2 * 60 * 1000L // 2 minutes
+    
+    val videoPickerLauncherWithDurationCheck = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { u ->
+            scope.launch {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    var durationMs: Long? = null
+                    try {
+                        val retriever = MediaMetadataRetriever()
+                        retriever.setDataSource(context, u)
+                        val dur = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                        durationMs = dur?.toLongOrNull()
+                        retriever.release()
+                    } catch (_: Exception) { }
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        if (durationMs != null && durationMs > videoMaxDurationMs) {
+                            Toast.makeText(context, "Video must be 2 minutes or less", Toast.LENGTH_LONG).show()
+                            return@withContext
+                        }
+                        pendingAttachmentName = context.contentResolver.query(u, null, null, null, null)?.use { cursor ->
+                            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                            if (cursor.moveToFirst() && nameIndex >= 0) cursor.getString(nameIndex) else u.lastPathSegment ?: "video.mp4"
+                        } ?: u.lastPathSegment ?: "video.mp4"
+                        pendingAttachmentMimeType = context.contentResolver.getType(u) ?: "video/mp4"
+                        pendingAttachmentUri = u
+                    }
+                }
+            }
+        }
+    }
+    
+    LaunchedEffect(pendingAttachmentUri) {
+        val uri = pendingAttachmentUri ?: return@LaunchedEffect
+        val name = pendingAttachmentName ?: "file"
+        val mime = pendingAttachmentMimeType ?: "application/octet-stream"
+        pendingAttachmentUri = null
+        pendingAttachmentName = null
+        pendingAttachmentMimeType = null
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@LaunchedEffect
+        viewModel.uploadAndSendMessage(
+            fileBytes = bytes,
+            fileName = name,
+            mimeType = mime,
+            caption = inputText,
+            replyToId = uiState.replyToMessage?.id
+        )
+        viewModel.clearReplyTo()
+        inputText = ""
+    }
     
     // Filtered messages for search
     val displayedMessages = if (isSearchMode && searchQuery.isNotBlank()) {
@@ -395,8 +791,7 @@ private fun ChatThreadScreen(
             Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .imePadding()
-                .navigationBarsPadding()
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
         ) {
             // Header (normal or search mode)
             if (isSearchMode) {
@@ -457,20 +852,11 @@ private fun ChatThreadScreen(
                 }
             }
         } else {
-            // Normal header
+            // Normal header - clean design without glass
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(16f.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(12f.dp.toPx())
-                        },
-                        onDrawSurface = { drawRect(Color.White.copy(alpha = 0.08f)) }
-                    )
-                    .padding(12.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Back button
@@ -478,21 +864,21 @@ private fun ChatThreadScreen(
                     painter = painterResource(R.drawable.ic_back),
                     contentDescription = "Back",
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(24.dp)
                         .clickable { viewModel.selectConversation(null) },
                     colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(12.dp))
                 Box(
                     Modifier
-                        .size(40.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(contentColor.copy(alpha = 0.15f))
                         .clickable { onNavigateToProfile(conv.otherParticipant.id) }
                 ) {
                     AsyncImage(model = conv.otherParticipant.profileImage, contentDescription = null, Modifier.fillMaxSize())
                 }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(10.dp))
                 Column(
                     Modifier
                         .weight(1f)
@@ -500,10 +886,10 @@ private fun ChatThreadScreen(
                 ) {
                     BasicText(
                         conv.otherParticipant.name ?: conv.otherParticipant.username ?: "Unknown",
-                        style = TextStyle(contentColor, 17.sp, fontWeight = FontWeight.Medium)
+                        style = TextStyle(contentColor, 15.sp, fontWeight = FontWeight.Medium)
                     )
                     if (uiState.typingUserId != null) {
-                        BasicText("typing...", style = TextStyle(contentColor.copy(alpha = 0.7f), 13.sp))
+                        BasicText("typing...", style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp))
                     }
                 }
                 // Menu button (3-dot)
@@ -513,7 +899,7 @@ private fun ChatThreadScreen(
                         painter = painterResource(R.drawable.ic_more),
                         contentDescription = "Menu",
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(24.dp)
                             .clickable { showChatMenu = true },
                         colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
                     )
@@ -546,8 +932,8 @@ private fun ChatThreadScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 10.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Bottom),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 10.dp, bottom = 10.dp)
             ) {
                 items(displayedMessages, key = { it.id }) { msg ->
                     MessageBubble(
@@ -556,6 +942,7 @@ private fun ChatThreadScreen(
                         contentColor = contentColor,
                         accentColor = accentColor,
                         backdrop = backdrop,
+                        isGlassTheme = isGlassTheme,
                         onReply = { viewModel.setReplyTo(msg) },
                         onReact = { emoji -> viewModel.reactToMessage(msg.id, emoji) },
                         onDelete = { forEveryone -> viewModel.deleteMessage(msg.id, forEveryone) },
@@ -564,7 +951,10 @@ private fun ChatThreadScreen(
                             clipboard.setPrimaryClip(ClipData.newPlainText("Message", msg.content))
                             Toast.makeText(context, "Message copied", Toast.LENGTH_SHORT).show()
                         },
-                        currentUserId = uiState.currentUserId
+                        currentUserId = uiState.currentUserId,
+                        onImageClick = { url -> selectedImageUrl = url },
+                        onVideoClick = { url -> selectedVideoUrl = url },
+                        onDocumentClick = { url -> selectedDocumentUrl = url }
                     )
                 }
             }
@@ -600,16 +990,44 @@ private fun ChatThreadScreen(
                 .fillMaxWidth()
                 .drawBackdrop(
                     backdrop = backdrop,
-                    shape = { RoundedRectangle(20f.dp) },
+                    shape = { RoundedRectangle(16f.dp) },
                     effects = {
                         vibrancy()
                         blur(12f.dp.toPx())
                     },
                     onDrawSurface = { drawRect(Color.White.copy(alpha = 0.08f)) }
                 )
-                .padding(12.dp),
-            verticalAlignment = Alignment.Bottom
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            // Plus button for attachments (docs, media, photos, videos, voice)
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(contentColor.copy(alpha = 0.1f))
+                    .clickable(enabled = !uiState.isUploadingAttachment) {
+                        focusManager.clearFocus()
+                        showAttachmentOptions = true
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                if (uiState.isUploadingAttachment) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = contentColor,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(R.drawable.ic_plus),
+                        contentDescription = "Attach",
+                        modifier = Modifier.size(20.dp),
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor.copy(alpha = 0.7f))
+                    )
+                }
+            }
+            Spacer(Modifier.width(6.dp))
             BasicTextField(
                 value = inputText,
                 onValueChange = {
@@ -622,18 +1040,17 @@ private fun ChatThreadScreen(
                 },
                 modifier = Modifier
                     .weight(1f)
-                    .padding(12.dp, 8.dp)
-                    .background(contentColor.copy(alpha = 0.1f), RoundedCornerShape(24.dp)),
-                textStyle = TextStyle(contentColor, 16.sp),
+                    .background(contentColor.copy(alpha = 0.1f), RoundedCornerShape(20.dp)),
+                textStyle = TextStyle(contentColor, 14.sp),
                 cursorBrush = SolidColor(contentColor),
                 singleLine = false,
-                maxLines = 4,
+                maxLines = 3,
                 decorationBox = { innerTextField ->
                     Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                         if (inputText.isEmpty()) {
                             BasicText(
-                                "Type a message...",
-                                style = TextStyle(contentColor.copy(alpha = 0.5f), 16.sp)
+                                "Message...",
+                                style = TextStyle(contentColor.copy(alpha = 0.5f), 14.sp)
                             )
                         }
                         innerTextField()
@@ -651,10 +1068,10 @@ private fun ChatThreadScreen(
                     }
                 )
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(6.dp))
             Box(
                 Modifier
-                    .size(44.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
                     .background(if (inputText.isNotBlank()) accentColor else accentColor.copy(alpha = 0.5f))
                     .clickable(enabled = inputText.isNotBlank()) {
@@ -670,12 +1087,12 @@ private fun ChatThreadScreen(
                 androidx.compose.foundation.Image(
                     painter = painterResource(R.drawable.ic_send),
                     contentDescription = "Send",
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(18.dp),
                     colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
                 )
             }
-        }
-    } // End of Column
+        } // End of Input Row
+        } // End of Column
     
         // Glass-styled chat options menu (overlay)
         if (showChatMenu) {
@@ -726,8 +1143,328 @@ private fun ChatThreadScreen(
             )
         }
         
-
+        // Attachment options (Photo, Video, Document, Voice)
+        if (showAttachmentOptions) {
+            ChatAttachmentOptionsSheet(
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                onDismiss = { showAttachmentOptions = false },
+                onPhoto = {
+                    showAttachmentOptions = false
+                    imagePickerLauncher.launch("image/*")
+                },
+                onVideo = {
+                    showAttachmentOptions = false
+                    videoPickerLauncherWithDurationCheck.launch("video/*")
+                },
+                onDocument = {
+                    showAttachmentOptions = false
+                    documentPickerLauncher.launch(arrayOf("*/*"))
+                },
+                onVoice = {
+                    showAttachmentOptions = false
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        viewModel.startVoiceRecording(context)
+                    } else {
+                        voicePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                }
+            )
+        }
+        
+        // Voice recording overlay
+        if (uiState.isRecordingVoice) {
+            VoiceRecordingOverlay(
+                contentColor = contentColor,
+                accentColor = accentColor,
+                onStopAndSend = { viewModel.stopVoiceRecordingAndSend(context) },
+                onCancel = { viewModel.cancelVoiceRecording() }
+            )
+        }
+        
+        uiState.attachmentUploadError?.let { err ->
+            LaunchedEffect(err) {
+                Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                viewModel.clearAttachmentError()
+            }
+        }
+        
+        // Full-screen image viewer (in-app)
+        selectedImageUrl?.let { url ->
+            FullScreenImageViewer(
+                images = listOf(url),
+                initialIndex = 0,
+                onDismiss = { selectedImageUrl = null }
+            )
+        }
+        
+        // In-app full-screen video player
+        selectedVideoUrl?.let { url ->
+            FullScreenVideoPlayer(
+                videoUrl = url,
+                onDismiss = { selectedVideoUrl = null }
+            )
+        }
+        
+        // In-app document/PDF viewer (WebView; PDFs via Google Docs viewer for compatibility)
+        selectedDocumentUrl?.let { url ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.White)
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            webViewClient = WebViewClient()
+                            val loadUrlToUse = if (url.trim().endsWith(".pdf", ignoreCase = true)) {
+                                "https://docs.google.com/viewer?url=${Uri.encode(url)}&embedded=true"
+                            } else {
+                                url
+                            }
+                            loadUrl(loadUrlToUse)
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                        .statusBarsPadding()
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .clickable { selectedDocumentUrl = null },
+                    contentAlignment = Alignment.Center
+                ) {
+                    BasicText("✕", style = TextStyle(Color.White, 18.sp, FontWeight.Bold))
+                }
+            }
+        }
     } // End of Box
+}
+
+/** Bottom sheet style overlay for attachment options: Photo, Video, Document, Voice. */
+@Composable
+private fun ChatAttachmentOptionsSheet(
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    onDismiss: () -> Unit,
+    onPhoto: () -> Unit,
+    onVideo: () -> Unit,
+    onDocument: () -> Unit,
+    onVoice: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(
+                indication = null,
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            ) { onDismiss() }
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { RoundedRectangle(24f.dp) },
+                    effects = {
+                        vibrancy()
+                        blur(20f.dp.toPx())
+                    },
+                    onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.5f)) }
+                )
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .clickable(enabled = false) { }
+                .padding(24.dp)
+        ) {
+            BasicText(
+                "Send",
+                style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp, fontWeight = FontWeight.SemiBold),
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                AttachmentOption(
+                    iconRes = R.drawable.ic_image,
+                    label = "Photo",
+                    contentColor = contentColor,
+                    onClick = onPhoto
+                )
+                AttachmentOption(
+                    iconRes = R.drawable.ic_video,
+                    label = "Video",
+                    contentColor = contentColor,
+                    onClick = onVideo
+                )
+                AttachmentOption(
+                    iconRes = R.drawable.ic_file_text,
+                    label = "Document",
+                    contentColor = contentColor,
+                    onClick = onDocument
+                )
+                AttachmentOption(
+                    iconRes = R.drawable.ic_mic,
+                    label = "Voice",
+                    contentColor = contentColor,
+                    onClick = onVoice
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttachmentOption(
+    iconRes: Int,
+    label: String,
+    contentColor: Color,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(contentColor.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.foundation.Image(
+                painter = painterResource(iconRes),
+                contentDescription = label,
+                modifier = Modifier.size(24.dp),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        BasicText(label, style = TextStyle(contentColor, 12.sp))
+    }
+}
+
+/** Overlay shown while recording a voice message. Tap to send, or cancel. */
+@Composable
+private fun VoiceRecordingOverlay(
+    contentColor: Color,
+    accentColor: Color,
+    onStopAndSend: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.3f))
+            .clickable(
+                indication = null,
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            ) { onCancel() }
+    ) {
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(contentColor.copy(alpha = 0.95f))
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            BasicText(
+                "Tap to cancel",
+                style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp),
+                modifier = Modifier.clickable { onCancel() }
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(Color.Red)
+                )
+                Spacer(Modifier.width(8.dp))
+                BasicText("Recording...", style = TextStyle(contentColor, 14.sp, FontWeight.Medium))
+            }
+            BasicText(
+                "Send",
+                style = TextStyle(accentColor, 14.sp, FontWeight.SemiBold),
+                modifier = Modifier.clickable { onStopAndSend() }
+            )
+        }
+    }
+}
+
+/** Loader shown while a media message is uploading (optimistic send). */
+@Composable
+private fun PendingMessageLoader(
+    contentColor: Color,
+    accentColor: Color
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pending")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween<Float>(600),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween<Float>(800),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(accentColor.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(36.dp),
+                color = accentColor,
+                strokeWidth = 2.dp
+            )
+            androidx.compose.foundation.Image(
+                painter = painterResource(R.drawable.ic_sparkles),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(18.dp)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        this.alpha = alpha
+                    },
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accentColor)
+            )
+        }
+        BasicText(
+            "Sending...",
+            style = TextStyle(contentColor.copy(alpha = 0.8f), 14.sp)
+        )
+    }
 }
 
 // Common emoji reactions
@@ -740,12 +1477,17 @@ private fun MessageBubble(
     contentColor: Color,
     accentColor: Color,
     backdrop: LayerBackdrop,
+    isGlassTheme: Boolean = true,
     onReply: () -> Unit = {},
     onReact: (String) -> Unit = {},
     onDelete: (Boolean) -> Unit = {},
     onCopy: () -> Unit = {},
-    currentUserId: String? = null
+    currentUserId: String? = null,
+    onImageClick: ((String) -> Unit)? = null,
+    onVideoClick: ((String) -> Unit)? = null,
+    onDocumentClick: ((String) -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val swipeThreshold = with(density) { 80.dp.toPx() }
@@ -835,18 +1577,29 @@ private fun MessageBubble(
                 Column(horizontalAlignment = if (isFromMe) Alignment.End else Alignment.Start) {
                     Box(
                         modifier = Modifier
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { RoundedRectangle(18f.dp) },
-                                effects = {
-                                    vibrancy()
-                                    blur(8f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(
-                                        if (isFromMe) accentColor.copy(alpha = 0.35f)
-                                        else Color.White.copy(alpha = 0.12f)
+                            .then(
+                                if (isGlassTheme) {
+                                    Modifier.drawBackdrop(
+                                        backdrop = backdrop,
+                                        shape = { RoundedRectangle(18f.dp) },
+                                        effects = {
+                                            vibrancy()
+                                            blur(8f.dp.toPx())
+                                        },
+                                        onDrawSurface = {
+                                            drawRect(
+                                                if (isFromMe) accentColor.copy(alpha = 0.35f)
+                                                else Color.White.copy(alpha = 0.2f)
+                                            )
+                                        }
                                     )
+                                } else {
+                                    Modifier
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(
+                                            if (isFromMe) accentColor.copy(alpha = 0.15f)
+                                            else contentColor.copy(alpha = 0.08f)
+                                        )
                                 }
                             )
                             .padding(horizontal = 14.dp, vertical = 10.dp)
@@ -854,11 +1607,129 @@ private fun MessageBubble(
                     ) {
                         if (message.isDeleted) {
                             BasicText("Message deleted", style = TextStyle(contentColor.copy(alpha = 0.5f), 14.sp))
+                        } else if (message.contentType == "pending") {
+                            PendingMessageLoader(contentColor = contentColor, accentColor = accentColor)
                         } else {
-                            BasicText(
-                                message.content,
-                                style = TextStyle(contentColor, 15.sp)
-                            )
+                            // Media message (image, video, document, voice)
+                            val mediaUrl = message.mediaUrl
+                            val mediaType = message.mediaType ?: "text"
+                            if (!mediaUrl.isNullOrEmpty()) {
+                                when (mediaType) {
+                                    "image" -> {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.clickable { onImageClick?.invoke(mediaUrl) }
+                                        ) {
+                                            AsyncImage(
+                                                model = mediaUrl,
+                                                contentDescription = "Image",
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .widthIn(max = 260.dp)
+                                                    .heightIn(max = 320.dp),
+                                                contentScale = ContentScale.Fit
+                                            )
+                                            if (message.content.isNotBlank() && message.content != "📷 Photo") {
+                                                Spacer(Modifier.height(6.dp))
+                                                BasicText(message.content, style = TextStyle(contentColor, 14.sp))
+                                            }
+                                        }
+                                    }
+                                    "video" -> {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.clickable { onVideoClick?.invoke(mediaUrl) }
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(contentColor.copy(alpha = 0.1f))
+                                                    .widthIn(max = 260.dp)
+                                                    .heightIn(max = 200.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                BasicText("▶", style = TextStyle(contentColor, 48.sp))
+                                            }
+                                            if (message.content.isNotBlank() && message.content != "🎬 Video") {
+                                                Spacer(Modifier.height(6.dp))
+                                                BasicText(message.content, style = TextStyle(contentColor, 14.sp))
+                                            }
+                                        }
+                                    }
+                                    "document" -> {
+                                        Row(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .clickable { onDocumentClick?.invoke(mediaUrl) }
+                                                .padding(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            androidx.compose.foundation.Image(
+                                                painter = painterResource(R.drawable.ic_file_text),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(24.dp),
+                                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Column {
+                                                BasicText(
+                                                    message.fileName ?: "Document",
+                                                    style = TextStyle(contentColor, 14.sp, FontWeight.Medium),
+                                                    maxLines = 1
+                                                )
+                                                if (message.content.isNotBlank()) {
+                                                    BasicText(message.content, style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp), maxLines = 1)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    "audio" -> {
+                                        Row(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    try {
+                                                        val intent = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(mediaUrl), "audio/*")
+                                                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                        context.startActivity(Intent.createChooser(intent, "Play voice"))
+                                                    } catch (_: Exception) { }
+                                                }
+                                                .padding(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            androidx.compose.foundation.Image(
+                                                painter = painterResource(R.drawable.ic_mic),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(24.dp),
+                                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            BasicText(
+                                                if (message.content.isNotBlank()) message.content else "Voice message",
+                                                style = TextStyle(contentColor, 14.sp)
+                                            )
+                                        }
+                                    }
+                                    else -> {
+                                        BasicText(message.content, style = TextStyle(contentColor, 15.sp))
+                                    }
+                                }
+                            } else {
+                                // Try to parse as shared post
+                                val sharedPost = SharedPostContent.tryParse(message.content)
+                                if (sharedPost != null && sharedPost.type == "shared_post") {
+                                    SharedPostCard(
+                                        sharedPost = sharedPost,
+                                        contentColor = contentColor,
+                                        accentColor = accentColor
+                                    )
+                                } else {
+                                    BasicText(
+                                        message.content,
+                                        style = TextStyle(contentColor, 15.sp)
+                                    )
+                                }
+                            }
                         }
                     }
                     
@@ -1413,6 +2284,161 @@ private fun GlassConfirmDialog(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Renders shared post content as a formatted card instead of raw JSON.
+ */
+@Composable
+private fun SharedPostCard(
+    sharedPost: SharedPostContent,
+    contentColor: Color,
+    accentColor: Color
+) {
+    val context = LocalContext.current
+    
+    Column(
+        modifier = Modifier
+            .widthIn(min = 220.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(contentColor.copy(alpha = 0.08f))
+            .clickable {
+                // Open post URL when clicked
+                if (sharedPost.postUrl.isNotEmpty()) {
+                    try {
+                        val intent = android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse(sharedPost.postUrl)
+                        )
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Could not open post", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .padding(12.dp)
+    ) {
+        // Shared post label
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 10.dp)
+        ) {
+            BasicText(
+                "📤 Shared Post",
+                style = TextStyle(
+                    color = accentColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            )
+        }
+        
+        // Post preview image FIRST (if available) - more prominent
+        if (!sharedPost.mediaUrl.isNullOrEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(contentColor.copy(alpha = 0.1f))
+            ) {
+                AsyncImage(
+                    model = sharedPost.mediaUrl,
+                    contentDescription = "Post media",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+        
+        // Post preview text
+        if (sharedPost.preview.isNotEmpty()) {
+            // Clean up preview text - remove color/markdown formatting
+            val cleanPreview = sharedPost.preview
+                .replace(Regex("\\[color:#[0-9a-fA-F]+\\]"), "")
+                .replace("[/color]", "")
+                .replace("\\n", "\n")
+                .replace(Regex("\\*\\*([^*]+)\\*\\*"), "$1") // Remove bold markers
+                .trim()
+                .take(120)
+            
+            BasicText(
+                cleanPreview + if (sharedPost.preview.length > 120) "..." else "",
+                style = TextStyle(
+                    color = contentColor,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                ),
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(10.dp))
+        }
+        
+        // Author info row at bottom
+        sharedPost.author?.let { author ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(contentColor.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                    .padding(8.dp)
+            ) {
+                // Profile image
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(contentColor.copy(alpha = 0.2f))
+                ) {
+                    if (!author.profileImage.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = author.profileImage,
+                            contentDescription = "Profile",
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    // Author name
+                    if (!author.name.isNullOrEmpty()) {
+                        BasicText(
+                            author.name,
+                            style = TextStyle(
+                                color = contentColor,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    // Author username
+                    if (!author.username.isNullOrEmpty()) {
+                        BasicText(
+                            "@${author.username}",
+                            style = TextStyle(
+                                color = contentColor.copy(alpha = 0.5f),
+                                fontSize = 10.sp
+                            ),
+                            maxLines = 1
+                        )
+                    }
+                }
+                // Arrow icon
+                BasicText(
+                    "→",
+                    style = TextStyle(
+                        color = accentColor,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
             }
         }
     }

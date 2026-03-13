@@ -92,6 +92,7 @@ import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.components.LiquidSlider
+import com.kyant.backdrop.catalog.data.SettingsPreferences
 import com.kyant.backdrop.catalog.network.models.*
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -126,7 +127,12 @@ fun ProfileScreen(
     val context = LocalContext.current
     val viewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory(context))
     val uiState by viewModel.uiState.collectAsState()
-    val isLightTheme = !isSystemInDarkTheme()
+    
+    // Theme detection
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
+    val isGlassTheme = themeMode == "glass"
+    val isDarkTheme = themeMode == "dark"
+    val isLightTheme = themeMode == "light"
     
     // Project screen state
     var showAddProject by remember { mutableStateOf(false) }
@@ -187,7 +193,7 @@ fun ProfileScreen(
     Box(Modifier.fillMaxSize()) {
         when {
             uiState.isLoading -> {
-                ProfileSkeleton(backdrop, isLightTheme)
+                ProfileSkeleton(backdrop, isLightTheme, accentColor)
             }
             uiState.error != null -> {
                 ProfileError(
@@ -204,7 +210,8 @@ fun ProfileScreen(
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
-                    isLightTheme = isLightTheme,
+                    isGlassTheme = isGlassTheme,
+                    isDarkTheme = isDarkTheme,
                     showBackButton = userId != null,
                     onNavigateBack = onNavigateBack,
                     onConnect = { viewModel.sendConnectionRequest() },
@@ -479,7 +486,8 @@ private fun ProfileContent(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
-    isLightTheme: Boolean,
+    isGlassTheme: Boolean,
+    isDarkTheme: Boolean,
     showBackButton: Boolean = false,
     onNavigateBack: () -> Unit = {},
     onConnect: () -> Unit,
@@ -522,6 +530,8 @@ private fun ProfileContent(
     onViewAchievement: (Achievement) -> Unit = {}
 ) {
     val profile = uiState.profile!!
+    // Derive isLightTheme for components that need it
+    val isLightTheme = !isDarkTheme
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -533,46 +543,68 @@ private fun ProfileContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+                        .then(
+                            when {
+                                isGlassTheme -> Modifier.drawBackdrop(
+                                    backdrop = backdrop,
+                                    shape = { RoundedRectangle(0f.dp) },
+                                    effects = {
+                                        vibrancy()
+                                        blur(16f.dp.toPx())
+                                        lens(8f.dp.toPx(), 16f.dp.toPx())
+                                    },
+                                    onDrawSurface = {
+                                        drawRect(Color.White.copy(alpha = 0.12f))
+                                    }
+                                )
+                                isDarkTheme -> Modifier.background(Color(0xFF1E1E1E))
+                                else -> Modifier.background(Color.White) // Light theme
+                            }
+                        )
+                        .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { RoundedRectangle(22f.dp) },
-                                effects = {
-                                    vibrancy()
-                                    blur(12f.dp.toPx())
-                                    lens(6f.dp.toPx(), 12f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(Color.White.copy(alpha = 0.2f))
+                            .then(
+                                when {
+                                    isGlassTheme -> Modifier.drawBackdrop(
+                                        backdrop = backdrop,
+                                        shape = { RoundedRectangle(20f.dp) },
+                                        effects = {
+                                            vibrancy()
+                                            blur(12f.dp.toPx())
+                                            lens(6f.dp.toPx(), 12f.dp.toPx())
+                                        },
+                                        onDrawSurface = {
+                                            drawRect(Color.White.copy(alpha = 0.15f))
+                                        }
+                                    )
+                                    isDarkTheme -> Modifier.background(Color.White.copy(alpha = 0.1f))
+                                    else -> Modifier.background(Color.Black.copy(alpha = 0.05f)) // Light theme
                                 }
                             )
                             .clickable(onClick = onNavigateBack)
-                            .padding(10.dp),
+                            .padding(8.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        BasicText(
-                            text = "←",
-                            style = TextStyle(
-                                color = contentColor,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        Image(
+                            painter = painterResource(R.drawable.ic_back),
+                            contentDescription = "Back",
+                            modifier = Modifier.size(20.dp),
+                            colorFilter = ColorFilter.tint(contentColor)
                         )
                     }
                     
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(12.dp))
                     
                     BasicText(
                         text = profile.user.name,
                         style = TextStyle(
                             color = contentColor,
-                            fontSize = 20.sp,
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                     )
@@ -588,6 +620,8 @@ private fun ProfileContent(
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
+                isGlassTheme = isGlassTheme,
+                isDarkTheme = isDarkTheme,
                 isOwner = uiState.isOwner,
                 connectionStatus = uiState.connectionStatus,
                 isFollowing = uiState.isFollowing,
@@ -786,6 +820,8 @@ private fun ProfileHeader(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    isGlassTheme: Boolean,
+    isDarkTheme: Boolean,
     isOwner: Boolean,
     connectionStatus: String,
     isFollowing: Boolean,
@@ -888,15 +924,26 @@ private fun ProfileHeader(
     Box(
         Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(24f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(12f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.08f))
+            .then(
+                when {
+                    isGlassTheme -> Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(24f.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(16f.dp.toPx())
+                            lens(8f.dp.toPx(), 16f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color.White.copy(alpha = 0.12f))
+                        }
+                    )
+                    isDarkTheme -> Modifier
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color(0xFF1E1E1E))
+                    else -> Modifier
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.White)
                 }
             )
     ) {
@@ -905,16 +952,38 @@ private fun ProfileHeader(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(120.dp)
+                    .height(140.dp)
                     .then(
                         if (user.bannerImageUrl != null)
                             Modifier.background(Color.Transparent)
-                        else
-                            Modifier.background(
-                                Brush.horizontalGradient(
-                                    listOf(accentColor.copy(alpha = 0.6f), accentColor.copy(alpha = 0.3f))
+                        else when {
+                            isGlassTheme -> Modifier.drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedRectangle(0f.dp) },
+                                effects = {
+                                    vibrancy()
+                                    blur(20f.dp.toPx())
+                                    lens(10f.dp.toPx(), 20f.dp.toPx())
+                                },
+                                onDrawSurface = {
+                                    drawRect(
+                                        Brush.verticalGradient(
+                                            listOf(accentColor.copy(alpha = 0.3f), Color.White.copy(alpha = 0.08f))
+                                        )
+                                    )
+                                }
+                            )
+                            isDarkTheme -> Modifier.background(
+                                Brush.verticalGradient(
+                                    listOf(accentColor.copy(alpha = 0.4f), Color(0xFF2D2D2D))
                                 )
                             )
+                            else -> Modifier.background(
+                                Brush.verticalGradient(
+                                    listOf(accentColor.copy(alpha = 0.3f), Color(0xFFF0F0F0))
+                                )
+                            )
+                        }
                     )
             ) {
                 user.bannerImageUrl?.let { url ->
@@ -976,7 +1045,7 @@ private fun ProfileHeader(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .offset(y = (-40).dp),
+                        .offset(y = (-36).dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom
                 ) {
@@ -1156,7 +1225,24 @@ private fun ProfileHeader(
                             Box(
                                 Modifier
                                     .clip(RoundedCornerShape(20.dp))
-                                    .background(Color.White.copy(alpha = 0.10f))
+                                    .then(
+                                        when {
+                                            isGlassTheme -> Modifier.drawBackdrop(
+                                                backdrop = backdrop,
+                                                shape = { RoundedRectangle(20f.dp) },
+                                                effects = {
+                                                    vibrancy()
+                                                    blur(12f.dp.toPx())
+                                                    lens(6f.dp.toPx(), 12f.dp.toPx())
+                                                },
+                                                onDrawSurface = {
+                                                    drawRect(Color.White.copy(alpha = 0.15f))
+                                                }
+                                            )
+                                            isDarkTheme -> Modifier.background(Color.White.copy(alpha = 0.1f))
+                                            else -> Modifier.background(Color.Black.copy(alpha = 0.05f))
+                                        }
+                                    )
                                     .clickable { onMessage(user.id) }
                                     .padding(horizontal = 14.dp, vertical = 8.dp),
                                 contentAlignment = Alignment.Center
@@ -1168,7 +1254,8 @@ private fun ProfileHeader(
                                     Image(
                                         painter = painterResource(R.drawable.ic_message),
                                         contentDescription = "Message",
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(16.dp),
+                                        colorFilter = ColorFilter.tint(contentColor)
                                     )
                                     BasicText(
                                         "Message",
@@ -1177,27 +1264,115 @@ private fun ProfileHeader(
                                 }
                             }
                             
-                            // Follow button
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(
-                                        if (isFollowing) contentColor.copy(alpha = 0.1f)
-                                        else accentColor.copy(alpha = 0.2f)
+                            // Menu button (Follow + Share profile)
+                            Box {
+                                Box(
+                                    Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .then(
+                                            when {
+                                                isGlassTheme -> Modifier.drawBackdrop(
+                                                    backdrop = backdrop,
+                                                    shape = { RoundedRectangle(18f.dp) },
+                                                    effects = {
+                                                        vibrancy()
+                                                        blur(12f.dp.toPx())
+                                                        lens(6f.dp.toPx(), 12f.dp.toPx())
+                                                    },
+                                                    onDrawSurface = {
+                                                        drawRect(Color.White.copy(alpha = 0.15f))
+                                                    }
+                                                )
+                                                isDarkTheme -> Modifier.background(Color.White.copy(alpha = 0.1f))
+                                                else -> Modifier.background(Color.Black.copy(alpha = 0.05f))
+                                            }
+                                        )
+                                        .clickable { showShareMenu = true },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Image(
+                                        painter = painterResource(R.drawable.ic_more),
+                                        contentDescription = "More options",
+                                        modifier = Modifier.size(20.dp),
+                                        colorFilter = ColorFilter.tint(contentColor)
                                     )
-                                    .clickable(enabled = !followActionInProgress) { onToggleFollow() }
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                            ) {
-                                if (followActionInProgress) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp,
-                                        color = accentColor
+                                }
+                                
+                                DropdownMenu(
+                                    expanded = showShareMenu,
+                                    onDismissRequest = { showShareMenu = false }
+                                ) {
+                                    // Follow option
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Image(
+                                                    painter = painterResource(R.drawable.ic_users),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp),
+                                                    colorFilter = ColorFilter.tint(contentColor)
+                                                )
+                                                BasicText(
+                                                    if (isFollowing) "Unfollow" else "Follow",
+                                                    style = TextStyle(contentColor, 14.sp)
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            onToggleFollow()
+                                            showShareMenu = false
+                                        }
                                     )
-                                } else {
-                                    BasicText(
-                                        if (isFollowing) "Following" else "Follow",
-                                        style = TextStyle(accentColor, 14.sp, FontWeight.SemiBold)
+                                    // Copy profile link
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Image(
+                                                    painter = painterResource(R.drawable.ic_link),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp),
+                                                    colorFilter = ColorFilter.tint(contentColor)
+                                                )
+                                                BasicText("Copy profile link", style = TextStyle(contentColor, 14.sp))
+                                            }
+                                        },
+                                        onClick = {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("Profile URL", "https://vormex.com/@${user.username}"))
+                                            showShareMenu = false
+                                        }
+                                    )
+                                    // Share profile
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Image(
+                                                    painter = painterResource(R.drawable.ic_share),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp),
+                                                    colorFilter = ColorFilter.tint(contentColor)
+                                                )
+                                                BasicText("Share profile", style = TextStyle(contentColor, 14.sp))
+                                            }
+                                        },
+                                        onClick = {
+                                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_TEXT, "Check out ${user.name}'s profile on Vormex: https://vormex.com/@${user.username}")
+                                            }
+                                            context.startActivity(Intent.createChooser(intent, "Share profile"))
+                                            showShareMenu = false
+                                        }
                                     )
                                 }
                             }
@@ -1207,7 +1382,7 @@ private fun ProfileHeader(
                 
                 // Name and badges
                 Row(
-                    Modifier.offset(y = (-32).dp),
+                    Modifier.offset(y = (-24).dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -1235,7 +1410,7 @@ private fun ProfileHeader(
                 BasicText(
                     "@${user.username}",
                     style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp),
-                    modifier = Modifier.offset(y = (-28).dp)
+                    modifier = Modifier.offset(y = (-20).dp)
                 )
                 
                 // Headline
@@ -1243,13 +1418,13 @@ private fun ProfileHeader(
                     BasicText(
                         headline,
                         style = TextStyle(contentColor, 14.sp),
-                        modifier = Modifier.offset(y = (-24).dp)
+                        modifier = Modifier.offset(y = (-16).dp)
                     )
                 }
                 
                 // Location, College, Branch
                 Row(
-                    Modifier.offset(y = (-20).dp),
+                    Modifier.offset(y = (-12).dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     user.location?.let { location ->
@@ -1287,7 +1462,7 @@ private fun ProfileHeader(
                 
                 // Social links
                 Row(
-                    Modifier.offset(y = (-16).dp),
+                    Modifier.offset(y = (-8).dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     user.linkedinUrl?.let { url ->
@@ -1321,7 +1496,7 @@ private fun ProfileHeader(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .offset(y = (-8).dp),
+                        .padding(top = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     StatItem(
@@ -2089,109 +2264,91 @@ private fun profileShimmerBrush(isLightTheme: Boolean): Brush {
 }
 
 @Composable
-private fun ProfileSkeleton(backdrop: LayerBackdrop, isLightTheme: Boolean) {
+private fun ProfileSkeleton(
+    backdrop: LayerBackdrop,
+    isLightTheme: Boolean,
+    accentColor: Color
+) {
     val shimmer = profileShimmerBrush(isLightTheme)
     
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 100.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                if (isLightTheme) Color.White else Color(0xFF0B0B0F)
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        // Header skeleton
-        item {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Circular glass card with app logo
             Box(
-                Modifier
-                    .fillMaxWidth()
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
                     .drawBackdrop(
                         backdrop = backdrop,
-                        shape = { RoundedRectangle(24f.dp) },
-                        effects = { vibrancy(); blur(12f.dp.toPx()) },
-                        onDrawSurface = { drawRect(Color.White.copy(alpha = 0.08f)) }
-                    )
-            ) {
-                Column {
-                    // Banner skeleton
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(120.dp)
-                            .background(shimmer)
-                    )
-                    
-                    Column(Modifier.padding(16.dp)) {
-                        // Avatar skeleton
-                        Box(
-                            Modifier
-                                .offset(y = (-40).dp)
-                                .size(88.dp)
-                                .clip(CircleShape)
-                                .background(shimmer)
-                        )
-                        
-                        // Name skeleton
-                        Box(
-                            Modifier
-                                .offset(y = (-32).dp)
-                                .width(150.dp)
-                                .height(24.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(shimmer)
-                        )
-                        
-                        // Username skeleton
-                        Box(
-                            Modifier
-                                .offset(y = (-24).dp)
-                                .width(100.dp)
-                                .height(16.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(shimmer)
-                        )
-                        
-                        // Headline skeleton
-                        Box(
-                            Modifier
-                                .offset(y = (-16).dp)
-                                .fillMaxWidth(0.8f)
-                                .height(14.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(shimmer)
-                        )
-                        
-                        Spacer(Modifier.height(16.dp))
-                        
-                        // Stats skeleton
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(24.dp)
-                        ) {
-                            repeat(4) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box(
-                                        Modifier
-                                            .width(40.dp)
-                                            .height(18.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(shimmer)
-                                    )
-                                    Spacer(Modifier.height(4.dp))
-                                    Box(
-                                        Modifier
-                                            .width(60.dp)
-                                            .height(12.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(shimmer)
-                                    )
+                        shape = { RoundedRectangle(60f.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(20f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(
+                                color = if (isLightTheme) {
+                                    Color.White.copy(alpha = 0.4f)
+                                } else {
+                                    Color.White.copy(alpha = 0.12f)
                                 }
-                            }
+                            )
                         }
-                    }
-                }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                // Rotating stroke around logo using progress indicator
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .padding(10.dp),
+                    color = accentColor,
+                    strokeWidth = 3.dp
+                )
+                
+                // Inner pulsating circle behind logo
+                Box(
+                    modifier = Modifier
+                        .size(88.dp)
+                        .clip(CircleShape)
+                        .background(shimmer)
+                )
+                // App logo in the center
+                Image(
+                    painter = painterResource(com.kyant.backdrop.catalog.R.mipmap.ic_launcher_foreground),
+                    contentDescription = "Vormex",
+                    modifier = Modifier.size(56.dp)
+                )
             }
-        }
-        
-        // Section skeletons
-        items(4) { index ->
-            Spacer(Modifier.height(12.dp))
-            SectionSkeleton(backdrop, shimmer)
+            
+            // Loading text
+            BasicText(
+                "Loading profile…",
+                style = TextStyle(
+                    color = if (isLightTheme) Color.Black.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            )
+            
+            // Subtext
+            BasicText(
+                "Fetching your latest Vormex data",
+                style = TextStyle(
+                    color = if (isLightTheme) Color.Black.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.5f),
+                    fontSize = 12.sp
+                )
+            )
         }
     }
 }

@@ -1131,9 +1131,52 @@ data class SendMessageRequest(
 )
 
 @Serializable
+data class UploadChatMediaResponse(
+    val mediaUrl: String,
+    val fileName: String,
+    val fileSize: Int,
+    val mediaType: String
+)
+
+@Serializable
 data class EditMessageRequest(
     val content: String
 )
+
+// Shared post content parsed from message content
+@Serializable
+data class SharedPostAuthor(
+    val name: String? = null,
+    val username: String? = null,
+    val profileImage: String? = null
+)
+
+@Serializable
+data class SharedPostContent(
+    val type: String = "",
+    val postId: String = "",
+    val postUrl: String = "",
+    val preview: String = "",
+    val author: SharedPostAuthor? = null,
+    val mediaUrl: String? = null
+) {
+    companion object {
+        private val lenientJson = kotlinx.serialization.json.Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
+        
+        fun tryParse(content: String): SharedPostContent? {
+            return try {
+                if (content.contains("\"type\":\"shared_post\"") || content.contains("\"type\": \"shared_post\"")) {
+                    lenientJson.decodeFromString<SharedPostContent>(content)
+                } else null
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+}
 
 @Serializable
 data class AddReactionRequest(

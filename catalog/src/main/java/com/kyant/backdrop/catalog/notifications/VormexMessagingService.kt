@@ -5,8 +5,11 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessaging
@@ -99,11 +102,45 @@ class VormexMessagingService : FirebaseMessagingService() {
         }
 
         /**
+         * Get custom notification sound URI
+         * Falls back to default notification sound if custom sound not found
+         */
+        private fun getCustomSoundUri(context: Context): Uri {
+            return try {
+                // Try to get custom sound from raw resources
+                val resourceId = context.resources.getIdentifier(
+                    "vormex_notification",
+                    "raw",
+                    context.packageName
+                )
+                if (resourceId != 0) {
+                    Uri.parse("android.resource://${context.packageName}/$resourceId")
+                } else {
+                    Log.d(TAG, "Custom sound not found, using default")
+                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading custom sound", e)
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            }
+        }
+
+        /**
          * Create notification channels (call on app startup)
          */
         fun createNotificationChannels(context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                
+                // Custom notification sound URI - uses vormex_notification.mp3 from res/raw
+                // Falls back to default notification sound if custom sound not found
+                val customSoundUri: Uri = getCustomSoundUri(context)
+                
+                // Audio attributes for notification sound
+                val audioAttributes = AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .build()
                 
                 val channels = listOf(
                     NotificationChannel(
@@ -113,14 +150,22 @@ class VormexMessagingService : FirebaseMessagingService() {
                     ).apply {
                         description = "New messages and chat notifications"
                         enableVibration(true)
+                        vibrationPattern = longArrayOf(0, 250, 250, 250)
                         enableLights(true)
+                        setSound(customSoundUri, audioAttributes)
+                        lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                        setBypassDnd(true)
                     },
                     NotificationChannel(
                         CHANNEL_ID_SOCIAL,
                         "Social",
-                        NotificationManager.IMPORTANCE_DEFAULT
+                        NotificationManager.IMPORTANCE_HIGH
                     ).apply {
                         description = "Likes, comments, mentions, and followers"
+                        enableVibration(true)
+                        vibrationPattern = longArrayOf(0, 200, 100, 200)
+                        setSound(customSoundUri, audioAttributes)
+                        lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                     },
                     NotificationChannel(
                         CHANNEL_ID_CONNECTIONS,
@@ -129,6 +174,10 @@ class VormexMessagingService : FirebaseMessagingService() {
                     ).apply {
                         description = "Connection requests and acceptances"
                         enableVibration(true)
+                        vibrationPattern = longArrayOf(0, 300, 200, 300)
+                        setSound(customSoundUri, audioAttributes)
+                        lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                        setBypassDnd(true)
                     },
                     NotificationChannel(
                         CHANNEL_ID_STREAKS,
@@ -137,13 +186,19 @@ class VormexMessagingService : FirebaseMessagingService() {
                     ).apply {
                         description = "Streak reminders and achievements"
                         enableVibration(true)
+                        vibrationPattern = longArrayOf(0, 200, 100, 200, 100, 200)
+                        setSound(customSoundUri, audioAttributes)
+                        lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                     },
                     NotificationChannel(
                         CHANNEL_ID_ENGAGEMENT,
                         "Engagement",
-                        NotificationManager.IMPORTANCE_DEFAULT
+                        NotificationManager.IMPORTANCE_HIGH
                     ).apply {
                         description = "Daily matches, weekly goals, and achievements"
+                        enableVibration(true)
+                        setSound(customSoundUri, audioAttributes)
+                        lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                     }
                 )
                 
@@ -171,14 +226,15 @@ class VormexMessagingService : FirebaseMessagingService() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
 
-            val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            // Use custom sound
+            val soundUri = getCustomSoundUri(context)
             
             val notificationBuilder = NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setAutoCancel(true)
-                .setSound(defaultSoundUri)
+                .setSound(soundUri)
                 .setContentIntent(pendingIntent)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
             
@@ -274,18 +330,42 @@ class VormexMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
         Log.d(TAG, "FCM message received from: ${remoteMessage.from}")
-
-        // Get notification data
-        val data = remoteMessage.data
-        val notification = remoteMessage.notification
         
-        val title = notification?.title ?: data["title"] ?: "Vormex"
-        val body = notification?.body ?: data["body"] ?: ""
-        val type = data["type"] ?: "general"
+        // Acquire wake lock to ensure notification is processed when app is killed/background
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "Vormex:NotificationWakeLock"
+        )
+        wakeLock.acquire(10000L) // 10 seconds max
         
-        if (body.isNotEmpty()) {
-            val channelId = getChannelForType(type)
-            showNotification(title, body, channelId, data)
+        try {
+            // Get notification data - data messages have title/body in data payload
+            val data = remoteMessage.data
+            val notification = remoteMessage.notification
+            
+            // For data-only messages (when app killed), data contains title/body
+            // For notification+data messages (when app foreground), notification contains title/body
+            val title = notification?.title ?: data["title"] ?: "Vormex"
+            val body = notification?.body ?: data["body"] ?: ""
+            val type = data["type"] ?: "general"
+            
+            Log.d(TAG, "Processing notification - Title: $title, Body: $body, Type: $type")
+            
+            if (body.isNotEmpty()) {
+                val channelId = getChannelForType(type)
+                showNotification(title, body, channelId, data)
+                Log.d(TAG, "Notification displayed successfully on channel: $channelId")
+            } else {
+                Log.w(TAG, "Empty body in notification, skipping display")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error processing FCM message", e)
+        } finally {
+            // Always release wake lock
+            if (wakeLock.isHeld) {
+                wakeLock.release()
+            }
         }
     }
 
@@ -305,17 +385,23 @@ class VormexMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        // Use custom sound (same as channel sound)
+        val soundUri = getCustomSoundUri(this)
         
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)
-            .setSound(defaultSoundUri)
+            .setSound(soundUri)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setVibrate(longArrayOf(0, 250, 250, 250))
+            .setDefaults(NotificationCompat.DEFAULT_LIGHTS)
+            // Full screen intent for heads-up notification on locked screen
+            .setFullScreenIntent(pendingIntent, true)
         
         if (body.length > 50) {
             notificationBuilder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -327,5 +413,7 @@ class VormexMessagingService : FirebaseMessagingService() {
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
+        
+        Log.d(TAG, "Notification posted with ID: ${System.currentTimeMillis().toInt()}")
     }
 }

@@ -93,17 +93,11 @@ fun OnboardingScreen(
     val textColor = if (isLightTheme) Color.Black else Color.White
     val secondaryTextColor = if (isLightTheme) Color.Black.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.7f)
     
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Background wallpaper
-        Image(
-            painter = painterResource(R.drawable.wallpaper_light),
-            contentDescription = null,
-            modifier = Modifier
-                .layerBackdrop(backdrop)
-                .fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
-        
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isLightTheme) Color.White else Color.Black)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

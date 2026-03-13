@@ -530,3 +530,168 @@ fun RepostIcon(
         drawLine(color, Offset(s * 0.2f, s * 0.65f), Offset(s * 0.8f, s * 0.65f), strokeWidth, StrokeCap.Round)
     }
 }
+
+// Lightning bolt / Zap icon (for Smart Matches)
+@Composable
+fun ZapIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 12f
+        
+        val path = Path().apply {
+            moveTo(s * 0.55f, s * 0.1f)
+            lineTo(s * 0.25f, s * 0.5f)
+            lineTo(s * 0.45f, s * 0.5f)
+            lineTo(s * 0.4f, s * 0.9f)
+            lineTo(s * 0.75f, s * 0.45f)
+            lineTo(s * 0.55f, s * 0.45f)
+            close()
+        }
+        drawPath(path, color, style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+// Users / People icon (for All People)
+@Composable
+fun UsersIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 12f
+        
+        // Front person head
+        drawCircle(
+            color = color,
+            radius = s * 0.12f,
+            center = Offset(s * 0.35f, s * 0.3f),
+            style = Stroke(strokeWidth)
+        )
+        
+        // Front person body
+        val frontBodyPath = Path().apply {
+            moveTo(s * 0.1f, s * 0.85f)
+            quadraticTo(s * 0.1f, s * 0.5f, s * 0.35f, s * 0.5f)
+            quadraticTo(s * 0.6f, s * 0.5f, s * 0.6f, s * 0.85f)
+        }
+        drawPath(frontBodyPath, color, style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        
+        // Back person head
+        drawCircle(
+            color = color,
+            radius = s * 0.1f,
+            center = Offset(s * 0.65f, s * 0.25f),
+            style = Stroke(strokeWidth)
+        )
+        
+        // Back person body
+        val backBodyPath = Path().apply {
+            moveTo(s * 0.5f, s * 0.7f)
+            quadraticTo(s * 0.5f, s * 0.42f, s * 0.65f, s * 0.42f)
+            quadraticTo(s * 0.9f, s * 0.42f, s * 0.9f, s * 0.7f)
+        }
+        drawPath(backBodyPath, color, style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+// Sparkle / Star icon (for For You)
+@Composable
+fun SparkleIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 12f
+        
+        // Main star
+        val starPath = Path().apply {
+            moveTo(s * 0.5f, s * 0.1f)
+            lineTo(s * 0.58f, s * 0.35f)
+            lineTo(s * 0.85f, s * 0.35f)
+            lineTo(s * 0.65f, s * 0.52f)
+            lineTo(s * 0.72f, s * 0.8f)
+            lineTo(s * 0.5f, s * 0.65f)
+            lineTo(s * 0.28f, s * 0.8f)
+            lineTo(s * 0.35f, s * 0.52f)
+            lineTo(s * 0.15f, s * 0.35f)
+            lineTo(s * 0.42f, s * 0.35f)
+            close()
+        }
+        drawPath(starPath, color, style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+// Graduation cap icon (for Campus)
+@Composable
+fun GraduationCapIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 12f
+        
+        // Cap top (diamond shape)
+        val capPath = Path().apply {
+            moveTo(s * 0.5f, s * 0.15f)
+            lineTo(s * 0.9f, s * 0.35f)
+            lineTo(s * 0.5f, s * 0.55f)
+            lineTo(s * 0.1f, s * 0.35f)
+            close()
+        }
+        drawPath(capPath, color, style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        
+        // Cap base curve
+        val basePath = Path().apply {
+            moveTo(s * 0.2f, s * 0.45f)
+            lineTo(s * 0.2f, s * 0.65f)
+            quadraticTo(s * 0.5f, s * 0.85f, s * 0.8f, s * 0.65f)
+            lineTo(s * 0.8f, s * 0.45f)
+        }
+        drawPath(basePath, color, style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        
+        // Tassel
+        drawLine(color, Offset(s * 0.9f, s * 0.35f), Offset(s * 0.9f, s * 0.7f), strokeWidth, StrokeCap.Round)
+        drawCircle(color, s * 0.04f, Offset(s * 0.9f, s * 0.72f))
+    }
+}
+
+// Location pin icon (for Nearby)
+@Composable
+fun LocationPinIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 12f
+        
+        // Pin shape
+        val pinPath = Path().apply {
+            moveTo(s * 0.5f, s * 0.9f)
+            quadraticTo(s * 0.15f, s * 0.55f, s * 0.15f, s * 0.35f)
+            cubicTo(s * 0.15f, s * 0.1f, s * 0.85f, s * 0.1f, s * 0.85f, s * 0.35f)
+            quadraticTo(s * 0.85f, s * 0.55f, s * 0.5f, s * 0.9f)
+            close()
+        }
+        drawPath(pinPath, color, style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        
+        // Inner circle
+        drawCircle(
+            color = color,
+            radius = s * 0.12f,
+            center = Offset(s * 0.5f, s * 0.35f),
+            style = Stroke(strokeWidth)
+        )
+    }
+}

@@ -43,13 +43,15 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.FlingBehavior
-import androidx.compose.foundation.gestures.ScrollableDefaults
+import androidx.compose.foundation.gestures.ScrollScope
+import androidx.compose.animation.core.AnimationState
+import androidx.compose.animation.core.animateDecay
+import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -62,6 +64,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -126,15 +129,22 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.catalog.data.SettingsPreferences
 import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.kyant.backdrop.catalog.chat.ChatViewModel
 
 // Pacifico font family
 private val PacificoFontFamily = FontFamily(
     Font(R.font.pacifico)
+)
+
+// Kaushan Script font family for vormeX branding
+private val KaushanScriptFontFamily = FontFamily(
+    Font(R.font.kaushan_script)
 )
 
 // Shimmer effect for skeleton loading
@@ -339,8 +349,13 @@ fun LinkedInContent(
     val viewModel: FeedViewModel = viewModel(factory = FeedViewModel.Factory(context))
     val uiState by viewModel.uiState.collectAsState()
     
-    val isLightTheme = !isSystemInDarkTheme()
-    val contentColor = if (isLightTheme) Color.Black else Color.White
+    // Theme preference: "glass", "light", "dark"
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
+    val isGlassTheme = themeMode == "glass"
+    val isLightTheme = themeMode == "light" || themeMode == "glass"
+    val isDarkTheme = themeMode == "dark"
+    // Glass and Bright themes use black text, Dark theme uses white text
+    val contentColor = if (isDarkTheme) Color.White else Color.Black
     val accentColor = Color(0xFF0A66C2) // LinkedIn blue
 
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -349,6 +364,9 @@ fun LinkedInContent(
     // Track if user is viewing a personal chat thread (for hiding bottom nav)
     var isInChatThread by remember { mutableStateOf(false) }
     val backdrop = rememberLayerBackdrop()
+    
+    // Messages screen state
+    var showMessagesScreen by remember { mutableStateOf(false) }
     
     // Groups & Circles navigation state
     var showGroupsScreen by remember { mutableStateOf(false) }
@@ -366,6 +384,11 @@ fun LinkedInContent(
     var showConnectionCelebration by remember { mutableStateOf(false) }
     var celebrationConnectionId by remember { mutableStateOf<String?>(null) }
     
+    // Deep link navigation state - for opening specific post/reel from notification
+    var deepLinkPostId by remember { mutableStateOf<String?>(null) }
+    var deepLinkReelId by remember { mutableStateOf<String?>(null) }
+    var deepLinkConversationId by remember { mutableStateOf<String?>(null) }
+    
     // Settings & More screen navigation state
     var showProfileScreen by remember { mutableStateOf(false) }
     var showSavedPostsScreen by remember { mutableStateOf(false) }
@@ -382,6 +405,7 @@ fun LinkedInContent(
     // Priority: innermost overlays first, then outer overlays
     BackHandler(
         enabled = viewingProfileUserId != null ||
+                showMessagesScreen ||
                 showGroupChat ||
                 selectedGroupId != null ||
                 selectedCircleId != null ||
@@ -405,6 +429,9 @@ fun LinkedInContent(
         when {
             // Profile viewing (highest priority - innermost overlay)
             viewingProfileUserId != null -> viewingProfileUserId = null
+            
+            // Messages screen
+            showMessagesScreen -> showMessagesScreen = false
             
             // Group chat
             showGroupChat -> showGroupChat = false
@@ -465,13 +492,42 @@ fun LinkedInContent(
                     }
                 }
                 com.kyant.backdrop.catalog.notifications.VormexMessagingService.ACTION_CHAT -> {
+                    // Navigate to chat - use conversationId or userId
+                    selectedTab = 2 // Chat tab
+                    link.conversationId?.let { convId ->
+                        deepLinkConversationId = convId
+                    }
                     link.userId?.let { userId ->
-                        selectedTab = 2 // Chat tab
                         openChatWithUserId = userId
                     }
                 }
+                com.kyant.backdrop.catalog.notifications.VormexMessagingService.ACTION_POST -> {
+                    // Navigate to specific post (like, comment, mention notifications)
+                    link.postId?.let { postId ->
+                        selectedTab = 0 // Feed tab
+                        deepLinkPostId = postId
+                    }
+                }
+                com.kyant.backdrop.catalog.notifications.VormexMessagingService.ACTION_REEL -> {
+                    // Navigate to specific reel
+                    link.reelId?.let { reelId ->
+                        selectedTab = 0 // Feed tab
+                        deepLinkReelId = reelId
+                    }
+                }
+                com.kyant.backdrop.catalog.notifications.VormexMessagingService.ACTION_CONNECTIONS -> {
+                    // Navigate to connections screen
+                    selectedTab = 1 // Find People tab (connections)
+                }
                 com.kyant.backdrop.catalog.notifications.VormexMessagingService.ACTION_FIND_PEOPLE -> {
                     selectedTab = 1 // Find People tab
+                }
+                com.kyant.backdrop.catalog.notifications.VormexMessagingService.ACTION_STREAK -> {
+                    showStreakDetailsScreen = true
+                }
+                com.kyant.backdrop.catalog.notifications.VormexMessagingService.ACTION_ENGAGEMENT -> {
+                    // Show engagement/rewards
+                    selectedTab = 0 // Feed tab
                 }
             }
             onDeepLinkConsumed()
@@ -498,6 +554,10 @@ fun LinkedInContent(
     val retentionViewModel: RetentionViewModel = viewModel(factory = RetentionViewModel.Factory(context))
     val retentionState by retentionViewModel.uiState.collectAsState()
     
+    // Chat state for unread message indicator
+    val chatViewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory(context))
+    val chatState by chatViewModel.uiState.collectAsState()
+    
     // Load retention data when user logs in
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) {
@@ -514,15 +574,25 @@ fun LinkedInContent(
     }
 
     Box(Modifier.fillMaxSize()) {
-        // Background wallpaper
-        Image(
-            painterResource(if (isLightTheme) R.drawable.wallpaper_light else R.drawable.wallpaper_light),
-            null,
-            Modifier
-                .layerBackdrop(backdrop)
-                .fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
+        // Background based on theme
+        if (isGlassTheme) {
+            // Glass theme: show wallpaper background
+            Image(
+                painterResource(R.drawable.wallpaper_light),
+                null,
+                Modifier
+                    .layerBackdrop(backdrop)
+                    .fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            // Solid color background for Bright/Dark themes
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(if (isDarkTheme) Color.Black else Color.White)
+            )
+        }
         
         // Show auth screen if not logged in
         if (!uiState.isLoggedIn) {
@@ -569,20 +639,21 @@ fun LinkedInContent(
                     .fillMaxSize()
                     .then(
                         // Only add status bar padding when NOT on profile tab (to allow banner to extend to top)
-                        if (selectedTab != 5) Modifier.statusBarsPadding() else Modifier
+                        if (selectedTab != 4) Modifier.statusBarsPadding() else Modifier
                     )
                     .displayCutoutPadding()
             ) {
                 // Top bar (hidden when in chat thread or on profile tab)
-                if (!isInChatThread && selectedTab != 5) {
+                if (!isInChatThread && selectedTab != 4) {
                     LinkedInTopBar(
                         backdrop = backdrop,
                         contentColor = contentColor,
                         accentColor = accentColor,
                         userInitials = uiState.currentUser?.name?.firstOrNull()?.toString() ?: "U",
+                        hasUnreadMessages = chatState.unreadCount > 0,
                         onMessagesClick = {
                             openChatWithUserId = null
-                            selectedTab = 2
+                            showMessagesScreen = true
                         }
                     )
                 }
@@ -596,6 +667,26 @@ fun LinkedInContent(
                         0 -> {
                             var showCommentsSheet by remember { mutableStateOf(false) }
                             var selectedPostForComments by remember { mutableStateOf<String?>(null) }
+                            
+                            // Handle deep link to specific post (from notification)
+                            LaunchedEffect(deepLinkPostId) {
+                                deepLinkPostId?.let { postId ->
+                                    // Open the comments sheet for this post
+                                    selectedPostForComments = postId
+                                    viewModel.loadComments(postId)
+                                    showCommentsSheet = true
+                                    deepLinkPostId = null // Clear after handling
+                                }
+                            }
+                            
+                            // Handle deep link to specific reel (from notification)
+                            LaunchedEffect(deepLinkReelId) {
+                                deepLinkReelId?.let { reelId ->
+                                    // Open the reel viewer
+                                    reelsViewModel.loadReelById(reelId)
+                                    deepLinkReelId = null // Clear after handling
+                                }
+                            }
                             
                             Box(Modifier.fillMaxSize()) {
                                 FeedScreen(
@@ -818,16 +909,7 @@ fun LinkedInContent(
                             accentColor = accentColor,
                             onNavigateToProfile = { userId -> viewingProfileUserId = userId }
                         )
-                        2 -> ChatTabContent(
-                            backdrop = backdrop,
-                            contentColor = contentColor,
-                            accentColor = accentColor,
-                            openChatWithUserId = openChatWithUserId,
-                            onConsumedOpenChat = { openChatWithUserId = null },
-                            onInChatThread = { inThread -> isInChatThread = inThread },
-                            onNavigateToProfile = { userId -> viewingProfileUserId = userId }
-                        )
-                        3 -> com.kyant.backdrop.catalog.linkedin.posts.CreatePostScreen(
+                        2 -> com.kyant.backdrop.catalog.linkedin.posts.CreatePostScreen(
                             backdrop = backdrop,
                             contentColor = contentColor,
                             accentColor = accentColor,
@@ -863,12 +945,13 @@ fun LinkedInContent(
                             onClearError = { viewModel.clearError() },
                             onPostCreated = { selectedTab = 0 }
                         )
-                        4 -> MoreScreen(
-                            backdrop = backdrop, 
-                            contentColor = contentColor, 
+                        3 -> MoreScreen(
+                            backdrop = backdrop,
+                            contentColor = contentColor,
                             accentColor = accentColor,
+                            isGlassTheme = isGlassTheme,
                             currentUser = uiState.currentUser,
-                            onNavigateToProfile = { selectedTab = 5 },
+                            onNavigateToProfile = { selectedTab = 4 },
                             onNavigateToGroups = { showGroupsScreen = true },
                             onNavigateToCircles = { showCirclesScreen = true },
                             onNavigateToReels = { 
@@ -888,7 +971,7 @@ fun LinkedInContent(
                             onNavigateToContact = { showContactScreen = true },
                             onLogout = { showLogoutDialog = true }
                         )
-                        5 -> {
+                        4 -> {
                             // Use the new comprehensive ProfileScreen with its own ViewModel
                             ProfileScreen(
                                 userId = null, // null means current user's profile
@@ -912,7 +995,7 @@ fun LinkedInContent(
                     selectedTabIndex = { selectedTab },
                     onTabSelected = { selectedTab = it },
                     backdrop = backdrop,
-                    tabsCount = 6,
+                    tabsCount = 5,
                     modifier = Modifier
                         .padding(horizontal = 16.dp)
                         .navigationBarsPadding()
@@ -972,15 +1055,6 @@ fun LinkedInContent(
                 }
                 LiquidBottomTab(onClick = { selectedTab = 2 }) {
                     Image(
-                        painterResource(R.drawable.ic_message),
-                        contentDescription = "Messages",
-                        modifier = Modifier.size(24.dp),
-                        colorFilter = ColorFilter.tint(contentColor)
-                    )
-                    BasicText("Messages", style = TextStyle(contentColor, 10.sp))
-                }
-                LiquidBottomTab(onClick = { selectedTab = 3 }) {
-                    Image(
                         painterResource(R.drawable.ic_post),
                         contentDescription = "Post",
                         modifier = Modifier.size(24.dp),
@@ -988,7 +1062,7 @@ fun LinkedInContent(
                     )
                     BasicText("Post", style = TextStyle(contentColor, 10.sp))
                 }
-                LiquidBottomTab(onClick = { selectedTab = 4 }) {
+                LiquidBottomTab(onClick = { selectedTab = 3 }) {
                     Image(
                         painterResource(R.drawable.ic_more),
                         contentDescription = "More",
@@ -997,7 +1071,7 @@ fun LinkedInContent(
                     )
                     BasicText("More", style = TextStyle(contentColor, 10.sp))
                 }
-                LiquidBottomTab(onClick = { selectedTab = 5 }) {
+                LiquidBottomTab(onClick = { selectedTab = 4 }) {
                     // Profile tab with streak indicator
                     Box {
                         Column(
@@ -1168,6 +1242,7 @@ fun LinkedInContent(
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
+                    currentTheme = themeMode,
                     onMatchClick = { userId ->
                         showRewardCardsOverlay = false
                         viewingProfileUserId = userId
@@ -1191,23 +1266,25 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 viewingProfileUserId?.let { userId ->
-                    // Dark glass background for profile page
-                    val darkContentColor = Color.White
-                    val darkAccentColor = Color(0xFF6C5CE7)
-                    
                     Box(
                         Modifier
                             .fillMaxSize()
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { RoundedRectangle(0f.dp) },
-                                effects = {
-                                    vibrancy()
-                                    blur(24f.dp.toPx())
-                                    lens(12f.dp.toPx(), 24f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
+                            .then(
+                                when {
+                                    isGlassTheme -> Modifier.drawBackdrop(
+                                        backdrop = backdrop,
+                                        shape = { RoundedRectangle(0f.dp) },
+                                        effects = {
+                                            vibrancy()
+                                            blur(24f.dp.toPx())
+                                            lens(12f.dp.toPx(), 24f.dp.toPx())
+                                        },
+                                        onDrawSurface = {
+                                            drawRect(Color.White.copy(alpha = 0.08f))
+                                        }
+                                    )
+                                    isDarkTheme -> Modifier.background(Color(0xFF121212))
+                                    else -> Modifier.background(Color(0xFFF5F5F5)) // Light theme
                                 }
                             )
                             .statusBarsPadding()
@@ -1215,13 +1292,100 @@ fun LinkedInContent(
                         ProfileScreen(
                             userId = userId,
                             backdrop = backdrop,
-                            contentColor = darkContentColor,
-                            accentColor = darkAccentColor,
+                            contentColor = contentColor,
+                            accentColor = accentColor,
                             onNavigateBack = { viewingProfileUserId = null },
                             onMessage = { otherUserId ->
                                 viewingProfileUserId = null
                                 openChatWithUserId = otherUserId
-                                selectedTab = 2
+                                showMessagesScreen = true
+                            }
+                        )
+                    }
+                }
+            }
+            
+            // Messages Screen Overlay
+            AnimatedVisibility(
+                visible = showMessagesScreen,
+                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+            ) {
+                // Theme-aware colors
+                val messagesContentColor = contentColor
+                val messagesAccentColor = accentColor
+                
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .then(
+                            if (isGlassTheme) {
+                                Modifier.drawBackdrop(
+                                    backdrop = backdrop,
+                                    shape = { RoundedRectangle(0f.dp) },
+                                    effects = {
+                                        vibrancy()
+                                        blur(12f.dp.toPx())
+                                    },
+                                    onDrawSurface = {
+                                        drawRect(Color.White.copy(alpha = 0.15f))
+                                    }
+                                )
+                            } else if (isDarkTheme) {
+                                Modifier.background(Color(0xFF1a1a2e))
+                            } else {
+                                Modifier.background(Color.White)
+                            }
+                        )
+                        .statusBarsPadding()
+                ) {
+                    Column(Modifier.fillMaxSize()) {
+                        // Header with back button - hidden when in chat thread
+                        if (!isInChatThread) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .clickable { showMessagesScreen = false },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    BasicText(
+                                        "←",
+                                        style = TextStyle(
+                                            color = messagesContentColor,
+                                            fontSize = 22.sp
+                                        )
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                BasicText(
+                                    "Messages",
+                                    style = TextStyle(
+                                        color = messagesContentColor,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                )
+                            }
+                        }
+                        
+                        // Chat content
+                        ChatTabContent(
+                            backdrop = backdrop,
+                            contentColor = messagesContentColor,
+                            accentColor = messagesAccentColor,
+                            isGlassTheme = isGlassTheme,
+                            openChatWithUserId = openChatWithUserId,
+                            onConsumedOpenChat = { openChatWithUserId = null },
+                            onInChatThread = { inThread -> isInChatThread = inThread },
+                            onNavigateToProfile = { userId ->
+                                viewingProfileUserId = userId
                             }
                         )
                     }
@@ -1872,6 +2036,7 @@ private fun LinkedInTopBar(
     contentColor: Color,
     accentColor: Color,
     userInitials: String = "U",
+    hasUnreadMessages: Boolean = false,
     onMessagesClick: () -> Unit = {}
 ) {
     Row(
@@ -1884,9 +2049,9 @@ private fun LinkedInTopBar(
         // Left spacer for centering
         Spacer(Modifier.width(92.dp))
         
-        // Centered app name with Pacifico font
+        // Centered app name with solid color
         BasicText(
-            "Vormex",
+            "vormeX",
             style = TextStyle(
                 color = Color.Black,
                 fontSize = 32.sp,
@@ -1899,58 +2064,47 @@ private fun LinkedInTopBar(
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Notification icon with glass effect
+            // Notification icon
             Box(
                 Modifier
                     .size(40.dp)
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(20f.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(8f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(Color.White.copy(alpha = 0.15f))
-                        }
-                    )
                     .clickable { },
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     painterResource(R.drawable.ic_notifications),
                     contentDescription = "Notifications",
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(24.dp),
                     colorFilter = ColorFilter.tint(contentColor)
                 )
             }
             
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(8.dp))
 
-            // Messages icon with glass effect
+            // Messages icon with unread dot
             Box(
                 Modifier
                     .size(40.dp)
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(20f.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(8f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(Color.White.copy(alpha = 0.15f))
-                        }
-                    )
                     .clickable { onMessagesClick() },
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     painterResource(R.drawable.ic_message),
                     contentDescription = "Messages",
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(24.dp),
                     colorFilter = ColorFilter.tint(contentColor)
                 )
+                // Unread indicator dot
+                if (hasUnreadMessages) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 4.dp, y = 4.dp)
+                            .size(10.dp)
+                            .background(Color(0xFFFF3B30), CircleShape)
+                            .border(1.5.dp, Color.White, CircleShape)
+                    )
+                }
             }
         }
     }
@@ -2021,28 +2175,59 @@ private fun FeedScreen(
         )
     }
     
-    // Pull-to-refresh with haptic feedback and visible indicator
+    // Custom smooth fling behavior for buttery scrolling
+    val smoothFlingBehavior = remember {
+        object : FlingBehavior {
+            override suspend fun ScrollScope.performFling(initialVelocity: Float): Float {
+                // Use exponential decay with lower friction for smoother, longer-lasting scrolls
+                val decay = exponentialDecay<Float>(
+                    frictionMultiplier = 0.8f, // Lower = smoother/longer scroll
+                    absVelocityThreshold = 0.5f // Lower threshold = scroll continues longer
+                )
+                var remainingVelocity = initialVelocity
+                var lastValue = 0f
+                
+                androidx.compose.animation.core.AnimationState(
+                    initialValue = 0f,
+                    initialVelocity = initialVelocity
+                ).animateDecay(decay) {
+                    val delta = value - lastValue
+                    lastValue = value
+                    val consumed = scrollBy(delta)
+                    // If we hit a boundary, stop the animation
+                    if (kotlin.math.abs(delta - consumed) > 0.5f) {
+                        cancelAnimation()
+                    }
+                    remainingVelocity = velocity
+                }
+                return remainingVelocity
+            }
+        }
+    }
+    
+    // Pull-to-refresh with haptic feedback and minimal line indicator
+    // Twitter/X style - thin animated gradient line at top
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = {
             hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
             isRefreshing = true
-            onRefresh()
-            // Reset after a short delay (ViewModel will update the data)
-            kotlinx.coroutines.MainScope().launch {
-                kotlinx.coroutines.delay(1500)
-                isRefreshing = false
+                onRefresh()
+                // Reset after a short delay (ViewModel will update the data)
+                kotlinx.coroutines.MainScope().launch {
+                    kotlinx.coroutines.delay(1500)
+                    isRefreshing = false
             }
         },
         modifier = Modifier.fillMaxSize(),
         state = pullToRefreshState,
         indicator = {
-            Indicator(
-                modifier = Modifier.align(Alignment.TopCenter),
+            // Minimal line loader - Twitter/X style
+            MinimalLineRefreshIndicator(
                 isRefreshing = isRefreshing,
-                state = pullToRefreshState,
-                containerColor = Color(0xFF1976D2), // Blue background for visibility
-                color = Color.White // White spinner
+                pullProgress = pullToRefreshState.distanceFraction,
+                accentColor = accentColor,
+                modifier = Modifier.align(Alignment.TopCenter)
             )
         }
     ) {
@@ -2051,7 +2236,7 @@ private fun FeedScreen(
             modifier = Modifier
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            flingBehavior = ScrollableDefaults.flingBehavior()
+            flingBehavior = smoothFlingBehavior
         ) {
             item { Spacer(Modifier.height(8.dp)) }
         
@@ -2325,6 +2510,81 @@ private fun FeedScreen(
         item { Spacer(Modifier.height(80.dp)) }
     }
     } // Close PullToRefreshBox
+}
+
+// Minimal Line Refresh Indicator - Twitter/X style
+@Composable
+private fun MinimalLineRefreshIndicator(
+    isRefreshing: Boolean,
+    pullProgress: Float,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "line_loader")
+    
+    // Animated gradient position for the loading state
+    val animatedOffset = infiniteTransition.animateFloat(
+        initialValue = -1f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "gradient_offset"
+    )
+    
+    // Only show when pulling or refreshing
+    val showIndicator = pullProgress > 0f || isRefreshing
+    
+    AnimatedVisibility(
+        visible = showIndicator,
+        enter = fadeIn(animationSpec = tween(150)),
+        exit = fadeOut(animationSpec = tween(300)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(3.dp)
+                .statusBarsPadding()
+        ) {
+            if (isRefreshing) {
+                // Animated gradient line during refresh
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    accentColor.copy(alpha = 0.3f),
+                                    accentColor,
+                                    accentColor.copy(alpha = 0.3f),
+                                    Color.Transparent
+                                ),
+                                startX = animatedOffset.value * 500f,
+                                endX = (animatedOffset.value + 1f) * 500f
+                            )
+                        )
+                )
+            } else {
+                // Static progress line based on pull distance
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(pullProgress.coerceIn(0f, 1f))
+                        .fillMaxHeight()
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    accentColor.copy(alpha = 0.5f),
+                                    accentColor
+                                )
+                            )
+                        )
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -3135,6 +3395,7 @@ private fun MoreScreen(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    isGlassTheme: Boolean,
     currentUser: com.kyant.backdrop.catalog.network.models.User? = null,
     onNavigateToProfile: () -> Unit = {},
     onNavigateToGroups: () -> Unit = {},
@@ -3180,27 +3441,31 @@ private fun MoreScreen(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
         
         // ==================== User Header (Optional) ====================
         currentUser?.let { user ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(20.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(12f.dp.toPx())
-                            lens(6f.dp.toPx(), 12f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(accentColor.copy(alpha = 0.15f))
-                        }
+                    .clip(RoundedCornerShape(20.dp))
+                    .then(
+                        if (isGlassTheme) Modifier.drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { RoundedRectangle(20.dp) },
+                            effects = {
+                                vibrancy()
+                                blur(12f.dp.toPx())
+                                lens(6f.dp.toPx(), 12f.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(accentColor.copy(alpha = 0.15f))
+                            }
+                        ) else Modifier.background(contentColor.copy(alpha = 0.08f))
                     )
                     .clickable(onClick = onNavigateToProfile)
                     .padding(16.dp)
@@ -3257,7 +3522,7 @@ private fun MoreScreen(
                     }
                     
                     BasicText(
-                        "→",
+                        "›",
                         style = TextStyle(contentColor.copy(alpha = 0.4f), 24.sp)
                     )
                 }
@@ -3280,11 +3545,12 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Weekly Goals",
             subtitle = goalsProgressText,
-            icon = "🎯",
-            trailing = if (goalsData.streakAtRisk) "⚠️" else "",
+            iconResId = R.drawable.ic_target,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
+            trailingIconResId = if (goalsData.streakAtRisk) R.drawable.ic_warning else null,
             onClick = onNavigateToWeeklyGoals
         )
         
@@ -3292,10 +3558,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Streaks & Activity",
             subtitle = "Networking, Login, Posting, Messaging",
-            icon = "🔥",
+            iconResId = R.drawable.ic_flame,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToStreakDetails
         )
         
@@ -3303,10 +3570,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Top Networkers",
             subtitle = "Weekly & monthly leaderboard",
-            icon = "🏆",
+            iconResId = R.drawable.ic_trophy,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToTopNetworkers
         )
         
@@ -3315,7 +3583,8 @@ private fun MoreScreen(
             LiveActivityBanner(
                 activityData = retentionState.liveActivity,
                 backdrop = backdrop,
-                contentColor = contentColor
+                contentColor = contentColor,
+                isGlassTheme = isGlassTheme
             )
         }
         
@@ -3326,10 +3595,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Profile",
             subtitle = "View and edit your profile",
-            icon = "👤",
+            iconResId = R.drawable.ic_profile,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToProfile
         )
         
@@ -3337,10 +3607,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Saved Posts",
             subtitle = "Posts you've bookmarked",
-            icon = "🔖",
+            iconResId = R.drawable.ic_bookmark,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToSavedPosts
         )
         
@@ -3348,10 +3619,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Profile Preferences",
             subtitle = "Goals, interests & matching settings",
-            icon = "✏️",
+            iconResId = R.drawable.ic_edit,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToOnboarding
         )
         
@@ -3362,10 +3634,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Groups",
             subtitle = "Connect with communities",
-            icon = "👥",
+            iconResId = R.drawable.ic_users,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToGroups
         )
         
@@ -3373,10 +3646,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Circles",
             subtitle = "Share with close friends",
-            icon = "⭕",
+            iconResId = R.drawable.ic_circle,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToCircles
         )
         
@@ -3384,10 +3658,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Reels",
             subtitle = "Watch short videos",
-            icon = "🎬",
+            iconResId = R.drawable.ic_video,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToReels
         )
         
@@ -3398,10 +3673,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Notifications",
             subtitle = "Push, digest & alerts",
-            icon = "🔔",
+            iconResId = R.drawable.ic_notifications,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToNotificationSettings
         )
         
@@ -3409,10 +3685,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Privacy",
             subtitle = "Profile visibility & messaging",
-            icon = "🔒",
+            iconResId = R.drawable.ic_lock,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToPrivacySettings
         )
         
@@ -3420,10 +3697,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Appearance",
             subtitle = "Theme, font & accessibility",
-            icon = "🎨",
+            iconResId = R.drawable.ic_palette,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToAppearanceSettings
         )
         
@@ -3434,10 +3712,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Help & FAQ",
             subtitle = "Getting started & troubleshooting",
-            icon = "❓",
+            iconResId = R.drawable.ic_help,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToHelp
         )
         
@@ -3445,10 +3724,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Invite Friends",
             subtitle = "Share Vormex with others",
-            icon = "🎁",
+            iconResId = R.drawable.ic_gift,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToInviteFriends
         )
         
@@ -3456,10 +3736,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "About",
             subtitle = "Version, terms & privacy policy",
-            icon = "ℹ️",
+            iconResId = R.drawable.ic_info,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToAbout
         )
         
@@ -3467,10 +3748,11 @@ private fun MoreScreen(
         MoreMenuItemWithSubtitle(
             title = "Contact Us",
             subtitle = "Support & feedback",
-            icon = "📧",
+            iconResId = R.drawable.ic_email,
             backdrop = backdrop,
             contentColor = contentColor,
             accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
             onClick = onNavigateToContact
         )
         
@@ -3481,17 +3763,20 @@ private fun MoreScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(16.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(10f.dp.toPx())
-                        lens(4f.dp.toPx(), 8f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(Color.Red.copy(alpha = 0.1f))
-                    }
+                .clip(RoundedCornerShape(16.dp))
+                .then(
+                    if (isGlassTheme) Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(16.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(10f.dp.toPx())
+                            lens(4f.dp.toPx(), 8f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color.Red.copy(alpha = 0.1f))
+                        }
+                    ) else Modifier.background(Color.Red.copy(alpha = 0.08f))
                 )
                 .clickable(onClick = onLogout)
                 .padding(16.dp)
@@ -3500,7 +3785,12 @@ private fun MoreScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BasicText("🚪", style = TextStyle(fontSize = 24.sp))
+                Image(
+                    painter = painterResource(R.drawable.ic_logout),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    colorFilter = ColorFilter.tint(Color.Red.copy(alpha = 0.9f))
+                )
                 Spacer(Modifier.width(16.dp))
                 BasicText(
                     "Log Out",
@@ -3526,7 +3816,7 @@ private fun MoreSectionHeader(
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.sp
         ),
-        modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 4.dp)
+        modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 6.dp)
     )
 }
 
@@ -3534,27 +3824,31 @@ private fun MoreSectionHeader(
 private fun MoreMenuItemWithSubtitle(
     title: String,
     subtitle: String,
-    icon: String,
+    iconResId: Int,
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
-    trailing: String = "",
+    isGlassTheme: Boolean,
+    trailingIconResId: Int? = null,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.08f))
-                }
+            .clip(RoundedCornerShape(16.dp))
+            .then(
+                if (isGlassTheme) Modifier.drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { RoundedRectangle(16.dp) },
+                    effects = {
+                        vibrancy()
+                        blur(10f.dp.toPx())
+                        lens(4f.dp.toPx(), 8f.dp.toPx())
+                    },
+                    onDrawSurface = {
+                        drawRect(Color.White.copy(alpha = 0.08f))
+                    }
+                ) else Modifier.background(contentColor.copy(alpha = 0.08f))
             )
             .clickable(onClick = onClick)
             .padding(16.dp)
@@ -3568,7 +3862,12 @@ private fun MoreMenuItemWithSubtitle(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                BasicText(icon, style = TextStyle(fontSize = 24.sp))
+                Image(
+                    painter = painterResource(iconResId),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    colorFilter = ColorFilter.tint(contentColor)
+                )
                 Spacer(Modifier.width(16.dp))
                 Column {
                     BasicText(
@@ -3583,8 +3882,13 @@ private fun MoreMenuItemWithSubtitle(
             }
             
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (trailing.isNotEmpty()) {
-                    BasicText(trailing, style = TextStyle(fontSize = 16.sp))
+                trailingIconResId?.let { resId ->
+                    Image(
+                        painter = painterResource(resId),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        colorFilter = ColorFilter.tint(contentColor.copy(alpha = 0.7f))
+                    )
                     Spacer(Modifier.width(8.dp))
                 }
                 BasicText(
@@ -3599,30 +3903,39 @@ private fun MoreMenuItemWithSubtitle(
 @Composable
 private fun MoreMenuItem(
     title: String,
-    icon: String,
+    iconResId: Int,
     backdrop: LayerBackdrop,
-    contentColor: Color
+    contentColor: Color,
+    isGlassTheme: Boolean
 ) {
     Box(
         Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(24f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.1f))
-                }
+            .clip(RoundedCornerShape(16.dp))
+            .then(
+                if (isGlassTheme) Modifier.drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { RoundedRectangle(16.dp) },
+                    effects = {
+                        vibrancy()
+                        blur(10f.dp.toPx())
+                        lens(4f.dp.toPx(), 8f.dp.toPx())
+                    },
+                    onDrawSurface = {
+                        drawRect(Color.White.copy(alpha = 0.08f))
+                    }
+                ) else Modifier.background(contentColor.copy(alpha = 0.08f))
             )
             .clickable { }
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            BasicText(icon, style = TextStyle(fontSize = 24.sp))
+            Image(
+                painter = painterResource(iconResId),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                colorFilter = ColorFilter.tint(contentColor)
+            )
             Spacer(Modifier.width(16.dp))
             BasicText(
                 title,
@@ -5248,6 +5561,9 @@ private fun ApiPostCard(
     var showMentionPreview by remember { mutableStateOf(false) }
     var mentionUsername by remember { mutableStateOf("") }
     
+    // Red color for active likes
+    val likeActiveColor = Color(0xFFE53935)
+    
     Box(
         Modifier
             .fillMaxWidth()
@@ -5443,7 +5759,7 @@ private fun ApiPostCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     LikeIcon(
-                        color = if (post.isLiked) accentColor else contentColor.copy(alpha = 0.6f),
+                        color = if (post.isLiked) likeActiveColor else contentColor.copy(alpha = 0.6f),
                         size = 14.dp,
                         filled = post.isLiked
                     )
@@ -5483,13 +5799,13 @@ private fun ApiPostCard(
                 ApiActionButton(
                     icon = { 
                         LikeIcon(
-                            color = if (post.isLiked) accentColor else contentColor.copy(alpha = 0.7f),
+                            color = if (post.isLiked) likeActiveColor else contentColor.copy(alpha = 0.7f),
                             size = 18.dp,
                             filled = post.isLiked
                         )
                     },
                     label = "Like",
-                    contentColor = if (post.isLiked) accentColor else contentColor,
+                    contentColor = if (post.isLiked) likeActiveColor else contentColor,
                     onClick = { onLike(post.id) }
                 )
                 ApiActionButton(
