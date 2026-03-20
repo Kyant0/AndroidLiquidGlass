@@ -817,7 +817,9 @@ fun SkillsSection(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
-    isOwner: Boolean
+    isOwner: Boolean,
+    onAddSkill: () -> Unit = {},
+    onRemoveSkill: (UserSkill) -> Unit = {}
 ) {
     SectionCard(
         title = "Skills & Expertise",
@@ -825,7 +827,7 @@ fun SkillsSection(
         contentColor = contentColor,
         accentColor = accentColor,
         isOwner = isOwner,
-        onAdd = { /* TODO: Add skill */ }
+        onAdd = onAddSkill
     ) {
         if (skills.isEmpty()) {
             EmptySectionPlaceholder(
@@ -843,7 +845,8 @@ fun SkillsSection(
                         skill = userSkill,
                         contentColor = contentColor,
                         accentColor = accentColor,
-                        isOwner = isOwner
+                        isOwner = isOwner,
+                        onRemove = { onRemoveSkill(userSkill) }
                     )
                 }
             }
@@ -856,7 +859,8 @@ private fun SkillChip(
     skill: UserSkill,
     contentColor: Color,
     accentColor: Color,
-    isOwner: Boolean
+    isOwner: Boolean,
+    onRemove: () -> Unit = {}
 ) {
     val proficiencyColor = when (skill.proficiency?.lowercase()) {
         "expert" -> Color(0xFFFFD700)
@@ -888,7 +892,7 @@ private fun SkillChip(
                 BasicText(
                     "×",
                     style = TextStyle(contentColor.copy(alpha = 0.4f), 14.sp),
-                    modifier = Modifier.clickable { /* Remove */ }
+                    modifier = Modifier.clickable { onRemove() }
                 )
             }
         }
@@ -2476,8 +2480,11 @@ fun ActivityFeedSection(
     contentColor: Color,
     accentColor: Color,
     isLightTheme: Boolean,
+    isOwner: Boolean,
     onFilterChange: (String) -> Unit,
-    onLoadMore: () -> Unit
+    onLoadMore: () -> Unit,
+    onPostClick: (String) -> Unit,
+    onDeletePost: (String) -> Unit
 ) {
     val filters = listOf(
         "all" to "All",
@@ -2539,7 +2546,10 @@ fun ActivityFeedSection(
                         FeedItemCard(
                             item = item,
                             contentColor = contentColor,
-                            accentColor = accentColor
+                            accentColor = accentColor,
+                            isOwner = isOwner,
+                            onOpenItem = onPostClick,
+                            onDeletePost = onDeletePost
                         )
                     }
                     
@@ -2582,8 +2592,19 @@ fun ActivityFeedSection(
 private fun FeedItemCard(
     item: FeedItem,
     contentColor: Color,
-    accentColor: Color
+    accentColor: Color,
+    isOwner: Boolean,
+    onOpenItem: (String) -> Unit,
+    onDeletePost: (String) -> Unit
 ) {
+    val canDelete = item.contentType == "post" || item.contentType == "article" || item.contentType == "short_video"
+    val mediaItems = when {
+        !item.images.isNullOrEmpty() -> item.images
+        !item.mediaUrls.isNullOrEmpty() -> item.mediaUrls
+        else -> emptyList()
+    }
+    var showMenu by remember { mutableStateOf(false) }
+
     val typeIconRes: Int? = when (item.contentType) {
         "post" -> R.drawable.ic_post
         "article" -> R.drawable.ic_article
@@ -2601,7 +2622,7 @@ private fun FeedItemCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(contentColor.copy(alpha = 0.05f))
-            .clickable { /* Open item */ }
+            .clickable { onOpenItem(item.id) }
             .padding(12.dp)
     ) {
         Column {
@@ -2634,6 +2655,32 @@ private fun FeedItemCard(
                         modifier = Modifier.weight(1f)
                     )
                 }
+
+                if (isOwner && canDelete) {
+                    Box {
+                        BasicText(
+                            "⋯",
+                            style = TextStyle(contentColor.copy(alpha = 0.7f), 18.sp, FontWeight.SemiBold),
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { showMenu = true }
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { BasicText("Delete post", style = TextStyle(Color(0xFFDC2626), 13.sp)) },
+                                onClick = {
+                                    showMenu = false
+                                    onDeletePost(item.id)
+                                }
+                            )
+                        }
+                    }
+                }
             }
             
             if (item.title != null && item.content.isNotEmpty()) {
@@ -2647,10 +2694,10 @@ private fun FeedItemCard(
             }
             
             // Display media preview (images/videos)
-            if (!item.images.isNullOrEmpty()) {
+            if (mediaItems.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 val isVideo = item.contentType == "short_video"
-                val imageCount = item.images.size
+                val imageCount = mediaItems.size
                 
                 if (imageCount == 1) {
                     // Single image/video
@@ -2662,7 +2709,7 @@ private fun FeedItemCard(
                     ) {
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
-                                .data(item.images.first())
+                                .data(mediaItems.first())
                                 .crossfade(true)
                                 .build(),
                             contentDescription = if (isVideo) "Video thumbnail" else "Post image",
@@ -2705,8 +2752,8 @@ private fun FeedItemCard(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // Show first 2-3 images
-                        item.images.take(3).forEachIndexed { index, imageUrl ->
-                            val isLastVisible = index == 2 || index == item.images.lastIndex
+                        mediaItems.take(3).forEachIndexed { index, imageUrl ->
+                            val isLastVisible = index == 2 || index == mediaItems.lastIndex
                             Box(
                                 modifier = Modifier
                                     .weight(1f)

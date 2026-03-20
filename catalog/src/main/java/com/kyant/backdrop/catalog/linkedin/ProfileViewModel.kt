@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.kyant.backdrop.catalog.network.ApiClient
+import com.kyant.backdrop.catalog.network.PostsApiService
 import com.kyant.backdrop.catalog.network.models.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -66,12 +67,32 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
     
     private var targetUserId: String? = null
+    private var lastLoadedUserId: String? = null
+    private var lastLoadedAtMillis: Long = 0L
+    private var isProfileRequestInFlight: Boolean = false
+    private val cacheTtlMillis: Long = 5 * 60 * 1000L
     
-    fun loadProfile(userId: String? = null) {
+    fun loadProfile(userId: String? = null, forceRefresh: Boolean = false) {
         val effectiveUserId = userId ?: "me"
         targetUserId = effectiveUserId
+
+        val now = System.currentTimeMillis()
+        val isCacheFresh =
+            !forceRefresh &&
+            _uiState.value.profile != null &&
+            lastLoadedUserId == effectiveUserId &&
+            (now - lastLoadedAtMillis) < cacheTtlMillis
+
+        if (isCacheFresh) {
+            return
+        }
+
+        if (isProfileRequestInFlight && lastLoadedUserId == effectiveUserId && !forceRefresh) {
+            return
+        }
         
         viewModelScope.launch {
+            isProfileRequestInFlight = true
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
             // Get current user ID
@@ -85,6 +106,8 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
             // Load profile
             ApiClient.getProfile(context, effectiveUserId)
                 .onSuccess { profile ->
+                    lastLoadedUserId = effectiveUserId
+                    lastLoadedAtMillis = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
                         profile = profile,
                         isLoading = false,
@@ -100,14 +123,21 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
                     
                     // Load activity years
                     loadActivityYears(profile.user.id)
+
+                    isProfileRequestInFlight = false
                 }
                 .onFailure { e ->
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         error = e.message ?: "Failed to load profile"
                     )
+                    isProfileRequestInFlight = false
                 }
         }
+    }
+
+    fun prefetchOwnProfile() {
+        loadProfile(userId = null, forceRefresh = false)
     }
     
     private fun loadRelationshipStatus(userId: String) {
@@ -219,6 +249,43 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
                 }
                 .onFailure {
                     _uiState.value = _uiState.value.copy(isLoadingFeed = false)
+                }
+        }
+    }
+
+    fun deleteFeedPost(postId: String, onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            PostsApiService.deletePost(context, postId)
+                .onSuccess {
+                    val currentProfile = _uiState.value.profile
+                    val deletedItem = _uiState.value.feedItems.find { it.id == postId }
+                    val updatedFeedItems = _uiState.value.feedItems.filterNot { it.id == postId }
+
+                    val updatedProfile = currentProfile?.let { profile ->
+                        val updatedStats = when (deletedItem?.contentType) {
+                            "article" -> profile.stats.copy(totalArticles = (profile.stats.totalArticles - 1).coerceAtLeast(0))
+                            "short_video" -> profile.stats.copy(totalShortVideos = (profile.stats.totalShortVideos - 1).coerceAtLeast(0))
+                            else -> profile.stats.copy(totalPosts = (profile.stats.totalPosts - 1).coerceAtLeast(0))
+                        }
+
+                        profile.copy(
+                            stats = updatedStats,
+                            recentActivity = profile.recentActivity.copy(
+                                items = updatedFeedItems,
+                                totalCount = (profile.recentActivity.totalCount - 1).coerceAtLeast(0),
+                                hasMore = profile.recentActivity.hasMore
+                            )
+                        )
+                    }
+
+                    _uiState.value = _uiState.value.copy(
+                        profile = updatedProfile,
+                        feedItems = updatedFeedItems
+                    )
+                    onSuccess()
+                }
+                .onFailure { e ->
+                    onError(e.message ?: "Failed to delete post")
                 }
         }
     }
@@ -721,13 +788,44 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
                 }
         }
     }
+
+    // ==================== Skills Management (local only) ====================
+
+    fun addLocalSkill(name: String, proficiency: String?) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val currentProfile = _uiState.value.profile ?: return
+
+        val newSkillId = "local-${System.currentTimeMillis()}"
+        val newSkill = UserSkill(
+            id = newSkillId,
+            skill = Skill(id = newSkillId, name = trimmed),
+            proficiency = proficiency?.takeIf { it.isNotBlank() },
+            yearsOfExp = null
+        )
+
+        _uiState.value = _uiState.value.copy(
+            profile = currentProfile.copy(
+                skills = currentProfile.skills + newSkill
+            )
+        )
+    }
+
+    fun removeLocalSkill(skillId: String) {
+        val currentProfile = _uiState.value.profile ?: return
+        _uiState.value = _uiState.value.copy(
+            profile = currentProfile.copy(
+                skills = currentProfile.skills.filterNot { it.id == skillId }
+            )
+        )
+    }
     
     fun clearUploadError() {
         _uiState.value = _uiState.value.copy(uploadError = null)
     }
     
     fun retry() {
-        targetUserId?.let { loadProfile(it) }
+        targetUserId?.let { loadProfile(it, forceRefresh = true) }
     }
     
     class Factory(private val context: Context) : ViewModelProvider.Factory {

@@ -122,7 +122,8 @@ fun ProfileScreen(
     contentColor: Color,
     accentColor: Color,
     onNavigateBack: () -> Unit = {},
-    onMessage: (String) -> Unit = {}
+    onMessage: (String) -> Unit = {},
+    onOpenPost: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val viewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory(context))
@@ -157,6 +158,9 @@ fun ProfileScreen(
     var editingAchievement by remember { mutableStateOf<Achievement?>(null) }
     var viewingAchievement by remember { mutableStateOf<Achievement?>(null) }
     
+    // Skills screen state
+    var showAddSkill by remember { mutableStateOf(false) }
+    
     // Handle back button for profile overlays, or navigate back from profile
     BackHandler(
         enabled = showAddProject || editingProject != null || viewingProject != null ||
@@ -164,6 +168,7 @@ fun ProfileScreen(
                 showAddEducation || editingEducation != null ||
                 showAddCertificate || editingCertificate != null || viewingCertificate != null ||
                 showAddAchievement || editingAchievement != null || viewingAchievement != null ||
+                showAddSkill ||
                 true // Always enabled to handle back from profile screen
     ) {
         when {
@@ -181,6 +186,7 @@ fun ProfileScreen(
             showAddAchievement -> showAddAchievement = false
             editingAchievement != null -> editingAchievement = null
             viewingAchievement != null -> viewingAchievement = null
+            showAddSkill -> showAddSkill = false
             // If no overlays open, navigate back from profile
             else -> onNavigateBack()
         }
@@ -193,7 +199,7 @@ fun ProfileScreen(
     Box(Modifier.fillMaxSize()) {
         when {
             uiState.isLoading -> {
-                ProfileSkeleton(backdrop, isLightTheme, accentColor)
+                ProfileSkeleton(backdrop, isLightTheme, isGlassTheme)
             }
             uiState.error != null -> {
                 ProfileError(
@@ -229,6 +235,7 @@ fun ProfileScreen(
                     onBioChange = { viewModel.updateEditedBio(it) },
                     onToggleOpenToWork = { viewModel.updateOpenToOpportunities(it) },
                     onMessage = onMessage,
+                    onOpenPost = onOpenPost,
                     onUploadAvatar = { viewModel.uploadAvatar(it) },
                     onUploadBanner = { viewModel.uploadBanner(it) },
                     // Project callbacks
@@ -251,7 +258,17 @@ fun ProfileScreen(
                     // Achievement callbacks
                     onAddAchievement = { showAddAchievement = true },
                     onEditAchievement = { editingAchievement = it },
-                    onViewAchievement = { viewingAchievement = it }
+                    onViewAchievement = { viewingAchievement = it },
+                    // Skills callbacks
+                    onAddSkill = { showAddSkill = true },
+                    onRemoveSkill = { skill -> viewModel.removeLocalSkill(skill.id) },
+                    onDeleteFeedPost = { postId ->
+                        viewModel.deleteFeedPost(
+                            postId = postId,
+                            onSuccess = {},
+                            onError = { }
+                        )
+                    }
                 )
             }
         }
@@ -317,6 +334,20 @@ fun ProfileScreen(
                 },
                 onDelete = null,
                 onCancel = { showAddExperience = false }
+            )
+        }
+        
+        // Add Skill Screen
+        if (showAddSkill) {
+            AddSkillDialog(
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                onSave = { name, proficiency ->
+                    viewModel.addLocalSkill(name = name, proficiency = proficiency)
+                    showAddSkill = false
+                },
+                onCancel = { showAddSkill = false }
             )
         }
         
@@ -481,6 +512,136 @@ fun ProfileScreen(
 }
 
 @Composable
+private fun AddSkillDialog(
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    onSave: (String, String?) -> Unit,
+    onCancel: () -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var proficiency by remember { mutableStateOf("") }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.4f))
+            .clickable { onCancel() },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            Modifier
+                .padding(24.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { RoundedRectangle(20f.dp) },
+                    effects = {
+                        vibrancy()
+                        blur(16f.dp.toPx())
+                    },
+                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.14f)) }
+                )
+                .padding(20.dp)
+                .clickable(enabled = false) { }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                BasicText(
+                    "Add skill",
+                    style = TextStyle(contentColor, 18.sp, FontWeight.SemiBold)
+                )
+
+                // Skill name
+                BasicTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    textStyle = TextStyle(contentColor, 14.sp),
+                    cursorBrush = SolidColor(accentColor),
+                    singleLine = true,
+                    decorationBox = { inner ->
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(contentColor.copy(alpha = 0.06f))
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            if (name.isEmpty()) {
+                                BasicText(
+                                    "Skill name (e.g. Kotlin, UI/UX)",
+                                    style = TextStyle(contentColor.copy(alpha = 0.4f), 14.sp)
+                                )
+                            }
+                            inner()
+                        }
+                    }
+                )
+
+                // Proficiency (optional)
+                BasicTextField(
+                    value = proficiency,
+                    onValueChange = { proficiency = it },
+                    textStyle = TextStyle(contentColor, 14.sp),
+                    cursorBrush = SolidColor(accentColor),
+                    singleLine = true,
+                    decorationBox = { inner ->
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(contentColor.copy(alpha = 0.06f))
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            if (proficiency.isEmpty()) {
+                                BasicText(
+                                    "Proficiency (e.g. Beginner, Intermediate, Expert)",
+                                    style = TextStyle(contentColor.copy(alpha = 0.4f), 14.sp)
+                                )
+                            }
+                            inner()
+                        }
+                    }
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    BasicText(
+                        "Cancel",
+                        style = TextStyle(contentColor.copy(alpha = 0.7f), 14.sp),
+                        modifier = Modifier
+                            .clickable { onCancel() }
+                            .padding(8.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                if (name.isNotBlank()) accentColor
+                                else accentColor.copy(alpha = 0.4f)
+                            )
+                            .clickable(enabled = name.isNotBlank()) {
+                                onSave(name, proficiency.takeIf { it.isNotBlank() })
+                            }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        BasicText(
+                            "Save",
+                            style = TextStyle(Color.White, 14.sp, FontWeight.Medium)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ProfileContent(
     uiState: ProfileUiState,
     backdrop: LayerBackdrop,
@@ -505,6 +666,7 @@ private fun ProfileContent(
     onBioChange: (String) -> Unit,
     onToggleOpenToWork: (Boolean) -> Unit,
     onMessage: (String) -> Unit,
+    onOpenPost: (String) -> Unit,
     onUploadAvatar: (ByteArray) -> Unit,
     onUploadBanner: (ByteArray) -> Unit,
     // Project callbacks
@@ -527,7 +689,11 @@ private fun ProfileContent(
     // Achievement callbacks
     onAddAchievement: () -> Unit = {},
     onEditAchievement: (Achievement) -> Unit = {},
-    onViewAchievement: (Achievement) -> Unit = {}
+    onViewAchievement: (Achievement) -> Unit = {},
+    // Skills callbacks
+    onAddSkill: () -> Unit = {},
+    onRemoveSkill: (UserSkill) -> Unit = {},
+    onDeleteFeedPost: (String) -> Unit = {}
 ) {
     val profile = uiState.profile!!
     // Derive isLightTheme for components that need it
@@ -701,7 +867,9 @@ private fun ProfileContent(
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
-                    isOwner = uiState.isOwner
+                    isOwner = uiState.isOwner,
+                    onAddSkill = onAddSkill,
+                    onRemoveSkill = onRemoveSkill
                 )
             }
         }
@@ -804,8 +972,11 @@ private fun ProfileContent(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 isLightTheme = isLightTheme,
+                isOwner = uiState.isOwner,
                 onFilterChange = onFilterChange,
-                onLoadMore = onLoadMore
+                onLoadMore = onLoadMore,
+                onPostClick = onOpenPost,
+                onDeletePost = onDeleteFeedPost
             )
         }
     }
@@ -2230,7 +2401,10 @@ private fun formatNumber(num: Int): String {
 // ==================== Skeleton Loading ====================
 
 @Composable
-private fun profileShimmerBrush(isLightTheme: Boolean): Brush {
+private fun profileShimmerBrush(
+    isLightTheme: Boolean,
+    isGlassTheme: Boolean
+): Brush {
     val transition = rememberInfiniteTransition(label = "shimmer")
     val translateAnim by transition.animateFloat(
         initialValue = 0f,
@@ -2242,19 +2416,27 @@ private fun profileShimmerBrush(isLightTheme: Boolean): Brush {
         label = "shimmerTranslate"
     )
     
-    val colors = if (isLightTheme) {
-        listOf(
-            Color(0xFFE0E0E0),
-            Color(0xFFF5F5F5),
-            Color(0xFFE0E0E0)
-        )
-    } else {
-        listOf(
-            Color(0xFF2A2A2A),
-            Color(0xFF3A3A3A),
-            Color(0xFF2A2A2A)
-        )
-    }
+    val colors =
+        if (isGlassTheme) {
+            // Soft translucent whites over the glass backdrop
+            listOf(
+                Color.White.copy(alpha = 0.25f),
+                Color.White.copy(alpha = 0.10f),
+                Color.White.copy(alpha = 0.25f)
+            )
+        } else if (isLightTheme) {
+            listOf(
+                Color(0xFFE0E0E0),
+                Color(0xFFF5F5F5),
+                Color(0xFFE0E0E0)
+            )
+        } else {
+            listOf(
+                Color(0xFF2A2A2A),
+                Color(0xFF3A3A3A),
+                Color(0xFF2A2A2A)
+            )
+        }
     
     return Brush.linearGradient(
         colors = colors,
@@ -2267,88 +2449,122 @@ private fun profileShimmerBrush(isLightTheme: Boolean): Brush {
 private fun ProfileSkeleton(
     backdrop: LayerBackdrop,
     isLightTheme: Boolean,
-    accentColor: Color
+    isGlassTheme: Boolean
 ) {
-    val shimmer = profileShimmerBrush(isLightTheme)
+    val shimmer = profileShimmerBrush(isLightTheme = isLightTheme, isGlassTheme = isGlassTheme)
     
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                if (isLightTheme) Color.White else Color(0xFF0B0B0F)
-            ),
-        contentAlignment = Alignment.Center
+                when {
+                    isGlassTheme -> Color.Transparent
+                    isLightTheme -> Color(0xFFF5F5F7)
+                    else -> Color(0xFF121218)
+                }
+            )
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 100.dp)
         ) {
-            // Circular glass card with app logo
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(60f.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(20f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(
-                                color = if (isLightTheme) {
-                                    Color.White.copy(alpha = 0.4f)
-                                } else {
-                                    Color.White.copy(alpha = 0.12f)
-                                }
-                            )
-                        }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                // Rotating stroke around logo using progress indicator
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .padding(10.dp),
-                    color = accentColor,
-                    strokeWidth = 3.dp
-                )
-                
-                // Inner pulsating circle behind logo
+            // Header skeleton
+            item {
                 Box(
-                    modifier = Modifier
-                        .size(88.dp)
-                        .clip(CircleShape)
-                        .background(shimmer)
-                )
-                // App logo in the center
-                Image(
-                    painter = painterResource(com.kyant.backdrop.catalog.R.mipmap.ic_launcher_foreground),
-                    contentDescription = "Vormex",
-                    modifier = Modifier.size(56.dp)
-                )
+                    Modifier
+                        .fillMaxWidth()
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { RoundedRectangle(24f.dp) },
+                            effects = { vibrancy(); blur(12f.dp.toPx()) },
+                            onDrawSurface = { drawRect(Color.White.copy(alpha = 0.08f)) }
+                        )
+                ) {
+                    Column {
+                        // Banner skeleton
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(120.dp)
+                                .background(shimmer)
+                        )
+                        
+                        Column(Modifier.padding(16.dp)) {
+                            // Avatar skeleton
+                            Box(
+                                Modifier
+                                    .offset(y = (-40).dp)
+                                    .size(88.dp)
+                                    .clip(CircleShape)
+                                    .background(shimmer)
+                            )
+                            
+                            // Name skeleton
+                            Box(
+                                Modifier
+                                    .offset(y = (-32).dp)
+                                    .width(150.dp)
+                                    .height(24.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(shimmer)
+                            )
+                            
+                            // Username skeleton
+                            Box(
+                                Modifier
+                                    .offset(y = (-24).dp)
+                                    .width(100.dp)
+                                    .height(16.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(shimmer)
+                            )
+                            
+                            // Headline skeleton
+                            Box(
+                                Modifier
+                                    .offset(y = (-16).dp)
+                                    .fillMaxWidth(0.8f)
+                                    .height(14.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(shimmer)
+                            )
+                            
+                            Spacer(Modifier.height(16.dp))
+                            
+                            // Stats skeleton
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(24.dp)
+                            ) {
+                                repeat(4) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Box(
+                                            Modifier
+                                                .width(40.dp)
+                                                .height(18.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(shimmer)
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                        Box(
+                                            Modifier
+                                                .width(60.dp)
+                                                .height(12.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(shimmer)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             
-            // Loading text
-            BasicText(
-                "Loading profile…",
-                style = TextStyle(
-                    color = if (isLightTheme) Color.Black.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.8f),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            )
-            
-            // Subtext
-            BasicText(
-                "Fetching your latest Vormex data",
-                style = TextStyle(
-                    color = if (isLightTheme) Color.Black.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.5f),
-                    fontSize = 12.sp
-                )
-            )
+            // Section skeletons
+            items(4) {
+                Spacer(Modifier.height(12.dp))
+                SectionSkeleton(backdrop, shimmer)
+            }
         }
     }
 }

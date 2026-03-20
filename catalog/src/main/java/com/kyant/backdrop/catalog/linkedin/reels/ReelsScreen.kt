@@ -1,5 +1,8 @@
 package com.kyant.backdrop.catalog.linkedin.reels
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
@@ -10,20 +13,27 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.overscroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,23 +49,28 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.activity.compose.BackHandler
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.catalog.network.models.Reel
+import com.kyant.backdrop.catalog.network.models.ReelComment
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.delay
@@ -349,6 +364,24 @@ fun ReelsFeedScreen(
     onTrackView: (String, Long, Boolean) -> Unit = { _, _, _ -> },
     onLoadMore: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val hostActivity = remember(context) { context.findActivity() }
+
+    DisposableEffect(hostActivity) {
+        hostActivity?.let { activity ->
+            val window = activity.window
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+            onDispose {
+                controller.show(WindowInsetsCompat.Type.systemBars())
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+            }
+        } ?: onDispose { }
+    }
+
     val pagerState = rememberPagerState(
         initialPage = initialIndex,
         pageCount = { reels.size }
@@ -360,76 +393,59 @@ fun ReelsFeedScreen(
     // Preload next reels
     LaunchedEffect(currentPage) {
         // Load more when near the end
-        if (currentPage >= reels.size - 3) {
+        if (currentPage >= reels.size - 8) {
             onLoadMore()
         }
     }
     
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false
-        )
+    BackHandler(enabled = true, onBack = onDismiss)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
     ) {
+        VerticalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 1,
+            key = { index -> reels[index].id },
+            pageSize = PageSize.Fill,
+            pageSpacing = 0.dp
+        ) { page ->
+            val reel = reels[page]
+            val isActive = page == currentPage
+
+            ReelCard(
+                reel = reel,
+                isActive = isActive,
+                onLike = { onLike(reel.id) },
+                onSave = { onSave(reel.id) },
+                onComment = { onComment(reel.id) },
+                onShare = { onShare(reel.id) },
+                onProfileClick = { onProfileClick(reel.author.id) },
+                onTrackView = { watchTime, completed ->
+                    onTrackView(reel.id, watchTime, completed)
+                }
+            )
+        }
+
+        // Close button
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
+                .statusBarsPadding()
+                .padding(16.dp)
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable { onDismiss() }
+                .align(Alignment.TopStart),
+            contentAlignment = Alignment.Center
         ) {
-            VerticalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-                beyondViewportPageCount = 2 // Preload 2 pages ahead
-            ) { page ->
-                val reel = reels[page]
-                val isActive = page == currentPage
-                
-                ReelCard(
-                    reel = reel,
-                    isActive = isActive,
-                    onLike = { onLike(reel.id) },
-                    onSave = { onSave(reel.id) },
-                    onComment = { onComment(reel.id) },
-                    onShare = { onShare(reel.id) },
-                    onProfileClick = { onProfileClick(reel.author.id) },
-                    onTrackView = { watchTime, completed -> 
-                        onTrackView(reel.id, watchTime, completed) 
-                    }
-                )
-            }
-            
-            // Close button
-            Box(
-                modifier = Modifier
-                    .statusBarsPadding()
-                    .padding(16.dp)
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .clickable { onDismiss() }
-                    .align(Alignment.TopStart),
-                contentAlignment = Alignment.Center
-            ) {
-                BasicText(
-                    "✕",
-                    style = TextStyle(Color.White, 18.sp, FontWeight.Bold)
-                )
-            }
-            
-            // Progress indicator
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(top = 8.dp)
-            ) {
-                BasicText(
-                    "${currentPage + 1}/${reels.size}",
-                    style = TextStyle(Color.White.copy(alpha = 0.7f), 12.sp)
-                )
-            }
+            BasicText(
+                "✕",
+                style = TextStyle(Color.White, 18.sp, FontWeight.Bold)
+            )
         }
     }
 }
@@ -466,7 +482,19 @@ private fun ReelCard(
     
     // Create ExoPlayer
     val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                2500,
+                45000,
+                800,
+                1800
+            )
+            .build()
+
+        ExoPlayer.Builder(context)
+            .setLoadControl(loadControl)
+            .build()
+            .apply {
             val mediaItem = if (!reel.hlsUrl.isNullOrEmpty()) {
                 MediaItem.fromUri(reel.hlsUrl)
             } else {
@@ -474,6 +502,8 @@ private fun ReelCard(
             }
             setMediaItem(mediaItem)
             repeatMode = Player.REPEAT_MODE_ONE
+            playWhenReady = false
+            prepare()
             
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
@@ -498,7 +528,6 @@ private fun ReelCard(
         if (isActive) {
             watchStartTime = System.currentTimeMillis()
             viewTracked = false
-            exoPlayer.prepare()
             exoPlayer.playWhenReady = true
             
             // Track view after 3 seconds
@@ -510,7 +539,6 @@ private fun ReelCard(
             }
         } else {
             exoPlayer.pause()
-            exoPlayer.seekTo(0)
         }
     }
     
@@ -579,44 +607,7 @@ private fun ReelCard(
             modifier = Modifier.fillMaxSize()
         )
         
-        // Loading indicator
-        AnimatedVisibility(
-            visible = isLoading,
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                // Show thumbnail while loading
-                reel.thumbnailUrl?.let { thumb ->
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(thumb)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                
-                // Loading spinner overlay
-                Box(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    BasicText(
-                        "●",
-                        style = TextStyle(Color.White, 24.sp)
-                    )
-                }
-            }
-        }
+        // Intentionally no buffering or reel-count overlays to keep full-screen immersive playback.
         
         // Double-tap heart animation
         AnimatedVisibility(
@@ -795,13 +786,6 @@ private fun ReelCard(
                     onSave()
                 }
             )
-            
-            // Share button
-            ActionButton(
-                icon = "↗",
-                label = formatCount(reel.sharesCount),
-                onClick = onShare
-            )
         }
     }
 }
@@ -836,6 +820,332 @@ private fun ActionButton(
     }
 }
 
+@Composable
+fun ReelCommentsSheet(
+    backdrop: LayerBackdrop,
+    isGlassTheme: Boolean,
+    isDarkTheme: Boolean,
+    contentColor: Color,
+    accentColor: Color,
+    comments: List<ReelComment>,
+    repliesByParent: Map<String, List<ReelComment>>,
+    expandedParents: Set<String>,
+    replyTarget: ReelComment?,
+    isLoading: Boolean,
+    isLoadingMore: Boolean,
+    hasMore: Boolean,
+    isSubmitting: Boolean,
+    error: String?,
+    onDismiss: () -> Unit,
+    onLoadMore: () -> Unit,
+    onToggleReplies: (String) -> Unit,
+    onReplyTo: (ReelComment?) -> Unit,
+    onSubmitComment: (String) -> Unit
+) {
+    var draft by remember { mutableStateOf("") }
+    val sheetTextColor = Color.Black
+    val subTextColor = Color.Black.copy(alpha = 0.68f)
+    val inputBg = Color.White.copy(alpha = 0.22f)
+    val avatarBg = Color.Black.copy(alpha = 0.10f)
+    val replyCardBg = Color.White.copy(alpha = 0.20f)
+    val overlayScrim = Color.Transparent
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(overlayScrim)
+            .clickable { onDismiss() }
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.62f)
+                .clip(RoundedCornerShape(0.dp))
+                .background(Color.White.copy(alpha = 0.12f))
+                .border(1.dp, Color.White.copy(alpha = 0.30f), RoundedCornerShape(0.dp))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {}
+                .padding(top = 12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(width = 40.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(99.dp))
+                    .background(Color.Black.copy(alpha = 0.20f))
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                BasicText(
+                    "Comments",
+                    style = TextStyle(sheetTextColor, 16.sp, FontWeight.SemiBold)
+                )
+                BasicText(
+                    "Close",
+                    style = TextStyle(subTextColor, 13.sp),
+                    modifier = Modifier.clickable { onDismiss() }
+                )
+            }
+
+            if (error != null) {
+                BasicText(
+                    error,
+                    style = TextStyle(Color(0xFFFF8A80), 12.sp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+
+            if (isLoading && comments.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BasicText("Loading comments...", style = TextStyle(subTextColor, 13.sp))
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    if (comments.isEmpty()) {
+                        item {
+                            BasicText(
+                                "No comments yet. Start the conversation.",
+                                style = TextStyle(subTextColor, 13.sp)
+                            )
+                        }
+                    }
+
+                    items(comments, key = { it.id }) { comment ->
+                        ReelCommentThreadItem(
+                            comment = comment,
+                            replies = repliesByParent[comment.id].orEmpty(),
+                            repliesExpanded = expandedParents.contains(comment.id),
+                            isDarkTheme = isDarkTheme,
+                            textColor = sheetTextColor,
+                            subTextColor = subTextColor,
+                            accentColor = accentColor,
+                            avatarBg = avatarBg,
+                            replyCardBg = replyCardBg,
+                            onShowReplies = { onToggleReplies(comment.id) },
+                            onReply = { onReplyTo(comment) }
+                        )
+                    }
+
+                    if (hasMore) {
+                        item {
+                            BasicText(
+                                if (isLoadingMore) "Loading more..." else "Load more comments",
+                                style = TextStyle(accentColor, 13.sp, FontWeight.Medium),
+                                modifier = Modifier
+                                    .padding(vertical = 6.dp)
+                                    .clickable(enabled = !isLoadingMore) { onLoadMore() }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+                    .navigationBarsPadding()
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(14.dp))
+                    .padding(12.dp)
+            ) {
+                if (replyTarget != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        BasicText(
+                            "Replying to @${replyTarget.author.username ?: replyTarget.author.name}",
+                            style = TextStyle(accentColor, 12.sp)
+                        )
+                        BasicText(
+                            "Cancel",
+                            style = TextStyle(subTextColor, 12.sp),
+                            modifier = Modifier.clickable { onReplyTo(null) }
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    BasicTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        textStyle = TextStyle(sheetTextColor, 14.sp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(inputBg)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        decorationBox = { inner ->
+                            if (draft.isBlank()) {
+                                BasicText(
+                                    if (replyTarget == null) "Write a comment..." else "Write a reply...",
+                                    style = TextStyle(subTextColor.copy(alpha = 0.8f), 14.sp)
+                                )
+                            }
+                            inner()
+                        }
+                    )
+
+                    val canSend = draft.trim().isNotEmpty() && !isSubmitting
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (canSend) accentColor else accentColor.copy(alpha = 0.35f))
+                            .clickable(enabled = canSend) {
+                                val content = draft.trim()
+                                if (content.isNotEmpty()) {
+                                    onSubmitComment(content)
+                                    draft = ""
+                                }
+                            }
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        BasicText(
+                            if (isSubmitting) "..." else "Send",
+                            style = TextStyle(Color.White, 13.sp, FontWeight.SemiBold)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReelCommentThreadItem(
+    comment: ReelComment,
+    replies: List<ReelComment>,
+    repliesExpanded: Boolean,
+    isDarkTheme: Boolean,
+    textColor: Color,
+    subTextColor: Color,
+    accentColor: Color,
+    avatarBg: Color,
+    replyCardBg: Color,
+    onShowReplies: () -> Unit,
+    onReply: () -> Unit
+) {
+    Column {
+        Row(
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(avatarBg),
+                contentAlignment = Alignment.Center
+            ) {
+                BasicText(
+                    (comment.author.name?.firstOrNull()?.uppercase() ?: "U"),
+                    style = TextStyle(textColor, 13.sp, FontWeight.Bold)
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                BasicText(
+                    "@${comment.author.username ?: comment.author.name ?: "user"}",
+                    style = TextStyle(textColor, 12.sp, FontWeight.SemiBold)
+                )
+                Spacer(Modifier.height(3.dp))
+                BasicText(
+                    comment.content,
+                    style = TextStyle(textColor.copy(alpha = 0.95f), 13.sp)
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    BasicText(
+                        "Reply",
+                        style = TextStyle(accentColor, 12.sp),
+                        modifier = Modifier.clickable { onReply() }
+                    )
+                    if (comment.repliesCount > 0) {
+                        val label = if (repliesExpanded) "Hide replies" else "View replies (${comment.repliesCount})"
+                        BasicText(
+                            label,
+                            style = TextStyle(subTextColor, 12.sp),
+                            modifier = Modifier.clickable { onShowReplies() }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (repliesExpanded && replies.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier.padding(start = 40.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                replies.forEach { reply ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(replyCardBg)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(avatarBg),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            BasicText(
+                                (reply.author.name?.firstOrNull()?.uppercase() ?: "U"),
+                                style = TextStyle(textColor, 11.sp, FontWeight.Bold)
+                            )
+                        }
+                        Column {
+                            BasicText(
+                                "@${reply.author.username ?: reply.author.name ?: "user"}",
+                                style = TextStyle(textColor, 11.sp, FontWeight.SemiBold)
+                            )
+                            BasicText(
+                                reply.content,
+                                style = TextStyle(textColor.copy(alpha = 0.92f), 12.sp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ==================== Utility Functions ====================
 
 private fun formatCount(count: Int): String {
@@ -854,4 +1164,13 @@ private fun formatDuration(seconds: Int): String {
 
 private fun Double.format(decimals: Int): String {
     return "%.${decimals}f".format(this).trimEnd('0').trimEnd('.')
+}
+
+private fun Context.findActivity(): Activity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
 }

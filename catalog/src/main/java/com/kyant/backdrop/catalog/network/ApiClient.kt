@@ -16,6 +16,7 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -1598,6 +1601,25 @@ object ApiClient {
             Result.failure(e)
         }
     }
+
+    suspend fun getUserSavedReels(context: Context, userId: String, cursor: String? = null, limit: Int = 20): Result<ReelsFeedResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.get("$BASE_URL/reels/user/$userId/saved") {
+                header("Authorization", "Bearer $token")
+                cursor?.let { parameter("cursor", it) }
+                parameter("limit", limit.toString())
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     
     suspend fun toggleReelLike(context: Context, reelId: String): Result<ReelLikeResponse> {
         return try {
@@ -1651,19 +1673,44 @@ object ApiClient {
         }
     }
     
-    suspend fun getReelComments(context: Context, reelId: String, cursor: String? = null, limit: Int = 20): Result<ReelCommentsResponse> {
+    suspend fun getReelComments(
+        context: Context,
+        reelId: String,
+        cursor: String? = null,
+        limit: Int = 20,
+        parentId: String? = null
+    ): Result<ReelCommentsResponse> {
         return try {
-            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val token = getToken(context)
             val response = client.get("$BASE_URL/reels/$reelId/comments") {
-                header("Authorization", "Bearer $token")
+                token?.let { header("Authorization", "Bearer $it") }
                 cursor?.let { parameter("cursor", it) }
+                parentId?.let { parameter("parentId", it) }
                 parameter("limit", limit.toString())
             }
+            val responseText = response.bodyAsText()
+
             if (response.status.isSuccess()) {
-                Result.success(response.body())
+                val parsed = runCatching {
+                    json.decodeFromString<ReelCommentsResponse>(responseText)
+                }.recoverCatching {
+                    // Some deployments may wrap payload under `data`.
+                    val root = json.parseToJsonElement(responseText).jsonObject
+                    val wrapped = root["data"] ?: root["result"] ?: root["payload"]
+                        ?: error("Missing comments payload")
+                    json.decodeFromJsonElement<ReelCommentsResponse>(wrapped)
+                }
+
+                parsed.fold(
+                    onSuccess = { Result.success(it) },
+                    onFailure = { Result.failure(Exception("Failed to parse comments response")) }
+                )
             } else {
-                val error: ApiError = response.body()
-                Result.failure(Exception(error.getErrorMessage()))
+                val errorMessage = runCatching {
+                    json.decodeFromString<ApiError>(responseText).getErrorMessage()
+                }.getOrNull() ?: "Failed to fetch comments"
+
+                Result.failure(Exception(errorMessage))
             }
         } catch (e: Exception) {
             Result.failure(e)

@@ -67,6 +67,19 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     private var loadConversationsJob: Job? = null
     private var loadMessagesJob: Job? = null
+    private var hasLoadedConversations: Boolean = false
+    private var conversationsLastLoadedAt: Long = 0L
+    private val conversationsCacheTtlMs: Long = 90_000L
+
+    private data class CachedConversationMessages(
+        val messages: List<Message>,
+        val nextCursor: String?,
+        val hasMore: Boolean,
+        val cachedAt: Long
+    )
+
+    private val messagesCacheByConversation = mutableMapOf<String, CachedConversationMessages>()
+    private val messagesCacheTtlMs: Long = 2 * 60_000L
     private val isoFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
     }
@@ -227,12 +240,31 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         }
     }
 
+    fun ensureConversationsLoaded(forceRefresh: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val hasFreshCache =
+            hasLoadedConversations &&
+            _uiState.value.conversations.isNotEmpty() &&
+            (now - conversationsLastLoadedAt) < conversationsCacheTtlMs
+
+        if (!forceRefresh && hasFreshCache) {
+            loadUnreadAndRequestsCount()
+            return
+        }
+
+        loadConversations()
+    }
+
     fun loadConversations() {
+        if (_uiState.value.isLoadingConversations) return
+
         loadConversationsJob?.cancel()
         loadConversationsJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoadingConversations = true, error = null) }
             ApiClient.getConversations(context, 30, null)
                 .onSuccess { res ->
+                    hasLoadedConversations = true
+                    conversationsLastLoadedAt = System.currentTimeMillis()
                     _uiState.update {
                         it.copy(
                             conversations = res.conversations,
@@ -260,6 +292,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private fun refreshConversations() {
         viewModelScope.launch {
             ApiClient.getConversations(context, 30, null).onSuccess { res ->
+                hasLoadedConversations = true
+                conversationsLastLoadedAt = System.currentTimeMillis()
                 _uiState.update { it.copy(conversations = res.conversations) }
             }
             loadUnreadAndRequestsCount()
@@ -272,21 +306,46 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         ChatSocketManager.activeConversationId = conversation?.id
         conversation?.let { MessageNotificationManager.clearConversationNotification(context, it.id) }
 
+        if (conversation == null) {
+            _uiState.update {
+                it.copy(
+                    selectedConversation = null,
+                    messages = emptyList(),
+                    messagesNextCursor = null,
+                    hasMoreMessages = false,
+                    typingUserId = null,
+                    error = null,
+                    isLoadingMessages = false,
+                    isLoadingMoreMessages = false
+                )
+            }
+            return
+        }
+
+        val cached = messagesCacheByConversation[conversation.id]
+        val cacheIsFresh = cached != null && (System.currentTimeMillis() - cached.cachedAt) < messagesCacheTtlMs
+
         _uiState.update {
             it.copy(
                 selectedConversation = conversation,
-                messages = emptyList(),
-                messagesNextCursor = null,
-                hasMoreMessages = false,
+                messages = if (cacheIsFresh) cached!!.messages else emptyList(),
+                messagesNextCursor = if (cacheIsFresh) cached!!.nextCursor else null,
+                hasMoreMessages = if (cacheIsFresh) cached!!.hasMore else false,
                 typingUserId = null,
-                error = null
+                error = null,
+                isLoadingMessages = false,
+                isLoadingMoreMessages = false
             )
         }
+
         conversation?.let { conv ->
             ChatSocketManager.joinChat(conv.id)
             ChatSocketManager.markRead(conv.id)
             viewModelScope.launch { ApiClient.markAsRead(context, conv.id) }
-            loadMessages(conv.id)
+
+            if (!cacheIsFresh) {
+                loadMessages(conv.id)
+            }
         }
     }
 
@@ -313,6 +372,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                             error = null
                         )
                     }
+
+                    messagesCacheByConversation[conversationId] = CachedConversationMessages(
+                        messages = _uiState.value.messages,
+                        nextCursor = _uiState.value.messagesNextCursor,
+                        hasMore = _uiState.value.hasMoreMessages,
+                        cachedAt = System.currentTimeMillis()
+                    )
                 }
                 .onFailure { e ->
                     _uiState.update {

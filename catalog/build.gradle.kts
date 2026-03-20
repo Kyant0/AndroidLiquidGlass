@@ -25,8 +25,8 @@ android {
         applicationId = "com.vormex.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 4
+        versionName = "1.0.2"
         androidResources.localeFilters += arrayOf("en")
         buildConfigField("String", "API_BASE_URL", "\"https://vormex-backend.onrender.com/api\"")
         buildConfigField("String", "SOCKET_BASE_URL", "\"https://vormex-backend.onrender.com\"")

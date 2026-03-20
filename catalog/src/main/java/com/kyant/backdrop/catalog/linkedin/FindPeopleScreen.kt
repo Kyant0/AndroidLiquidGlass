@@ -421,16 +421,6 @@ private fun FindPeopleTabs(
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Smart Matches tab
-        FindPeopleTabItem(
-            icon = { color -> ZapIcon(color = color, size = 14.dp) },
-            label = "Smart",
-            isSelected = selectedTab == FindPeopleTab.SMART_MATCHES,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            onClick = { onTabSelected(FindPeopleTab.SMART_MATCHES) }
-        )
-        
         // All People tab
         FindPeopleTabItem(
             icon = { color -> UsersIcon(color = color, size = 14.dp) },
@@ -439,6 +429,16 @@ private fun FindPeopleTabs(
             contentColor = contentColor,
             accentColor = accentColor,
             onClick = { onTabSelected(FindPeopleTab.ALL_PEOPLE) }
+        )
+        
+        // Smart Matches tab
+        FindPeopleTabItem(
+            icon = { color -> ZapIcon(color = color, size = 14.dp) },
+            label = "Smart",
+            isSelected = selectedTab == FindPeopleTab.SMART_MATCHES,
+            contentColor = contentColor,
+            accentColor = accentColor,
+            onClick = { onTabSelected(FindPeopleTab.SMART_MATCHES) }
         )
         
         // For You tab

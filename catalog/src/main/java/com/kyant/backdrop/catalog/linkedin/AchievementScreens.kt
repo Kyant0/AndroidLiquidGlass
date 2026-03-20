@@ -38,6 +38,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +65,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.catalog.R
+import com.kyant.backdrop.catalog.data.SettingsPreferences
 import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.models.Achievement
 import com.kyant.backdrop.catalog.network.models.AchievementInput
@@ -192,6 +194,11 @@ fun AddEditAchievementScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
+
+    // Theme preference: "glass", "light", "dark"
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
+    val isGlassTheme = themeMode == "glass"
+    val isDarkTheme = themeMode == "dark"
     
     // Validation
     val isTitleValid = title.trim().length in 2..100
@@ -306,7 +313,23 @@ fun AddEditAchievementScreen(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .then(
+                    when {
+                        isGlassTheme -> Modifier.drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { RoundedRectangle(0f.dp) },
+                            effects = {
+                                vibrancy()
+                                blur(28f.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(Color(0xFFEAF2FF).copy(alpha = 0.55f))
+                            }
+                        )
+                        isDarkTheme -> Modifier.background(Color(0xFF0E0E12))
+                        else -> Modifier.background(Color(0xFFF7F7FA))
+                    }
+                )
         ) {
             Column(Modifier.fillMaxSize()) {
                 // Glass Header with actions
@@ -321,7 +344,13 @@ fun AddEditAchievementScreen(
                                 blur(16f.dp.toPx())
                             },
                             onDrawSurface = {
-                                drawRect(Color.White.copy(alpha = 0.08f))
+                                drawRect(
+                                    when {
+                                        isGlassTheme -> Color.White.copy(alpha = 0.14f)
+                                        isDarkTheme -> Color.White.copy(alpha = 0.08f)
+                                        else -> Color.Black.copy(alpha = 0.04f)
+                                    }
+                                )
                             }
                         )
                         .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -335,17 +364,33 @@ fun AddEditAchievementScreen(
                         Box(
                             Modifier
                                 .clip(RoundedCornerShape(20.dp))
-                                .background(Color.White.copy(alpha = 0.1f))
+                                .background(
+                                    when {
+                                        isGlassTheme -> Color.White.copy(alpha = 0.14f)
+                                        isDarkTheme -> Color.White.copy(alpha = 0.10f)
+                                        else -> Color.Black.copy(alpha = 0.06f)
+                                    }
+                                )
                                 .clickable(onClick = onCancel)
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            BasicText("Cancel", style = TextStyle(Color.White, 14.sp))
+                            BasicText(
+                                "Cancel",
+                                style = TextStyle(
+                                    if (isGlassTheme || isDarkTheme) Color.White else Color.Black.copy(alpha = 0.8f),
+                                    14.sp
+                                )
+                            )
                         }
                         
                         // Title
                         BasicText(
                             if (isEditMode) "Edit Achievement" else "Add Achievement",
-                            style = TextStyle(Color.White, 16.sp, FontWeight.SemiBold)
+                            style = TextStyle(
+                                if (isGlassTheme || isDarkTheme) Color.White else Color.Black.copy(alpha = 0.9f),
+                                16.sp,
+                                FontWeight.SemiBold
+                            )
                         )
                         
                         // Save button
@@ -505,7 +550,7 @@ fun AddEditAchievementScreen(
                                         if (title.isEmpty()) {
                                             BasicText(
                                                 "e.g. 1st Place Winner, Best Delegate",
-                                                style = TextStyle(Color.White.copy(alpha = 0.4f), 15.sp)
+                                                style = TextStyle(contentColor.copy(alpha = 0.6f), 15.sp)
                                             )
                                         }
                                         innerTextField()
@@ -549,7 +594,7 @@ fun AddEditAchievementScreen(
                                         if (organization.isEmpty()) {
                                             BasicText(
                                                 "e.g. Google, University, Hackathon name",
-                                                style = TextStyle(Color.White.copy(alpha = 0.4f), 15.sp)
+                                                style = TextStyle(contentColor.copy(alpha = 0.6f), 15.sp)
                                             )
                                         }
                                         innerTextField()
@@ -667,7 +712,7 @@ fun AddEditAchievementScreen(
                                         if (description.isEmpty()) {
                                             BasicText(
                                                 "Describe your achievement...",
-                                                style = TextStyle(Color.White.copy(alpha = 0.4f), 15.sp)
+                                                style = TextStyle(contentColor.copy(alpha = 0.6f), 15.sp)
                                             )
                                         }
                                         innerTextField()
@@ -678,7 +723,7 @@ fun AddEditAchievementScreen(
                         if (description.isNotEmpty()) {
                             BasicText(
                                 "${description.length}/2000",
-                                style = TextStyle(Color.White.copy(alpha = 0.4f), 11.sp),
+                                style = TextStyle(contentColor.copy(alpha = 0.6f), 11.sp),
                                 modifier = Modifier.padding(top = 4.dp, start = 4.dp)
                             )
                         }
@@ -845,7 +890,7 @@ fun AddEditAchievementScreen(
                                             if (certificateUrl.isEmpty()) {
                                                 BasicText(
                                                     "https://...",
-                                                    style = TextStyle(Color.White.copy(alpha = 0.4f), 15.sp)
+                                                    style = TextStyle(contentColor.copy(alpha = 0.6f), 15.sp)
                                                 )
                                             }
                                             innerTextField()

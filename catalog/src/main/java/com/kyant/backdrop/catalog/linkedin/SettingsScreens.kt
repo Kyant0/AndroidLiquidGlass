@@ -20,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -32,7 +33,9 @@ import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.catalog.BuildConfig
+import com.kyant.backdrop.catalog.components.LiquidToggle
 import com.kyant.backdrop.catalog.data.SettingsPreferences
+import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -61,6 +64,8 @@ fun NotificationSettingsScreen(
     val pushEnabled by SettingsPreferences.pushNotificationsEnabled(context).collectAsState(initial = true)
     val dailyDigestEnabled by SettingsPreferences.dailyDigestEnabled(context).collectAsState(initial = true)
     val dailyDigestTime by SettingsPreferences.dailyDigestTime(context).collectAsState(initial = "09:00")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
+    val isGlassTheme = themeMode == "glass"
     val matchAlertsEnabled by SettingsPreferences.matchAlertsEnabled(context).collectAsState(initial = true)
     val messageNotificationsEnabled by SettingsPreferences.messageNotificationsEnabled(context).collectAsState(initial = true)
     val connectionNotificationsEnabled by SettingsPreferences.connectionNotificationsEnabled(context).collectAsState(initial = true)
@@ -69,22 +74,81 @@ fun NotificationSettingsScreen(
     val streakRemindersEnabled by SettingsPreferences.streakRemindersEnabled(context).collectAsState(initial = true)
     val weeklySummaryEnabled by SettingsPreferences.weeklySummaryEnabled(context).collectAsState(initial = true)
     
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .then(
+                if (isGlassTheme) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(0.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(22f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color(0xFFEAF4FF).copy(alpha = 0.65f),
+                                        Color(0xFFF8FBFF).copy(alpha = 0.50f),
+                                        Color(0xFFE9F2FF).copy(alpha = 0.60f)
+                                    )
+                                )
+                            )
+                        }
+                    )
+                } else {
+                    Modifier
+                }
+            )
     ) {
-        // Header
-        SettingsHeader(
-            title = "Notifications",
-            contentColor = contentColor,
-            onBack = onNavigateBack
-        )
-        
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
         ) {
+            SettingsHeader(
+                title = "Notifications",
+                contentColor = contentColor,
+                onBack = onNavigateBack
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+                    .drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(18.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(12f.dp.toPx())
+                            lens(4f.dp.toPx(), 8f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color.White.copy(alpha = if (isGlassTheme) 0.16f else 0.10f))
+                        }
+                    )
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                Column {
+                    BasicText(
+                        "Notification control center",
+                        style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    BasicText(
+                        "Fine tune alerts for messages, engagement, reminders, and digests.",
+                        style = TextStyle(contentColor.copy(alpha = 0.66f), 12.sp)
+                    )
+                }
+            }
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
             // System notifications
             item {
                 SettingsSectionHeader("System", contentColor)
@@ -121,7 +185,7 @@ fun NotificationSettingsScreen(
             }
             
             item {
-                SettingsSwitchItem(
+                NotificationLiquidToggleItem(
                     title = "Push Notifications",
                     subtitle = "Receive push notifications",
                     icon = "🔔",
@@ -143,7 +207,7 @@ fun NotificationSettingsScreen(
             }
             
             item {
-                SettingsSwitchItem(
+                NotificationLiquidToggleItem(
                     title = "Messages",
                     subtitle = "New messages and chat requests",
                     icon = "💬",
@@ -161,7 +225,7 @@ fun NotificationSettingsScreen(
             }
             
             item {
-                SettingsSwitchItem(
+                NotificationLiquidToggleItem(
                     title = "Connections",
                     subtitle = "Connection requests and acceptances",
                     icon = "👥",
@@ -179,7 +243,7 @@ fun NotificationSettingsScreen(
             }
             
             item {
-                SettingsSwitchItem(
+                NotificationLiquidToggleItem(
                     title = "Likes",
                     subtitle = "When someone likes your posts",
                     icon = "❤️",
@@ -197,7 +261,7 @@ fun NotificationSettingsScreen(
             }
             
             item {
-                SettingsSwitchItem(
+                NotificationLiquidToggleItem(
                     title = "Comments",
                     subtitle = "When someone comments on your posts",
                     icon = "💭",
@@ -220,7 +284,7 @@ fun NotificationSettingsScreen(
             }
             
             item {
-                SettingsSwitchItem(
+                NotificationLiquidToggleItem(
                     title = "Match Alerts",
                     subtitle = "Daily matches and recommendations",
                     icon = "🎯",
@@ -243,7 +307,7 @@ fun NotificationSettingsScreen(
             }
             
             item {
-                SettingsSwitchItem(
+                NotificationLiquidToggleItem(
                     title = "Streak Reminders",
                     subtitle = "Don't lose your streak!",
                     icon = "🔥",
@@ -266,7 +330,7 @@ fun NotificationSettingsScreen(
             }
             
             item {
-                SettingsSwitchItem(
+                NotificationLiquidToggleItem(
                     title = "Daily Digest",
                     subtitle = "Daily summary at $dailyDigestTime",
                     icon = "📰",
@@ -284,7 +348,7 @@ fun NotificationSettingsScreen(
             }
             
             item {
-                SettingsSwitchItem(
+                NotificationLiquidToggleItem(
                     title = "Weekly Summary",
                     subtitle = "Your week in review",
                     icon = "📊",
@@ -302,6 +366,85 @@ fun NotificationSettingsScreen(
             }
             
             item { Spacer(Modifier.height(80.dp)) }
+        }
+        }
+    }
+}
+
+@Composable
+private fun NotificationLiquidToggleItem(
+    title: String,
+    subtitle: String,
+    icon: String,
+    checked: Boolean,
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val alpha = if (enabled) 1f else 0.45f
+    val subtitleColor = contentColor.copy(alpha = 0.55f * alpha)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(16.dp) },
+                effects = {
+                    vibrancy()
+                    blur(10f.dp.toPx())
+                    lens(4f.dp.toPx(), 8f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(Color.White.copy(alpha = 0.12f))
+                }
+            )
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                BasicText(icon, style = TextStyle(fontSize = 24.sp))
+                Spacer(Modifier.width(14.dp))
+                Column {
+                    BasicText(
+                        title,
+                        style = TextStyle(contentColor.copy(alpha = alpha), 16.sp, FontWeight.Medium)
+                    )
+                    if (subtitle.isNotEmpty()) {
+                        BasicText(
+                            subtitle,
+                            style = TextStyle(subtitleColor, 12.sp)
+                        )
+                    }
+                    if (!enabled) {
+                        BasicText(
+                            "Disabled while push notifications are off",
+                            style = TextStyle(accentColor.copy(alpha = 0.7f), 11.sp)
+                        )
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier.alpha(alpha)
+            ) {
+                LiquidToggle(
+                    selected = { checked },
+                    onSelect = { if (enabled) onCheckedChange(it) },
+                    backdrop = backdrop
+                )
+            }
         }
     }
 }
@@ -1539,13 +1682,29 @@ fun SavedPostsScreen(
     onNavigateToPost: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val viewModel: com.kyant.backdrop.catalog.linkedin.posts.PostsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
         factory = com.kyant.backdrop.catalog.linkedin.posts.PostsViewModel.Factory(context)
     )
     val uiState by viewModel.uiState.collectAsState()
+    var savedReels by remember { mutableStateOf<List<com.kyant.backdrop.catalog.network.models.Reel>>(emptyList()) }
+    var isLoadingSavedReels by remember { mutableStateOf(false) }
     
     LaunchedEffect(Unit) {
         viewModel.loadSavedPosts(refresh = true)
+
+        val userId = ApiClient.getCurrentUserId(context)
+        if (!userId.isNullOrBlank()) {
+            isLoadingSavedReels = true
+            ApiClient.getUserSavedReels(context, userId)
+                .onSuccess { response ->
+                    savedReels = response.reels
+                    isLoadingSavedReels = false
+                }
+                .onFailure {
+                    isLoadingSavedReels = false
+                }
+        }
     }
     
     Column(
@@ -1560,14 +1719,14 @@ fun SavedPostsScreen(
             onBack = onNavigateBack
         )
         
-        if (uiState.isLoading && uiState.savedPosts.isEmpty()) {
+        if (uiState.isLoading && uiState.savedPosts.isEmpty() && isLoadingSavedReels) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(color = accentColor)
             }
-        } else if (uiState.savedPosts.isEmpty()) {
+        } else if (uiState.savedPosts.isEmpty() && savedReels.isEmpty()) {
             com.kyant.backdrop.catalog.linkedin.posts.SavedPostsEmptyState(
                 contentColor = contentColor
             )
@@ -1576,6 +1735,43 @@ fun SavedPostsScreen(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                if (savedReels.isNotEmpty()) {
+                    item {
+                        BasicText(
+                            "Saved Reels",
+                            style = TextStyle(contentColor, 16.sp, FontWeight.SemiBold),
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
+                    items(savedReels.size) { index ->
+                        val reel = savedReels[index]
+                        SavedReelItem(
+                            reel = reel,
+                            backdrop = backdrop,
+                            contentColor = contentColor,
+                            onUnsave = {
+                                    scope.launch {
+                                        ApiClient.toggleReelSave(context, reel.id)
+                                            .onSuccess {
+                                                savedReels = savedReels.filterNot { it.id == reel.id }
+                                            }
+                                    }
+                            }
+                        )
+                    }
+                }
+
+                if (uiState.savedPosts.isNotEmpty()) {
+                    item {
+                        BasicText(
+                            "Saved Posts",
+                            style = TextStyle(contentColor, 16.sp, FontWeight.SemiBold),
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+
                 items(uiState.savedPosts.size) { index ->
                     val post = uiState.savedPosts[index]
                     SavedPostItem(
@@ -1589,6 +1785,68 @@ fun SavedPostsScreen(
                 }
                 
                 item { Spacer(Modifier.height(80.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedReelItem(
+    reel: com.kyant.backdrop.catalog.network.models.Reel,
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    onUnsave: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(16.dp) },
+                effects = {
+                    vibrancy()
+                    blur(10f.dp.toPx())
+                    lens(4f.dp.toPx(), 8f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(Color.White.copy(alpha = 0.1f))
+                }
+            )
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                BasicText(
+                    reel.author.name ?: "Unknown",
+                    style = TextStyle(contentColor, 14.sp, FontWeight.SemiBold)
+                )
+
+                BasicText(
+                    (reel.caption ?: "").take(100) + if ((reel.caption?.length ?: 0) > 100) "..." else "",
+                    style = TextStyle(contentColor.copy(alpha = 0.7f), 13.sp),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+
+                Row(
+                    modifier = Modifier.padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    BasicText("❤️ ${reel.likesCount}", style = TextStyle(contentColor.copy(alpha = 0.5f), 12.sp))
+                    BasicText("💬 ${reel.commentsCount}", style = TextStyle(contentColor.copy(alpha = 0.5f), 12.sp))
+                    BasicText("▶ ${reel.viewsCount}", style = TextStyle(contentColor.copy(alpha = 0.5f), 12.sp))
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = onUnsave)
+                    .padding(8.dp)
+            ) {
+                BasicText("🔖", style = TextStyle(fontSize = 20.sp))
             }
         }
     }

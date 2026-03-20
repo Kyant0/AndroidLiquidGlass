@@ -38,6 +38,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,6 +63,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.catalog.R
+import com.kyant.backdrop.catalog.data.SettingsPreferences
 import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.models.Certificate
 import com.kyant.backdrop.catalog.network.models.CertificateInput
@@ -146,6 +148,11 @@ fun AddEditCertificateScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showIssueDatePicker by remember { mutableStateOf(false) }
     var showExpiryDatePicker by remember { mutableStateOf(false) }
+
+    // Theme preference: "glass", "light", "dark"
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
+    val isGlassTheme = themeMode == "glass"
+    val isDarkTheme = themeMode == "dark"
     
     // Validation
     val isNameValid = name.trim().length in 2..100
@@ -267,12 +274,29 @@ fun AddEditCertificateScreen(
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .then(
+                when {
+                    isGlassTheme -> Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(0f.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(28f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color(0xFFEAF2FF).copy(alpha = 0.55f))
+                        }
+                    )
+                    isDarkTheme -> Modifier.background(Color(0xFF0E0E12))
+                    else -> Modifier.background(Color(0xFFF7F7FA))
+                }
+            )
     ) {
         Column(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .padding(bottom = 120.dp)
         ) {
             // Header
             Box(
@@ -286,7 +310,13 @@ fun AddEditCertificateScreen(
                             blur(16f.dp.toPx())
                         },
                         onDrawSurface = {
-                            drawRect(Color.White.copy(alpha = 0.08f))
+                            drawRect(
+                                when {
+                                    isGlassTheme -> Color.White.copy(alpha = 0.14f)
+                                    isDarkTheme -> Color.White.copy(alpha = 0.08f)
+                                    else -> Color.Black.copy(alpha = 0.04f)
+                                }
+                            )
                         }
                     )
                     .padding(16.dp)
@@ -299,16 +329,32 @@ fun AddEditCertificateScreen(
                     Box(
                         Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Color.White.copy(alpha = 0.1f))
+                            .background(
+                                when {
+                                    isGlassTheme -> Color.White.copy(alpha = 0.14f)
+                                    isDarkTheme -> Color.White.copy(alpha = 0.10f)
+                                    else -> Color.Black.copy(alpha = 0.06f)
+                                }
+                            )
                             .clickable { onCancel() }
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
-                        BasicText("Cancel", style = TextStyle(Color.White, 14.sp))
+                        BasicText(
+                            "Cancel",
+                            style = TextStyle(
+                                if (isGlassTheme || isDarkTheme) Color.White else Color.Black.copy(alpha = 0.8f),
+                                14.sp
+                            )
+                        )
                     }
                     
                     BasicText(
                         if (isEditMode) "Edit Certification" else "Add Certification",
-                        style = TextStyle(Color.White, 18.sp, FontWeight.SemiBold)
+                        style = TextStyle(
+                            if (isGlassTheme || isDarkTheme) Color.White else Color.Black.copy(alpha = 0.9f),
+                            18.sp,
+                            FontWeight.SemiBold
+                        )
                     )
                     
                     Box(

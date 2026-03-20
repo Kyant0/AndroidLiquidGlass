@@ -43,7 +43,7 @@ enum class SmartMatchFilter {
 }
 
 data class FindPeopleUiState(
-    val selectedTab: FindPeopleTab = FindPeopleTab.SMART_MATCHES,
+    val selectedTab: FindPeopleTab = FindPeopleTab.ALL_PEOPLE,
     
     // Smart Matches
     val smartMatches: List<SmartMatch> = emptyList(),
@@ -133,12 +133,28 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     val uiState: StateFlow<FindPeopleUiState> = _uiState.asStateFlow()
     
     private var searchJob: Job? = null
+    private var hasPrefetchedInitialData: Boolean = false
     
     init {
         loadFilterOptions()
-        loadSmartMatches()
+        loadAllPeople(resetPage = true)
         loadStreakData()
         loadVariableRewards() // Variable rewards on screen load
+    }
+
+    fun prefetchInitialData() {
+        if (hasPrefetchedInitialData) return
+        hasPrefetchedInitialData = true
+
+        if (_uiState.value.smartMatches.isEmpty() && !_uiState.value.isLoadingSmartMatches) {
+            loadSmartMatches()
+        }
+        if (_uiState.value.allPeople.isEmpty() && !_uiState.value.isLoadingAllPeople) {
+            loadAllPeople(resetPage = true)
+        }
+        if (_uiState.value.suggestions.isEmpty() && !_uiState.value.isLoadingSuggestions) {
+            loadSuggestions()
+        }
     }
     
     // ==================== Variable Rewards (Hook Model) ====================

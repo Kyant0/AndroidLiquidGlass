@@ -1,12 +1,12 @@
 package com.kyant.backdrop.catalog.linkedin.reels
 
 import android.content.Context
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.models.Reel
+import com.kyant.backdrop.catalog.network.models.ReelComment
 import com.kyant.backdrop.catalog.network.models.ReelsFeedResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -49,6 +50,20 @@ data class ReelsUiState(
     // Current reel viewer state
     val isViewerOpen: Boolean = false,
     val currentReelIndex: Int = 0,
+
+    // Comments state (supports nested replies)
+    val showCommentsSheet: Boolean = false,
+    val commentsReelId: String? = null,
+    val reelComments: List<ReelComment> = emptyList(),
+    val replyCommentsByParent: Map<String, List<ReelComment>> = emptyMap(),
+    val expandedReplyParents: Set<String> = emptySet(),
+    val commentsCursor: String? = null,
+    val hasMoreComments: Boolean = false,
+    val isLoadingComments: Boolean = false,
+    val isLoadingMoreComments: Boolean = false,
+    val isSubmittingComment: Boolean = false,
+    val commentsError: String? = null,
+    val replyToComment: ReelComment? = null,
     
     // Preload status map (reelId -> status)
     val preloadStatus: Map<String, PreloadStatus> = emptyMap()
@@ -74,14 +89,32 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
     // Track ongoing preload jobs
     private val preloadJobs = ConcurrentHashMap<String, Job>()
     
-    // Number of reels to preload ahead
-    private val PRELOAD_AHEAD_COUNT = 3
+    // Number of reels to preload ahead while user watches current reel.
+    private val PRELOAD_AHEAD_COUNT = 8
     
-    // Bytes to preload per video (first 2MB for fast start)
-    private val PRELOAD_BYTES = 2 * 1024 * 1024L
+    // Min and max preload bytes per MP4 reel. We aim for ~30% when size is known.
+    private val MIN_PRELOAD_BYTES = 2 * 1024 * 1024L
+    private val MAX_PRELOAD_BYTES = 12 * 1024 * 1024L
     
     init {
         loadPreviewReels()
+        prefetchFeedSilently()
+    }
+
+    private fun prefetchFeedSilently(mode: String = "foryou") {
+        if (_uiState.value.feedReels.isNotEmpty()) return
+
+        viewModelScope.launch {
+            val result = ApiClient.getReelsFeed(context, limit = 20, mode = mode)
+            result.onSuccess { response ->
+                _uiState.value = _uiState.value.copy(
+                    feedReels = response.reels,
+                    nextCursor = response.nextCursor,
+                    hasMore = response.hasMore
+                )
+                preloadReelsAhead(0)
+            }
+        }
     }
     
     /**
@@ -122,7 +155,7 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
                 hasMore = true
             )
             
-            val result = ApiClient.getReelsFeed(context, limit = 10, mode = mode)
+            val result = ApiClient.getReelsFeed(context, limit = 20, mode = mode)
             
             result.onSuccess { response ->
                 _uiState.value = _uiState.value.copy(
@@ -159,7 +192,7 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
             val result = ApiClient.getReelsFeed(
                 context,
                 cursor = currentState.nextCursor,
-                limit = 10,
+                limit = 15,
                 mode = mode
             )
             
@@ -236,6 +269,9 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
             // If we already have reels, just open the viewer
             if (_uiState.value.previewReels.isNotEmpty()) {
                 openReelsViewer(_uiState.value.previewReels, 0)
+                if (_uiState.value.feedReels.isEmpty()) {
+                    loadReelsFeed()
+                }
                 return@launch
             }
             
@@ -253,7 +289,7 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
             )
             
             // Try trending reels first
-            var result = ApiClient.getTrendingReels(context, hours = 48, limit = 15)
+            var result = ApiClient.getTrendingReels(context, hours = 48, limit = 20)
             
             result.onSuccess { response ->
                 if (response.reels.isNotEmpty()) {
@@ -268,7 +304,7 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
             }
             
             // Fall back to regular feed if trending is empty
-            result = ApiClient.getReelsFeed(context, limit = 15, mode = "foryou")
+            result = ApiClient.getReelsFeed(context, limit = 20, mode = "foryou")
             
             result.onSuccess { response ->
                 _uiState.value = _uiState.value.copy(
@@ -304,7 +340,7 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
         
         // Load more if near the end
         val reels = _uiState.value.feedReels
-        if (newIndex >= reels.size - 3) {
+        if (newIndex >= reels.size - 8) {
             loadMoreReels()
         }
     }
@@ -351,6 +387,153 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
     fun trackView(reelId: String, watchTimeMs: Long, completed: Boolean) {
         viewModelScope.launch {
             ApiClient.trackReelView(context, reelId, watchTimeMs, completed)
+        }
+    }
+
+    // ==================== Comments (Nested) ====================
+
+    fun openComments(reelId: String) {
+        _uiState.value = _uiState.value.copy(
+            showCommentsSheet = true,
+            commentsReelId = reelId,
+            reelComments = emptyList(),
+            replyCommentsByParent = emptyMap(),
+            expandedReplyParents = emptySet(),
+            commentsCursor = null,
+            hasMoreComments = false,
+            commentsError = null,
+            replyToComment = null
+        )
+        loadReelComments(reelId, refresh = true)
+    }
+
+    fun closeComments() {
+        _uiState.value = _uiState.value.copy(
+            showCommentsSheet = false,
+            commentsReelId = null,
+            reelComments = emptyList(),
+            replyCommentsByParent = emptyMap(),
+            expandedReplyParents = emptySet(),
+            commentsCursor = null,
+            hasMoreComments = false,
+            isLoadingComments = false,
+            isLoadingMoreComments = false,
+            isSubmittingComment = false,
+            commentsError = null,
+            replyToComment = null
+        )
+    }
+
+    fun loadReelComments(reelId: String? = _uiState.value.commentsReelId, refresh: Boolean = false) {
+        val targetReelId = reelId ?: return
+
+        if (refresh) {
+            _uiState.value = _uiState.value.copy(
+                isLoadingComments = true,
+                commentsError = null,
+                commentsCursor = null,
+                hasMoreComments = false
+            )
+        } else {
+            if (_uiState.value.isLoadingMoreComments || !_uiState.value.hasMoreComments) return
+            _uiState.value = _uiState.value.copy(isLoadingMoreComments = true)
+        }
+
+        viewModelScope.launch {
+            val cursor = if (refresh) null else _uiState.value.commentsCursor
+            ApiClient.getReelComments(context, reelId = targetReelId, cursor = cursor, limit = 20)
+                .onSuccess { response ->
+                    val merged = if (refresh) {
+                        response.comments
+                    } else {
+                        _uiState.value.reelComments + response.comments
+                    }
+
+                    _uiState.value = _uiState.value.copy(
+                        reelComments = merged,
+                        commentsCursor = response.nextCursor,
+                        hasMoreComments = response.hasMore,
+                        isLoadingComments = false,
+                        isLoadingMoreComments = false,
+                        commentsError = null
+                    )
+                }
+                .onFailure { e ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoadingComments = false,
+                        isLoadingMoreComments = false,
+                        commentsError = e.message ?: "Failed to load comments"
+                    )
+                }
+        }
+    }
+
+    fun loadReplies(parentCommentId: String) {
+        val reelId = _uiState.value.commentsReelId ?: return
+        if (_uiState.value.replyCommentsByParent[parentCommentId] != null) {
+            _uiState.value = _uiState.value.copy(
+                expandedReplyParents = if (_uiState.value.expandedReplyParents.contains(parentCommentId)) {
+                    _uiState.value.expandedReplyParents - parentCommentId
+                } else {
+                    _uiState.value.expandedReplyParents + parentCommentId
+                }
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            ApiClient.getReelComments(context, reelId = reelId, limit = 50, parentId = parentCommentId)
+                .onSuccess { response ->
+                    _uiState.value = _uiState.value.copy(
+                        replyCommentsByParent = _uiState.value.replyCommentsByParent + (parentCommentId to response.comments),
+                        expandedReplyParents = _uiState.value.expandedReplyParents + parentCommentId
+                    )
+                }
+        }
+    }
+
+    fun setReplyTarget(comment: ReelComment?) {
+        _uiState.value = _uiState.value.copy(replyToComment = comment)
+    }
+
+    fun submitComment(content: String) {
+        val reelId = _uiState.value.commentsReelId ?: return
+        val trimmed = content.trim()
+        if (trimmed.isEmpty() || _uiState.value.isSubmittingComment) return
+
+        val parent = _uiState.value.replyToComment
+        _uiState.value = _uiState.value.copy(isSubmittingComment = true, commentsError = null)
+
+        viewModelScope.launch {
+            ApiClient.createReelComment(context, reelId = reelId, content = trimmed, parentId = parent?.id)
+                .onSuccess { comment ->
+                    if (parent == null) {
+                        _uiState.value = _uiState.value.copy(
+                            reelComments = listOf(comment) + _uiState.value.reelComments,
+                            isSubmittingComment = false,
+                            replyToComment = null
+                        )
+                        updateReelInLists(reelId) { reel -> reel.copy(commentsCount = reel.commentsCount + 1) }
+                    } else {
+                        val existingReplies = _uiState.value.replyCommentsByParent[parent.id] ?: emptyList()
+                        val updatedParents = _uiState.value.reelComments.map {
+                            if (it.id == parent.id) it.copy(repliesCount = it.repliesCount + 1) else it
+                        }
+                        _uiState.value = _uiState.value.copy(
+                            reelComments = updatedParents,
+                            replyCommentsByParent = _uiState.value.replyCommentsByParent + (parent.id to (listOf(comment) + existingReplies)),
+                            expandedReplyParents = _uiState.value.expandedReplyParents + parent.id,
+                            isSubmittingComment = false,
+                            replyToComment = null
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    _uiState.value = _uiState.value.copy(
+                        isSubmittingComment = false,
+                        commentsError = e.message ?: "Failed to post comment"
+                    )
+                }
         }
     }
     
@@ -430,15 +613,51 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
                         .url(reel.hlsUrl)
                         .build()
                     val response = httpClient.newCall(request).execute()
-                    response.body?.string() // Read the playlist
+                    val playlist = response.body?.string().orEmpty()
                     response.close()
+
+                    // Warm first few segments for faster startup.
+                    val segmentUrls = playlist
+                        .lineSequence()
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() && !it.startsWith("#") }
+                        .take(3)
+                        .map { segment ->
+                            if (segment.startsWith("http://") || segment.startsWith("https://")) {
+                                segment
+                            } else {
+                                URL(URL(reel.hlsUrl), segment).toString()
+                            }
+                        }
+                        .toList()
+
+                    segmentUrls.forEach { segmentUrl ->
+                        runCatching {
+                            httpClient.newCall(
+                                Request.Builder().url(segmentUrl).header("Range", "bytes=0-524287").build()
+                            ).execute().use { segResp -> segResp.body?.bytes() }
+                        }
+                    }
                     
                     updatePreloadStatus(reel.id, PreloadStatus.PRELOADED)
                 } else {
-                    // For MP4, download first chunk with Range header
+                    // For MP4, preload around 30% (bounded) for faster uninterrupted play.
+                    val contentLength = runCatching {
+                        httpClient.newCall(Request.Builder().url(videoUrl).head().build())
+                            .execute()
+                            .use { headResp ->
+                                headResp.header("Content-Length")?.toLongOrNull()
+                            }
+                    }.getOrNull()
+
+                    val targetPreloadBytes = contentLength
+                        ?.let { (it * 0.30).toLong() }
+                        ?.coerceIn(MIN_PRELOAD_BYTES, MAX_PRELOAD_BYTES)
+                        ?: MIN_PRELOAD_BYTES
+
                     val request = Request.Builder()
                         .url(videoUrl)
-                        .header("Range", "bytes=0-${PRELOAD_BYTES - 1}")
+                        .header("Range", "bytes=0-${targetPreloadBytes - 1}")
                         .build()
                     
                     val response = httpClient.newCall(request).execute()
@@ -525,7 +744,8 @@ private fun Reel.copy(
     isLiked: Boolean = this.isLiked,
     likesCount: Int = this.likesCount,
     isSaved: Boolean = this.isSaved,
-    savesCount: Int = this.savesCount
+    savesCount: Int = this.savesCount,
+    commentsCount: Int = this.commentsCount
 ): Reel {
     return Reel(
         id = this.id,
@@ -563,7 +783,7 @@ private fun Reel.copy(
         status = this.status,
         viewsCount = this.viewsCount,
         likesCount = likesCount,
-        commentsCount = this.commentsCount,
+        commentsCount = commentsCount,
         sharesCount = this.sharesCount,
         savesCount = savesCount,
         isLiked = isLiked,

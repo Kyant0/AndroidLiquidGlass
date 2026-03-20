@@ -122,6 +122,7 @@ import com.kyant.backdrop.catalog.linkedin.groups.CirclesScreen
 import com.kyant.backdrop.catalog.linkedin.groups.CircleDetailScreen
 import com.kyant.backdrop.catalog.linkedin.reels.ReelsPreviewSection
 import com.kyant.backdrop.catalog.linkedin.reels.ReelsFeedScreen
+import com.kyant.backdrop.catalog.linkedin.reels.ReelCommentsSheet
 import com.kyant.backdrop.catalog.linkedin.reels.ReelsViewModel
 import com.kyant.backdrop.catalog.network.models.Reel
 import com.kyant.backdrop.catalog.onboarding.ProfileSetupWizard
@@ -388,6 +389,10 @@ fun LinkedInContent(
     var deepLinkPostId by remember { mutableStateOf<String?>(null) }
     var deepLinkReelId by remember { mutableStateOf<String?>(null) }
     var deepLinkConversationId by remember { mutableStateOf<String?>(null) }
+
+    // Shared post detail/comments state (used by feed and profile screens)
+    var showCommentsSheet by remember { mutableStateOf(false) }
+    var selectedPostForComments by remember { mutableStateOf<String?>(null) }
     
     // Settings & More screen navigation state
     var showProfileScreen by remember { mutableStateOf(false) }
@@ -401,31 +406,31 @@ fun LinkedInContent(
     var showContactScreen by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     
+    val hasOverlayBackNavigation = viewingProfileUserId != null ||
+            showMessagesScreen ||
+            showGroupChat ||
+            selectedGroupId != null ||
+            selectedCircleId != null ||
+            showGroupsScreen ||
+            showCirclesScreen ||
+            showWeeklyGoalsScreen ||
+            showStreakDetailsScreen ||
+            showTopNetworkersScreen ||
+            showSessionSummary ||
+            showConnectionCelebration ||
+            showProfileScreen ||
+            showSavedPostsScreen ||
+            showNotificationSettingsScreen ||
+            showPrivacySettingsScreen ||
+            showAppearanceSettingsScreen ||
+            showHelpScreen ||
+            showInviteFriendsScreen ||
+            showAboutScreen ||
+            showContactScreen
+
     // Handle system back button for all overlay screens
     // Priority: innermost overlays first, then outer overlays
-    BackHandler(
-        enabled = viewingProfileUserId != null ||
-                showMessagesScreen ||
-                showGroupChat ||
-                selectedGroupId != null ||
-                selectedCircleId != null ||
-                showGroupsScreen ||
-                showCirclesScreen ||
-                showWeeklyGoalsScreen ||
-                showStreakDetailsScreen ||
-                showTopNetworkersScreen ||
-                showSessionSummary ||
-                showConnectionCelebration ||
-                showProfileScreen ||
-                showSavedPostsScreen ||
-                showNotificationSettingsScreen ||
-                showPrivacySettingsScreen ||
-                showAppearanceSettingsScreen ||
-                showHelpScreen ||
-                showInviteFriendsScreen ||
-                showAboutScreen ||
-                showContactScreen
-    ) {
+    BackHandler(enabled = hasOverlayBackNavigation) {
         when {
             // Profile viewing (highest priority - innermost overlay)
             viewingProfileUserId != null -> viewingProfileUserId = null
@@ -462,6 +467,11 @@ fun LinkedInContent(
             showAboutScreen -> showAboutScreen = false
             showContactScreen -> showContactScreen = false
         }
+    }
+
+    // Android back gesture: from non-Home bottom tabs, go back to Home first.
+    BackHandler(enabled = !hasOverlayBackNavigation && selectedTab != 0) {
+        selectedTab = 0
     }
     
     // Handle deep links from push notifications
@@ -543,6 +553,7 @@ fun LinkedInContent(
     // Variable Rewards state (Hook Model)
     val rewardsViewModel: FindPeopleViewModel = viewModel(factory = FindPeopleViewModel.Factory(context))
     val rewardsState by rewardsViewModel.uiState.collectAsState()
+    val profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory(context))
     var showRewardCardsOverlay by remember { mutableStateOf(true) } // Show on app open
     var hasShownRewards by remember { mutableStateOf(false) }
     
@@ -570,6 +581,10 @@ fun LinkedInContent(
         if (uiState.isLoggedIn && !hasShownRewards) {
             hasShownRewards = true
             showRewardCardsOverlay = true
+
+            // Warm up data for fast first-open and tab revisits.
+            rewardsViewModel.prefetchInitialData()
+            profileViewModel.prefetchOwnProfile()
         }
     }
 
@@ -665,9 +680,6 @@ fun LinkedInContent(
                 ) {
                     when (selectedTab) {
                         0 -> {
-                            var showCommentsSheet by remember { mutableStateOf(false) }
-                            var selectedPostForComments by remember { mutableStateOf<String?>(null) }
-                            
                             // Handle deep link to specific post (from notification)
                             LaunchedEffect(deepLinkPostId) {
                                 deepLinkPostId?.let { postId ->
@@ -767,57 +779,6 @@ fun LinkedInContent(
                                 onStreakDetailsClick = { showStreakDetailsScreen = true },
                                 onTopNetworkersClick = { showTopNetworkersScreen = true }
                             )
-                            
-                            // Comments bottom sheet
-                            if (showCommentsSheet && selectedPostForComments != null) {
-                                com.kyant.backdrop.catalog.linkedin.posts.CommentsBottomSheet(
-                                    backdrop = backdrop,
-                                    contentColor = contentColor,
-                                    accentColor = accentColor,
-                                    isLightTheme = isLightTheme,
-                                    postId = selectedPostForComments!!,
-                                    comments = uiState.comments,
-                                    isLoading = uiState.isLoadingComments,
-                                    isLoadingMore = uiState.isLoadingMoreComments,
-                                    isSendingComment = uiState.isSubmittingComment,
-                                    hasMoreComments = uiState.hasMoreComments,
-                                    currentUserAvatar = uiState.currentUser?.profileImage,
-                                    currentUserName = uiState.currentUser?.name ?: "You",
-                                    mentionSearchResults = uiState.mentionSearchResults,
-                                    isSearchingMentions = uiState.isSearchingMentions,
-                                    error = uiState.commentsError,
-                                    onDismiss = {
-                                        showCommentsSheet = false
-                                        viewModel.clearComments()
-                                    },
-                                    onLoadMore = { viewModel.loadMoreComments() },
-                                    onSendComment = { content, parentId ->
-                                        selectedPostForComments?.let { postId ->
-                                            viewModel.submitComment(postId, content, parentId)
-                                        }
-                                    },
-                                    onLikeComment = { commentId ->
-                                        viewModel.toggleCommentLike(commentId)
-                                    },
-                                    onDeleteComment = { commentId ->
-                                        viewModel.deleteComment(commentId)
-                                    },
-                                    onSearchMentions = { query ->
-                                        viewModel.searchMentions(query)
-                                    },
-                                    onClearMentionSearch = {
-                                        viewModel.clearMentionSearch()
-                                    },
-                                    onClearError = {
-                                        viewModel.clearCommentsError()
-                                    },
-                                    onProfileClick = { userId ->
-                                        showCommentsSheet = false
-                                        viewModel.clearComments()
-                                        viewingProfileUserId = userId
-                                    }
-                                )
-                            }
                             
                             // Share modal
                             if (uiState.showShareModal && uiState.sharePostId != null) {
@@ -977,9 +938,66 @@ fun LinkedInContent(
                                 userId = null, // null means current user's profile
                                 backdrop = backdrop,
                                 contentColor = contentColor,
-                                accentColor = accentColor
+                                accentColor = accentColor,
+                                onNavigateBack = { selectedTab = 0 },
+                                onOpenPost = { postId ->
+                                    selectedTab = 0
+                                    selectedPostForComments = postId
+                                    viewModel.loadComments(postId)
+                                    showCommentsSheet = true
+                                }
                             )
                         }
+                    }
+
+                    if (showCommentsSheet && selectedPostForComments != null) {
+                        com.kyant.backdrop.catalog.linkedin.posts.CommentsBottomSheet(
+                            backdrop = backdrop,
+                            contentColor = contentColor,
+                            accentColor = accentColor,
+                            isLightTheme = isLightTheme,
+                            postId = selectedPostForComments!!,
+                            comments = uiState.comments,
+                            isLoading = uiState.isLoadingComments,
+                            isLoadingMore = uiState.isLoadingMoreComments,
+                            isSendingComment = uiState.isSubmittingComment,
+                            hasMoreComments = uiState.hasMoreComments,
+                            currentUserAvatar = uiState.currentUser?.profileImage,
+                            currentUserName = uiState.currentUser?.name ?: "You",
+                            mentionSearchResults = uiState.mentionSearchResults,
+                            isSearchingMentions = uiState.isSearchingMentions,
+                            error = uiState.commentsError,
+                            onDismiss = {
+                                showCommentsSheet = false
+                                viewModel.clearComments()
+                            },
+                            onLoadMore = { viewModel.loadMoreComments() },
+                            onSendComment = { content, parentId ->
+                                selectedPostForComments?.let { postId ->
+                                    viewModel.submitComment(postId, content, parentId)
+                                }
+                            },
+                            onLikeComment = { commentId ->
+                                viewModel.toggleCommentLike(commentId)
+                            },
+                            onDeleteComment = { commentId ->
+                                viewModel.deleteComment(commentId)
+                            },
+                            onSearchMentions = { query ->
+                                viewModel.searchMentions(query)
+                            },
+                            onClearMentionSearch = {
+                                viewModel.clearMentionSearch()
+                            },
+                            onClearError = {
+                                viewModel.clearCommentsError()
+                            },
+                            onProfileClick = { userId ->
+                                showCommentsSheet = false
+                                viewModel.clearComments()
+                                viewingProfileUserId = userId
+                            }
+                        )
                     }
                 }
             }
@@ -997,11 +1015,9 @@ fun LinkedInContent(
                     backdrop = backdrop,
                     tabsCount = 5,
                     modifier = Modifier
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = 36.dp)
                         .navigationBarsPadding()
-                        .padding(bottom = 16.dp)
                         .fillMaxWidth()
-                        .height(72.dp)
                 ) {
                 LiquidBottomTab(onClick = { selectedTab = 0 }) {
                     Image(
@@ -1127,12 +1143,8 @@ fun LinkedInContent(
                         onDismiss = { reelsViewModel.closeReelsViewer() },
                         onLike = { reelId -> reelsViewModel.toggleLike(reelId) },
                         onSave = { reelId -> reelsViewModel.toggleSave(reelId) },
-                        onComment = { reelId -> 
-                            // TODO: Open comments sheet for reel
-                        },
-                        onShare = { reelId ->
-                            // TODO: Share reel
-                        },
+                        onComment = { reelId -> reelsViewModel.openComments(reelId) },
+                        onShare = {},
                         onProfileClick = { userId ->
                             reelsViewModel.closeReelsViewer()
                             viewingProfileUserId = userId
@@ -1142,6 +1154,30 @@ fun LinkedInContent(
                         },
                         onLoadMore = { reelsViewModel.loadMoreReels() }
                     )
+
+                    if (reelsState.showCommentsSheet) {
+                        ReelCommentsSheet(
+                            backdrop = backdrop,
+                            isGlassTheme = isGlassTheme,
+                            isDarkTheme = isDarkTheme,
+                            contentColor = contentColor,
+                            accentColor = accentColor,
+                            comments = reelsState.reelComments,
+                            repliesByParent = reelsState.replyCommentsByParent,
+                            expandedParents = reelsState.expandedReplyParents,
+                            replyTarget = reelsState.replyToComment,
+                            isLoading = reelsState.isLoadingComments,
+                            isLoadingMore = reelsState.isLoadingMoreComments,
+                            hasMore = reelsState.hasMoreComments,
+                            isSubmitting = reelsState.isSubmittingComment,
+                            error = reelsState.commentsError,
+                            onDismiss = { reelsViewModel.closeComments() },
+                            onLoadMore = { reelsViewModel.loadReelComments(refresh = false) },
+                            onToggleReplies = { parentId -> reelsViewModel.loadReplies(parentId) },
+                            onReplyTo = { comment -> reelsViewModel.setReplyTarget(comment) },
+                            onSubmitComment = { content -> reelsViewModel.submitComment(content) }
+                        )
+                    }
                 } else {
                     // Loading or empty state dialog
                     Dialog(
@@ -1299,6 +1335,13 @@ fun LinkedInContent(
                                 viewingProfileUserId = null
                                 openChatWithUserId = otherUserId
                                 showMessagesScreen = true
+                            },
+                            onOpenPost = { postId ->
+                                viewingProfileUserId = null
+                                selectedTab = 0
+                                selectedPostForComments = postId
+                                viewModel.loadComments(postId)
+                                showCommentsSheet = true
                             }
                         )
                     }
@@ -2235,7 +2278,7 @@ private fun FeedScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             flingBehavior = smoothFlingBehavior
         ) {
             item { Spacer(Modifier.height(8.dp)) }
@@ -5572,11 +5615,7 @@ private fun ApiPostCard(
                 shape = { RoundedRectangle(0f.dp) },
                 effects = {
                     vibrancy()
-                    blur(16f.dp.toPx())
-                    lens(8f.dp.toPx(), 16f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.12f))
+                    lens(16f.dp.toPx(), 32f.dp.toPx())
                 }
             )
             .padding(16.dp)

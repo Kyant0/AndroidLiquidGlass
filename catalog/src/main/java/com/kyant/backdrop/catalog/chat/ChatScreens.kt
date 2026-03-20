@@ -1,9 +1,12 @@
 package com.kyant.backdrop.catalog.chat
 
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,7 +21,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -42,7 +44,6 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
@@ -58,13 +59,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -80,8 +80,6 @@ import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.network.models.Conversation
 import com.kyant.backdrop.catalog.network.models.Message
 import com.kyant.backdrop.catalog.network.models.SharedPostContent
-import com.kyant.backdrop.catalog.linkedin.posts.FullScreenImageViewer
-import com.kyant.backdrop.catalog.linkedin.FullScreenVideoPlayer
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -97,25 +95,9 @@ import kotlin.math.roundToInt
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.media.MediaMetadataRetriever
-import android.net.Uri
 import android.widget.Toast
-import androidx.core.content.ContextCompat
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.ui.viewinterop.AndroidView
-import android.webkit.WebView
-import android.webkit.WebViewClient
 
 /**
  * Main entry point for the Chat tab.
@@ -146,7 +128,7 @@ fun ChatTabContent(
             when (event) {
                 Lifecycle.Event.ON_RESUME -> {
                     viewModel.ensureSocketConnected()
-                    viewModel.loadConversations()
+                    viewModel.ensureConversationsLoaded()
                 }
                 else -> {}
             }
@@ -168,7 +150,7 @@ fun ChatTabContent(
     }
 
     LaunchedEffect(Unit) {
-        viewModel.loadConversations()
+        viewModel.ensureConversationsLoaded()
     }
 
     LaunchedEffect(openChatWithUserId) {
@@ -288,7 +270,7 @@ private fun ChatListScreen(
 
         if (uiState.isLoadingConversations) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = contentColor)
+                AppIconLoadingIndicator(contentColor = contentColor)
             }
         } else if (uiState.error != null) {
             BasicText(uiState.error!!, style = TextStyle(contentColor.copy(alpha = 0.8f), 14.sp))
@@ -644,102 +626,6 @@ private fun ChatThreadScreen(
     var isMuted by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
     
-    val focusManager = LocalFocusManager.current
-    // Attachment picker state
-    var showAttachmentOptions by remember { mutableStateOf(false) }
-    var pendingAttachmentUri by remember { mutableStateOf<Uri?>(null) }
-    // In-app media viewers
-    var selectedImageUrl by remember { mutableStateOf<String?>(null) }
-    var selectedVideoUrl by remember { mutableStateOf<String?>(null) }
-    var selectedDocumentUrl by remember { mutableStateOf<String?>(null) }
-    var pendingAttachmentMimeType by remember { mutableStateOf<String?>(null) }
-    var pendingAttachmentName by remember { mutableStateOf<String?>(null) }
-    
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            pendingAttachmentName = context.contentResolver.query(it, null, null, null, null)?.use { cursor ->
-                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                if (cursor.moveToFirst() && nameIndex >= 0) cursor.getString(nameIndex) else it.lastPathSegment ?: "image.jpg"
-            } ?: it.lastPathSegment ?: "image.jpg"
-            pendingAttachmentMimeType = context.contentResolver.getType(it) ?: "image/jpeg"
-            pendingAttachmentUri = it
-        }
-    }
-    val documentPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri?.let {
-            pendingAttachmentName = context.contentResolver.query(it, null, null, null, null)?.use { cursor ->
-                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                if (cursor.moveToFirst() && nameIndex >= 0) cursor.getString(nameIndex) else it.lastPathSegment ?: "document"
-            } ?: it.lastPathSegment ?: "document"
-            pendingAttachmentMimeType = context.contentResolver.getType(it) ?: "application/octet-stream"
-            pendingAttachmentUri = it
-        }
-    }
-    
-    val voicePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) viewModel.startVoiceRecording(context)
-        else Toast.makeText(context, "Microphone permission needed for voice messages", Toast.LENGTH_SHORT).show()
-    }
-    
-    val scope = rememberCoroutineScope()
-    val videoMaxDurationMs = 2 * 60 * 1000L // 2 minutes
-    
-    val videoPickerLauncherWithDurationCheck = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { u ->
-            scope.launch {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    var durationMs: Long? = null
-                    try {
-                        val retriever = MediaMetadataRetriever()
-                        retriever.setDataSource(context, u)
-                        val dur = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                        durationMs = dur?.toLongOrNull()
-                        retriever.release()
-                    } catch (_: Exception) { }
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        if (durationMs != null && durationMs > videoMaxDurationMs) {
-                            Toast.makeText(context, "Video must be 2 minutes or less", Toast.LENGTH_LONG).show()
-                            return@withContext
-                        }
-                        pendingAttachmentName = context.contentResolver.query(u, null, null, null, null)?.use { cursor ->
-                            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                            if (cursor.moveToFirst() && nameIndex >= 0) cursor.getString(nameIndex) else u.lastPathSegment ?: "video.mp4"
-                        } ?: u.lastPathSegment ?: "video.mp4"
-                        pendingAttachmentMimeType = context.contentResolver.getType(u) ?: "video/mp4"
-                        pendingAttachmentUri = u
-                    }
-                }
-            }
-        }
-    }
-    
-    LaunchedEffect(pendingAttachmentUri) {
-        val uri = pendingAttachmentUri ?: return@LaunchedEffect
-        val name = pendingAttachmentName ?: "file"
-        val mime = pendingAttachmentMimeType ?: "application/octet-stream"
-        pendingAttachmentUri = null
-        pendingAttachmentName = null
-        pendingAttachmentMimeType = null
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@LaunchedEffect
-        viewModel.uploadAndSendMessage(
-            fileBytes = bytes,
-            fileName = name,
-            mimeType = mime,
-            caption = inputText,
-            replyToId = uiState.replyToMessage?.id
-        )
-        viewModel.clearReplyTo()
-        inputText = ""
-    }
-    
     // Filtered messages for search
     val displayedMessages = if (isSearchMode && searchQuery.isNotBlank()) {
         uiState.messages.filter { it.content.contains(searchQuery, ignoreCase = true) }
@@ -910,7 +796,7 @@ private fun ChatThreadScreen(
         // Messages
         if (uiState.isLoadingMessages) {
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = contentColor)
+                AppIconLoadingIndicator(contentColor = contentColor)
             }
         } else if (isSearchMode && searchQuery.isNotBlank() && displayedMessages.isEmpty()) {
             // No search results
@@ -951,10 +837,7 @@ private fun ChatThreadScreen(
                             clipboard.setPrimaryClip(ClipData.newPlainText("Message", msg.content))
                             Toast.makeText(context, "Message copied", Toast.LENGTH_SHORT).show()
                         },
-                        currentUserId = uiState.currentUserId,
-                        onImageClick = { url -> selectedImageUrl = url },
-                        onVideoClick = { url -> selectedVideoUrl = url },
-                        onDocumentClick = { url -> selectedDocumentUrl = url }
+                        currentUserId = uiState.currentUserId
                     )
                 }
             }
@@ -1000,32 +883,23 @@ private fun ChatThreadScreen(
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Plus button for attachments (docs, media, photos, videos, voice)
+            // Plus button for attachments
             Box(
                 Modifier
                     .size(36.dp)
                     .clip(CircleShape)
                     .background(contentColor.copy(alpha = 0.1f))
-                    .clickable(enabled = !uiState.isUploadingAttachment) {
-                        focusManager.clearFocus()
-                        showAttachmentOptions = true
+                    .clickable {
+                        // TODO: Open media picker
                     },
                 contentAlignment = Alignment.Center
             ) {
-                if (uiState.isUploadingAttachment) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = contentColor,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    androidx.compose.foundation.Image(
-                        painter = painterResource(R.drawable.ic_plus),
-                        contentDescription = "Attach",
-                        modifier = Modifier.size(20.dp),
-                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor.copy(alpha = 0.7f))
-                    )
-                }
+                androidx.compose.foundation.Image(
+                    painter = painterResource(R.drawable.ic_plus),
+                    contentDescription = "Attach",
+                    modifier = Modifier.size(20.dp),
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor.copy(alpha = 0.7f))
+                )
             }
             Spacer(Modifier.width(6.dp))
             BasicTextField(
@@ -1143,326 +1017,48 @@ private fun ChatThreadScreen(
             )
         }
         
-        // Attachment options (Photo, Video, Document, Voice)
-        if (showAttachmentOptions) {
-            ChatAttachmentOptionsSheet(
-                backdrop = backdrop,
-                contentColor = contentColor,
-                accentColor = accentColor,
-                onDismiss = { showAttachmentOptions = false },
-                onPhoto = {
-                    showAttachmentOptions = false
-                    imagePickerLauncher.launch("image/*")
-                },
-                onVideo = {
-                    showAttachmentOptions = false
-                    videoPickerLauncherWithDurationCheck.launch("video/*")
-                },
-                onDocument = {
-                    showAttachmentOptions = false
-                    documentPickerLauncher.launch(arrayOf("*/*"))
-                },
-                onVoice = {
-                    showAttachmentOptions = false
-                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                        viewModel.startVoiceRecording(context)
-                    } else {
-                        voicePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                }
-            )
-        }
-        
-        // Voice recording overlay
-        if (uiState.isRecordingVoice) {
-            VoiceRecordingOverlay(
-                contentColor = contentColor,
-                accentColor = accentColor,
-                onStopAndSend = { viewModel.stopVoiceRecordingAndSend(context) },
-                onCancel = { viewModel.cancelVoiceRecording() }
-            )
-        }
-        
-        uiState.attachmentUploadError?.let { err ->
-            LaunchedEffect(err) {
-                Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
-                viewModel.clearAttachmentError()
-            }
-        }
-        
-        // Full-screen image viewer (in-app)
-        selectedImageUrl?.let { url ->
-            FullScreenImageViewer(
-                images = listOf(url),
-                initialIndex = 0,
-                onDismiss = { selectedImageUrl = null }
-            )
-        }
-        
-        // In-app full-screen video player
-        selectedVideoUrl?.let { url ->
-            FullScreenVideoPlayer(
-                videoUrl = url,
-                onDismiss = { selectedVideoUrl = null }
-            )
-        }
-        
-        // In-app document/PDF viewer (WebView; PDFs via Google Docs viewer for compatibility)
-        selectedDocumentUrl?.let { url ->
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(Color.White)
-            ) {
-                AndroidView(
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            webViewClient = WebViewClient()
-                            val loadUrlToUse = if (url.trim().endsWith(".pdf", ignoreCase = true)) {
-                                "https://docs.google.com/viewer?url=${Uri.encode(url)}&embedded=true"
-                            } else {
-                                url
-                            }
-                            loadUrl(loadUrlToUse)
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp)
-                        .statusBarsPadding()
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .clickable { selectedDocumentUrl = null },
-                    contentAlignment = Alignment.Center
-                ) {
-                    BasicText("✕", style = TextStyle(Color.White, 18.sp, FontWeight.Bold))
-                }
-            }
-        }
+
     } // End of Box
 }
 
-/** Bottom sheet style overlay for attachment options: Photo, Video, Document, Voice. */
 @Composable
-private fun ChatAttachmentOptionsSheet(
-    backdrop: LayerBackdrop,
-    contentColor: Color,
-    accentColor: Color,
-    onDismiss: () -> Unit,
-    onPhoto: () -> Unit,
-    onVideo: () -> Unit,
-    onDocument: () -> Unit,
-    onVoice: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickable(
-                indication = null,
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-            ) { onDismiss() }
-    ) {
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(24f.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(20f.dp.toPx())
-                    },
-                    onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.5f)) }
-                )
-                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                .clickable(enabled = false) { }
-                .padding(24.dp)
-        ) {
-            BasicText(
-                "Send",
-                style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp, fontWeight = FontWeight.SemiBold),
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                AttachmentOption(
-                    iconRes = R.drawable.ic_image,
-                    label = "Photo",
-                    contentColor = contentColor,
-                    onClick = onPhoto
-                )
-                AttachmentOption(
-                    iconRes = R.drawable.ic_video,
-                    label = "Video",
-                    contentColor = contentColor,
-                    onClick = onVideo
-                )
-                AttachmentOption(
-                    iconRes = R.drawable.ic_file_text,
-                    label = "Document",
-                    contentColor = contentColor,
-                    onClick = onDocument
-                )
-                AttachmentOption(
-                    iconRes = R.drawable.ic_mic,
-                    label = "Voice",
-                    contentColor = contentColor,
-                    onClick = onVoice
-                )
-            }
-        }
-    }
-}
+private fun AppIconLoadingIndicator(contentColor: Color) {
+    val infiniteTransition = rememberInfiniteTransition(label = "chat_loader")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "chat_loader_rotation"
+    )
 
-@Composable
-private fun AttachmentOption(
-    iconRes: Int,
-    label: String,
-    contentColor: Color,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
-            .padding(12.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(contentColor.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
-        ) {
-            androidx.compose.foundation.Image(
-                painter = painterResource(iconRes),
-                contentDescription = label,
-                modifier = Modifier.size(24.dp),
-                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
-            )
-        }
-        Spacer(Modifier.height(6.dp))
-        BasicText(label, style = TextStyle(contentColor, 12.sp))
-    }
-}
-
-/** Overlay shown while recording a voice message. Tap to send, or cancel. */
-@Composable
-private fun VoiceRecordingOverlay(
-    contentColor: Color,
-    accentColor: Color,
-    onStopAndSend: () -> Unit,
-    onCancel: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.3f))
-            .clickable(
-                indication = null,
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-            ) { onCancel() }
-    ) {
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(contentColor.copy(alpha = 0.95f))
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            BasicText(
-                "Tap to cancel",
-                style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp),
-                modifier = Modifier.clickable { onCancel() }
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(Color.Red)
-                )
-                Spacer(Modifier.width(8.dp))
-                BasicText("Recording...", style = TextStyle(contentColor, 14.sp, FontWeight.Medium))
-            }
-            BasicText(
-                "Send",
-                style = TextStyle(accentColor, 14.sp, FontWeight.SemiBold),
-                modifier = Modifier.clickable { onStopAndSend() }
-            )
-        }
-    }
-}
-
-/** Loader shown while a media message is uploading (optimistic send). */
-@Composable
-private fun PendingMessageLoader(
-    contentColor: Color,
-    accentColor: Color
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pending")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 0.9f,
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 0.85f,
         targetValue = 1.1f,
         animationSpec = infiniteRepeatable(
-            animation = tween<Float>(600),
+            animation = tween(durationMillis = 700, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "scale"
+        label = "chat_loader_pulse"
     )
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween<Float>(800),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alpha"
-    )
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+
+    Box(
+        modifier = Modifier
+            .size(66.dp)
+            .clip(CircleShape)
+            .background(contentColor.copy(alpha = 0.08f)),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
+        androidx.compose.foundation.Image(
+            painter = painterResource(R.mipmap.ic_launcher_foreground),
+            contentDescription = "Loading",
             modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(accentColor.copy(alpha = 0.15f)),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(36.dp),
-                color = accentColor,
-                strokeWidth = 2.dp
-            )
-            androidx.compose.foundation.Image(
-                painter = painterResource(R.drawable.ic_sparkles),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(18.dp)
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        this.alpha = alpha
-                    },
-                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accentColor)
-            )
-        }
-        BasicText(
-            "Sending...",
-            style = TextStyle(contentColor.copy(alpha = 0.8f), 14.sp)
+                .size(34.dp * pulse)
+                .graphicsLayer {
+                    rotationZ = rotation
+                }
         )
     }
 }
@@ -1482,12 +1078,8 @@ private fun MessageBubble(
     onReact: (String) -> Unit = {},
     onDelete: (Boolean) -> Unit = {},
     onCopy: () -> Unit = {},
-    currentUserId: String? = null,
-    onImageClick: ((String) -> Unit)? = null,
-    onVideoClick: ((String) -> Unit)? = null,
-    onDocumentClick: ((String) -> Unit)? = null
+    currentUserId: String? = null
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val swipeThreshold = with(density) { 80.dp.toPx() }
@@ -1607,128 +1199,20 @@ private fun MessageBubble(
                     ) {
                         if (message.isDeleted) {
                             BasicText("Message deleted", style = TextStyle(contentColor.copy(alpha = 0.5f), 14.sp))
-                        } else if (message.contentType == "pending") {
-                            PendingMessageLoader(contentColor = contentColor, accentColor = accentColor)
                         } else {
-                            // Media message (image, video, document, voice)
-                            val mediaUrl = message.mediaUrl
-                            val mediaType = message.mediaType ?: "text"
-                            if (!mediaUrl.isNullOrEmpty()) {
-                                when (mediaType) {
-                                    "image" -> {
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            modifier = Modifier.clickable { onImageClick?.invoke(mediaUrl) }
-                                        ) {
-                                            AsyncImage(
-                                                model = mediaUrl,
-                                                contentDescription = "Image",
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .widthIn(max = 260.dp)
-                                                    .heightIn(max = 320.dp),
-                                                contentScale = ContentScale.Fit
-                                            )
-                                            if (message.content.isNotBlank() && message.content != "📷 Photo") {
-                                                Spacer(Modifier.height(6.dp))
-                                                BasicText(message.content, style = TextStyle(contentColor, 14.sp))
-                                            }
-                                        }
-                                    }
-                                    "video" -> {
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            modifier = Modifier.clickable { onVideoClick?.invoke(mediaUrl) }
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .background(contentColor.copy(alpha = 0.1f))
-                                                    .widthIn(max = 260.dp)
-                                                    .heightIn(max = 200.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                BasicText("▶", style = TextStyle(contentColor, 48.sp))
-                                            }
-                                            if (message.content.isNotBlank() && message.content != "🎬 Video") {
-                                                Spacer(Modifier.height(6.dp))
-                                                BasicText(message.content, style = TextStyle(contentColor, 14.sp))
-                                            }
-                                        }
-                                    }
-                                    "document" -> {
-                                        Row(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .clickable { onDocumentClick?.invoke(mediaUrl) }
-                                                .padding(4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            androidx.compose.foundation.Image(
-                                                painter = painterResource(R.drawable.ic_file_text),
-                                                contentDescription = null,
-                                                modifier = Modifier.size(24.dp),
-                                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            Column {
-                                                BasicText(
-                                                    message.fileName ?: "Document",
-                                                    style = TextStyle(contentColor, 14.sp, FontWeight.Medium),
-                                                    maxLines = 1
-                                                )
-                                                if (message.content.isNotBlank()) {
-                                                    BasicText(message.content, style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp), maxLines = 1)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    "audio" -> {
-                                        Row(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .clickable {
-                                                    try {
-                                                        val intent = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(mediaUrl), "audio/*")
-                                                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                                        context.startActivity(Intent.createChooser(intent, "Play voice"))
-                                                    } catch (_: Exception) { }
-                                                }
-                                                .padding(4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            androidx.compose.foundation.Image(
-                                                painter = painterResource(R.drawable.ic_mic),
-                                                contentDescription = null,
-                                                modifier = Modifier.size(24.dp),
-                                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            BasicText(
-                                                if (message.content.isNotBlank()) message.content else "Voice message",
-                                                style = TextStyle(contentColor, 14.sp)
-                                            )
-                                        }
-                                    }
-                                    else -> {
-                                        BasicText(message.content, style = TextStyle(contentColor, 15.sp))
-                                    }
-                                }
+                            // Try to parse as shared post
+                            val sharedPost = SharedPostContent.tryParse(message.content)
+                            if (sharedPost != null && sharedPost.type == "shared_post") {
+                                SharedPostCard(
+                                    sharedPost = sharedPost,
+                                    contentColor = contentColor,
+                                    accentColor = accentColor
+                                )
                             } else {
-                                // Try to parse as shared post
-                                val sharedPost = SharedPostContent.tryParse(message.content)
-                                if (sharedPost != null && sharedPost.type == "shared_post") {
-                                    SharedPostCard(
-                                        sharedPost = sharedPost,
-                                        contentColor = contentColor,
-                                        accentColor = accentColor
-                                    )
-                                } else {
-                                    BasicText(
-                                        message.content,
-                                        style = TextStyle(contentColor, 15.sp)
-                                    )
-                                }
+                                BasicText(
+                                    message.content,
+                                    style = TextStyle(contentColor, 15.sp)
+                                )
                             }
                         }
                     }

@@ -775,6 +775,7 @@ data class FeedItem(
     val title: String? = null,
     val content: String = "",
     val images: List<String>? = null,
+    val mediaUrls: List<String>? = null,
     val tags: List<String>? = null,
     val likesCount: Int = 0,
     val commentsCount: Int = 0,
