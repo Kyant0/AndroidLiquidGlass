@@ -196,6 +196,19 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     
     private val _uiState = MutableStateFlow(FeedUiState())
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
+
+    private val feedCacheTtlMillis = 2 * 60 * 1000L
+    private val supportingDataTtlMillis = 5 * 60 * 1000L
+
+    private var lastFeedLoadedAt = 0L
+    private var lastStoriesLoadedAt = 0L
+    private var lastCurrentUserLoadedAt = 0L
+    private var lastStreakLoadedAt = 0L
+
+    private var isFeedRequestInFlight = false
+    private var isStoriesRequestInFlight = false
+    private var isCurrentUserRequestInFlight = false
+    private var isStreakRequestInFlight = false
     
     init {
         checkLoginStatus()
@@ -226,8 +239,14 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     
     // ==================== Streak Data (Duolingo Effect) ====================
     
-    private fun loadStreakData() {
+    private fun loadStreakData(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(lastStreakLoadedAt, supportingDataTtlMillis)) {
+            return
+        }
+        if (isStreakRequestInFlight) return
+
         viewModelScope.launch {
+            isStreakRequestInFlight = true
             // Check 24-hour cooldown from Find People screen (shared cooldown)
             val findPeoplePrefs = context.getSharedPreferences("vormex_find_people", Context.MODE_PRIVATE)
             val lastDismissTime = findPeoplePrefs.getLong("last_error_dismiss_time", 0)
@@ -255,7 +274,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     val showBadge = !isAtRisk && 
                                     streakData.loginStreak > 0 && 
                                     (isMilestone || lastBadgeDismissed != today)
-                    
+                    lastStreakLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
                         connectionStreak = streakData.connectionStreak,
                         loginStreak = streakData.loginStreak,
@@ -273,6 +292,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             
             // Record login to backend (updates login streak on backend)
             recordLoginToBackend()
+            isStreakRequestInFlight = false
         }
     }
     
@@ -320,7 +340,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     }
     
     fun refreshStreaks() {
-        loadStreakData()
+        loadStreakData(forceRefresh = true)
     }
     
     fun login(email: String, password: String) {
@@ -339,8 +359,10 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         showOnboarding = !response.user.onboardingCompleted,
                         onboardingCompleted = response.user.onboardingCompleted
                     )
-                    loadFeed()
-                    loadStories()
+                    loadCurrentUser(forceRefresh = true)
+                    loadFeed(forceRefresh = true)
+                    loadStories(forceRefresh = true)
+                    loadStreakData(forceRefresh = true)
                 }
                 .onFailure { e ->
                     _uiState.value = _uiState.value.copy(
@@ -367,8 +389,10 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         showOnboarding = true, // New users always need onboarding
                         onboardingCompleted = false
                     )
-                    loadFeed()
-                    loadStories()
+                    loadCurrentUser(forceRefresh = true)
+                    loadFeed(forceRefresh = true)
+                    loadStories(forceRefresh = true)
+                    loadStreakData(forceRefresh = true)
                 }
                 .onFailure { e ->
                     _uiState.value = _uiState.value.copy(
@@ -398,8 +422,10 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                                 showOnboarding = !response.user.onboardingCompleted,
                                 onboardingCompleted = response.user.onboardingCompleted
                             )
-                            loadFeed()
-                            loadStories()
+                            loadCurrentUser(forceRefresh = true)
+                            loadFeed(forceRefresh = true)
+                            loadStories(forceRefresh = true)
+                            loadStreakData(forceRefresh = true)
                         }
                         .onFailure { e ->
                             _uiState.value = _uiState.value.copy(
@@ -428,10 +454,17 @@ class FeedViewModel(private val context: Context) : ViewModel() {
         }
     }
     
-    private fun loadCurrentUser() {
+    private fun loadCurrentUser(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(lastCurrentUserLoadedAt, supportingDataTtlMillis)) {
+            return
+        }
+        if (isCurrentUserRequestInFlight) return
+
         viewModelScope.launch {
+            isCurrentUserRequestInFlight = true
             ApiClient.getCurrentUser(context)
                 .onSuccess { user ->
+                    lastCurrentUserLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
                         currentUser = user,
                         currentUserId = user.id,
@@ -439,6 +472,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         showOnboarding = !user.onboardingCompleted
                     )
                 }
+            isCurrentUserRequestInFlight = false
         }
     }
     
@@ -448,9 +482,9 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             onboardingCompleted = true
         )
         // Reload user data after onboarding
-        loadCurrentUser()
-        loadFeed()
-        loadStories()
+        loadCurrentUser(forceRefresh = true)
+        loadFeed(forceRefresh = true)
+        loadStories(forceRefresh = true)
     }
     
     fun skipOnboarding() {
@@ -461,14 +495,21 @@ class FeedViewModel(private val context: Context) : ViewModel() {
         _uiState.value = _uiState.value.copy(showOnboarding = true)
     }
     
-    fun loadFeed() {
+    fun loadFeed(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(lastFeedLoadedAt, feedCacheTtlMillis)) {
+            return
+        }
+        if (isFeedRequestInFlight) return
+
         viewModelScope.launch {
+            isFeedRequestInFlight = true
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
             ApiClient.getFeed(context)
                 .onSuccess { response ->
                     // Apply diversity algorithm to prevent same-feed-every-time
                     val diversifiedPosts = diversifyFeed(response.posts, _uiState.value.currentUserId)
+                    lastFeedLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
                         posts = diversifiedPosts,
                         nextCursor = response.nextCursor,
@@ -482,17 +523,26 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         error = e.message ?: "Failed to load feed"
                     )
                 }
+            isFeedRequestInFlight = false
         }
     }
     
-    fun loadStories() {
+    fun loadStories(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(lastStoriesLoadedAt, supportingDataTtlMillis)) {
+            return
+        }
+        if (isStoriesRequestInFlight) return
+
         viewModelScope.launch {
+            isStoriesRequestInFlight = true
             ApiClient.getStories(context)
                 .onSuccess { response ->
+                    lastStoriesLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
                         storyGroups = response.storyGroups
                     )
                 }
+            isStoriesRequestInFlight = false
         }
     }
     
@@ -539,7 +589,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         myStories = listOf(response.story) + _uiState.value.myStories,
                         isCreatingStory = false
                     )
-                    loadStories() // Refresh all stories
+                    loadStories(forceRefresh = true) // Refresh all stories
                     onSuccess?.invoke()
                 }
                 .onFailure { e ->
@@ -645,9 +695,13 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     _uiState.value = _uiState.value.copy(
                         myStories = _uiState.value.myStories.filter { it.id != storyId }
                     )
-                    loadStories() // Refresh all stories
+                    loadStories(forceRefresh = true) // Refresh all stories
                 }
         }
+    }
+
+    private fun isFresh(loadedAt: Long, ttlMillis: Long): Boolean {
+        return loadedAt != 0L && System.currentTimeMillis() - loadedAt < ttlMillis
     }
     
     fun openStoryViewer(groupIndex: Int, storyIndex: Int = 0) {

@@ -1,16 +1,21 @@
 package com.kyant.backdrop.catalog.linkedin
 
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +23,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -42,6 +48,13 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
+
+private data class HelpFaqItemData(
+    val id: String,
+    val icon: String,
+    val title: String,
+    val answer: String
+)
 
 // ==================== NOTIFICATION SETTINGS SCREEN ====================
 
@@ -164,17 +177,7 @@ fun NotificationSettingsScreen(
                     accentColor = accentColor,
                     trailingText = if (systemNotificationsEnabled) "✅" else "⚠️",
                     onClick = {
-                        // Open system notification settings
-                        val intent = Intent().apply {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                action = Settings.ACTION_APP_NOTIFICATION_SETTINGS
-                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                            } else {
-                                action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                                data = Uri.parse("package:${context.packageName}")
-                            }
-                        }
-                        context.startActivity(intent)
+                        openAppNotificationSettings(context)
                     }
                 )
             }
@@ -994,6 +997,59 @@ fun HelpScreen(
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
+    var query by rememberSaveable { mutableStateOf("") }
+    var expandedFaqId by rememberSaveable { mutableStateOf<String?>(null) }
+    val faqs = remember {
+        listOf(
+            HelpFaqItemData(
+                id = "post",
+                icon = "📝",
+                title = "How to create a post",
+                answer = "Use the center create tab to publish text, images, videos, links, polls, or articles. After posting, go back to Home and your content should appear without reloading the entire app."
+            ),
+            HelpFaqItemData(
+                id = "connect",
+                icon = "🤝",
+                title = "How to connect with others",
+                answer = "Open Find, choose Smart, For You, Campus, or Nearby, then tap Connect on people who look relevant. The app now ranks active and more complete profiles higher to make this section feel more useful."
+            ),
+            HelpFaqItemData(
+                id = "notifications",
+                icon = "🔔",
+                title = "Why notifications may not arrive",
+                answer = "Check Android system notifications first, then make sure push notifications are enabled inside Vormex. If the app was force-stopped from Android Settings, Firebase will stay blocked until the app is opened again."
+            ),
+            HelpFaqItemData(
+                id = "goals",
+                icon = "🎯",
+                title = "Understanding weekly goals",
+                answer = "Weekly goals track activity like connections and posting. Progress, streaks, and retention cards now stay cached for a few minutes, so reopening these sections should feel much faster."
+            ),
+            HelpFaqItemData(
+                id = "password",
+                icon = "🔒",
+                title = "How to change password",
+                answer = "If you signed up with email and password, use the account flow on web or contact support from this screen and ask for a password reset. Include the email tied to your Vormex account."
+            ),
+            HelpFaqItemData(
+                id = "account",
+                icon = "🗑️",
+                title = "How to delete your account",
+                answer = "Contact support and request account deletion from the email linked to your account. Include your username and a short confirmation that you want all account data removed."
+            )
+        )
+    }
+    val filteredFaqs = remember(query) {
+        val normalizedQuery = query.trim().lowercase()
+        if (normalizedQuery.isBlank()) {
+            faqs
+        } else {
+            faqs.filter {
+                it.title.lowercase().contains(normalizedQuery) ||
+                    it.answer.lowercase().contains(normalizedQuery)
+            }
+        }
+    }
     
     Column(
         modifier = Modifier
@@ -1009,71 +1065,159 @@ fun HelpScreen(
         
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
-                SettingsSectionHeader("Getting Started", contentColor)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { RoundedRectangle(20.dp) },
+                            effects = {
+                                vibrancy()
+                                blur(10f.dp.toPx())
+                                lens(4f.dp.toPx(), 8f.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(accentColor.copy(alpha = 0.14f))
+                            }
+                        )
+                        .padding(16.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BasicText(
+                            "Help that actually unblocks people",
+                            style = TextStyle(contentColor, 16.sp, FontWeight.Bold)
+                        )
+                        BasicText(
+                            "Search common questions, copy diagnostics, or jump straight to support without leaving the app feeling stuck.",
+                            style = TextStyle(contentColor.copy(alpha = 0.68f), 12.sp)
+                        )
+                    }
+                }
             }
-            
+
             item {
-                SettingsNavigationItem(
-                    title = "How to create a post",
-                    icon = "📝",
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = {
+                        Text("Search help topics")
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = accentColor,
+                        unfocusedBorderColor = contentColor.copy(alpha = 0.2f),
+                        focusedTextColor = contentColor,
+                        unfocusedTextColor = contentColor,
+                        cursorColor = accentColor,
+                        focusedContainerColor = Color.White.copy(alpha = 0.06f),
+                        unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
+                        focusedPlaceholderColor = contentColor.copy(alpha = 0.45f),
+                        unfocusedPlaceholderColor = contentColor.copy(alpha = 0.45f)
+                    )
+                )
+            }
+
+            item {
+                SettingsSectionHeader("Quick Fixes", contentColor)
+            }
+
+            item {
+                SettingsActionItem(
+                    title = "Notification troubleshooting",
+                    subtitle = "Open Android notification settings for Vormex",
+                    icon = "🔔",
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
-                    onClick = { /* Expand FAQ item */ }
+                    onClick = { openAppNotificationSettings(context) }
                 )
             }
-            
+
             item {
-                SettingsNavigationItem(
-                    title = "How to connect with others",
-                    icon = "🤝",
+                SettingsActionItem(
+                    title = "Copy app diagnostics",
+                    subtitle = "Version, device, Android, and backend endpoint",
+                    icon = "🧪",
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
-                    onClick = { /* Expand FAQ item */ }
+                    onClick = {
+                        copyText(
+                            context = context,
+                            label = "Vormex diagnostics",
+                            text = buildDiagnosticsText()
+                        )
+                    }
                 )
             }
-            
+
             item {
-                SettingsNavigationItem(
-                    title = "Understanding weekly goals",
-                    icon = "🎯",
+                SettingsActionItem(
+                    title = "Contact support",
+                    subtitle = "Open email with support details filled in",
+                    icon = "📧",
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
-                    onClick = { /* Expand FAQ item */ }
+                    onClick = {
+                        launchEmail(
+                            context = context,
+                            to = "support@vormex.in",
+                            subject = "Help Request - Vormex Android",
+                            body = "Hi Vormex Support,\n\nI need help with:\n\n${buildDiagnosticsText()}"
+                        )
+                    }
                 )
             }
-            
+
             item {
-                SettingsSectionHeader("Account", contentColor)
+                SettingsSectionHeader("FAQ", contentColor)
             }
-            
-            item {
-                SettingsNavigationItem(
-                    title = "How to change password",
-                    icon = "🔒",
-                    backdrop = backdrop,
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    onClick = { /* Expand FAQ item */ }
-                )
+
+            if (filteredFaqs.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedRectangle(16.dp) },
+                                effects = {
+                                    vibrancy()
+                                    blur(10f.dp.toPx())
+                                    lens(4f.dp.toPx(), 8f.dp.toPx())
+                                },
+                                onDrawSurface = {
+                                    drawRect(Color.White.copy(alpha = 0.08f))
+                                }
+                            )
+                            .padding(16.dp)
+                    ) {
+                        BasicText(
+                            "No help topics matched \"$query\". Try a shorter phrase like notifications, post, password, or account.",
+                            style = TextStyle(contentColor.copy(alpha = 0.68f), 13.sp)
+                        )
+                    }
+                }
+            } else {
+                items(filteredFaqs, key = { it.id }) { faq ->
+                    HelpFaqCard(
+                        faq = faq,
+                        expanded = expandedFaqId == faq.id,
+                        backdrop = backdrop,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        onClick = {
+                            expandedFaqId = if (expandedFaqId == faq.id) null else faq.id
+                        }
+                    )
+                }
             }
-            
-            item {
-                SettingsNavigationItem(
-                    title = "How to delete account",
-                    icon = "🗑️",
-                    backdrop = backdrop,
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    onClick = { /* Expand FAQ item */ }
-                )
-            }
-            
+
             item {
                 SettingsSectionHeader("Need More Help?", contentColor)
             }
@@ -1087,8 +1231,7 @@ fun HelpScreen(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://vormex.in/help"))
-                        context.startActivity(intent)
+                        openUrl(context, "https://vormex.in/help")
                     }
                 )
             }
@@ -1102,11 +1245,12 @@ fun HelpScreen(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        val intent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = Uri.parse("mailto:support@vormex.in")
-                            putExtra(Intent.EXTRA_SUBJECT, "Help Request - Vormex App")
-                        }
-                        context.startActivity(intent)
+                        launchEmail(
+                            context = context,
+                            to = "support@vormex.in",
+                            subject = "Help Request - Vormex App",
+                            body = buildDiagnosticsText()
+                        )
                     }
                 )
             }
@@ -1126,6 +1270,7 @@ fun AboutScreen(
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
+    var showOpenSourceDialog by rememberSaveable { mutableStateOf(false) }
     
     Column(
         modifier = Modifier
@@ -1217,6 +1362,47 @@ fun AboutScreen(
             }
             
             SettingsSectionHeader("Legal", contentColor)
+
+            SettingsActionItem(
+                title = "Copy Build Details",
+                subtitle = "Version, package, API endpoint, and device context",
+                icon = "🧪",
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                onClick = {
+                    copyText(
+                        context = context,
+                        label = "Vormex build details",
+                        text = buildDiagnosticsText()
+                    )
+                }
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(16.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(10f.dp.toPx())
+                            lens(4f.dp.toPx(), 8f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color.White.copy(alpha = 0.08f))
+                        }
+                    )
+                    .padding(16.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    BuildInfoRow("Package", BuildConfig.APPLICATION_ID, contentColor)
+                    BuildInfoRow("Version", getAppVersion(), contentColor)
+                    BuildInfoRow("Backend", BuildConfig.API_BASE_URL.removePrefix("https://"), contentColor)
+                    BuildInfoRow("Android", "SDK ${Build.VERSION.SDK_INT}", contentColor)
+                }
+            }
             
             SettingsNavigationItem(
                 title = "Terms of Service",
@@ -1225,8 +1411,7 @@ fun AboutScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://vormex.in/terms"))
-                    context.startActivity(intent)
+                    openUrl(context, "https://vormex.in/terms")
                 }
             )
             
@@ -1237,8 +1422,7 @@ fun AboutScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://vormex.in/privacy"))
-                    context.startActivity(intent)
+                    openUrl(context, "https://vormex.in/privacy")
                 }
             )
             
@@ -1248,7 +1432,7 @@ fun AboutScreen(
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
-                onClick = { /* Show licenses */ }
+                onClick = { showOpenSourceDialog = true }
             )
             
             SettingsSectionHeader("Connect", contentColor)
@@ -1261,8 +1445,7 @@ fun AboutScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://twitter.com/VormexApp"))
-                    context.startActivity(intent)
+                    openUrl(context, "https://twitter.com/VormexApp")
                 }
             )
             
@@ -1274,8 +1457,7 @@ fun AboutScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://vormex.in"))
-                    context.startActivity(intent)
+                    openUrl(context, "https://vormex.in")
                 }
             )
             
@@ -1298,6 +1480,42 @@ fun AboutScreen(
             Spacer(Modifier.height(80.dp))
         }
     }
+
+    if (showOpenSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showOpenSourceDialog = false },
+            title = {
+                Text(
+                    "Open Source Stack",
+                    color = contentColor,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    listOf(
+                        "Jetpack Compose UI",
+                        "Material 3",
+                        "AndroidX DataStore",
+                        "Ktor Networking",
+                        "Coil Image Loading",
+                        "Firebase Messaging",
+                        "Media3 ExoPlayer"
+                    ).forEach { library ->
+                        Text(
+                            "• $library",
+                            color = contentColor.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showOpenSourceDialog = false }) {
+                    Text("Close", color = accentColor)
+                }
+            }
+        )
+    }
 }
 
 // ==================== INVITE FRIENDS SCREEN ====================
@@ -1311,6 +1529,8 @@ fun InviteFriendsScreen(
     referralCode: String = "VORMEX2026"
 ) {
     val context = LocalContext.current
+    val inviteLink = remember(referralCode) { "https://vormex.in/download?ref=$referralCode" }
+    val inviteMessage = remember(referralCode) { buildInviteMessage(referralCode) }
     
     Column(
         modifier = Modifier
@@ -1417,6 +1637,48 @@ fun InviteFriendsScreen(
                     }
                 }
             }
+
+            SettingsActionItem(
+                title = "Copy invite link",
+                subtitle = inviteLink,
+                icon = "🔗",
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                onClick = {
+                    copyText(context, "Invite link", inviteLink)
+                }
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                InviteUtilityCard(
+                    modifier = Modifier.weight(1f),
+                    title = "Copy Code",
+                    subtitle = referralCode,
+                    icon = "📋",
+                    backdrop = backdrop,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    onClick = {
+                        copyText(context, "Referral code", referralCode)
+                    }
+                )
+                InviteUtilityCard(
+                    modifier = Modifier.weight(1f),
+                    title = "Copy Message",
+                    subtitle = "Ready to paste",
+                    icon = "✉️",
+                    backdrop = backdrop,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    onClick = {
+                        copyText(context, "Invite message", inviteMessage)
+                    }
+                )
+            }
             
             // Share buttons
             SettingsSectionHeader("Share via", contentColor)
@@ -1432,7 +1694,7 @@ fun InviteFriendsScreen(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        shareInvite(context, "sms")
+                        shareInvite(context, "sms", referralCode)
                     }
                 )
                 
@@ -1443,7 +1705,7 @@ fun InviteFriendsScreen(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        shareInvite(context, "email")
+                        shareInvite(context, "email", referralCode)
                     }
                 )
                 
@@ -1454,12 +1716,83 @@ fun InviteFriendsScreen(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        shareInvite(context, "share")
+                        shareInvite(context, "share", referralCode)
                     }
                 )
             }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(16.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(10f.dp.toPx())
+                            lens(4f.dp.toPx(), 8f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color.White.copy(alpha = 0.08f))
+                        }
+                    )
+                    .padding(16.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BasicText(
+                        "What friends receive",
+                        style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold)
+                    )
+                    BasicText(
+                        "A direct download link, your referral code, and a short note about networking, creators, and opportunities on Vormex.",
+                        style = TextStyle(contentColor.copy(alpha = 0.68f), 13.sp)
+                    )
+                }
+            }
             
             Spacer(Modifier.height(80.dp))
+        }
+    }
+}
+
+@Composable
+private fun InviteUtilityCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    subtitle: String,
+    icon: String,
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(16.dp) },
+                effects = {
+                    vibrancy()
+                    blur(10f.dp.toPx())
+                    lens(4f.dp.toPx(), 8f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(accentColor.copy(alpha = 0.10f))
+                }
+            )
+            .clickable(onClick = onClick)
+            .padding(16.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            BasicText(icon, style = TextStyle(fontSize = 20.sp))
+            BasicText(
+                title,
+                style = TextStyle(contentColor, 14.sp, FontWeight.SemiBold)
+            )
+            BasicText(
+                subtitle,
+                style = TextStyle(contentColor.copy(alpha = 0.62f), 12.sp)
+            )
         }
     }
 }
@@ -1502,8 +1835,8 @@ private fun ShareButton(
     }
 }
 
-private fun shareInvite(context: Context, method: String) {
-    val shareText = "Join me on Vormex! Connect with professionals, share your journey, and discover opportunities. Download now: https://vormex.in/download"
+private fun shareInvite(context: Context, method: String, referralCode: String) {
+    val shareText = buildInviteMessage(referralCode)
     
     when (method) {
         "share" -> {
@@ -1511,22 +1844,22 @@ private fun shareInvite(context: Context, method: String) {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_TEXT, shareText)
             }
-            context.startActivity(Intent.createChooser(intent, "Share via"))
+            launchIntentSafely(context, Intent.createChooser(intent, "Share via"))
         }
         "email" -> {
-            val intent = Intent(Intent.ACTION_SENDTO).apply {
-                data = Uri.parse("mailto:")
-                putExtra(Intent.EXTRA_SUBJECT, "Join me on Vormex!")
-                putExtra(Intent.EXTRA_TEXT, shareText)
-            }
-            context.startActivity(intent)
+            launchEmail(
+                context = context,
+                to = "",
+                subject = "Join me on Vormex!",
+                body = shareText
+            )
         }
         "sms" -> {
             val intent = Intent(Intent.ACTION_SENDTO).apply {
                 data = Uri.parse("smsto:")
                 putExtra("sms_body", shareText)
             }
-            context.startActivity(intent)
+            launchIntentSafely(context, intent)
         }
     }
 }
@@ -1556,8 +1889,71 @@ fun ContactScreen(
         
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { RoundedRectangle(20.dp) },
+                            effects = {
+                                vibrancy()
+                                blur(10f.dp.toPx())
+                                lens(4f.dp.toPx(), 8f.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(accentColor.copy(alpha = 0.12f))
+                            }
+                        )
+                        .padding(16.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BasicText(
+                            "Support toolkit",
+                            style = TextStyle(contentColor, 16.sp, FontWeight.Bold)
+                        )
+                        BasicText(
+                            "Send a bug report, suggest a feature, or copy diagnostics before you write in.",
+                            style = TextStyle(contentColor.copy(alpha = 0.68f), 12.sp)
+                        )
+                    }
+                }
+            }
+
+            item {
+                SettingsSectionHeader("Quick Actions", contentColor)
+            }
+
+            item {
+                SettingsActionItem(
+                    title = "Copy app diagnostics",
+                    subtitle = "Version, package, Android, device, and backend",
+                    icon = "🧪",
+                    backdrop = backdrop,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    onClick = {
+                        copyText(context, "Vormex diagnostics", buildDiagnosticsText())
+                    }
+                )
+            }
+
+            item {
+                SettingsActionItem(
+                    title = "Open help center",
+                    subtitle = "Read onboarding and troubleshooting guides",
+                    icon = "🌐",
+                    backdrop = backdrop,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    onClick = {
+                        openUrl(context, "https://vormex.in/help")
+                    }
+                )
+            }
+
             item {
                 SettingsSectionHeader("Get in Touch", contentColor)
             }
@@ -1571,11 +1967,12 @@ fun ContactScreen(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        val intent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = Uri.parse("mailto:support@vormex.in")
-                            putExtra(Intent.EXTRA_SUBJECT, "Support Request - Vormex App")
-                        }
-                        context.startActivity(intent)
+                        launchEmail(
+                            context = context,
+                            to = "support@vormex.in",
+                            subject = "Support Request - Vormex Android",
+                            body = "Hi Vormex Support,\n\nI need help with:\n\n${buildDiagnosticsText()}"
+                        )
                     }
                 )
             }
@@ -1589,12 +1986,12 @@ fun ContactScreen(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        val intent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = Uri.parse("mailto:bugs@vormex.in")
-                            putExtra(Intent.EXTRA_SUBJECT, "Bug Report - Vormex App v${getAppVersion()}")
-                            putExtra(Intent.EXTRA_TEXT, "Device: ${android.os.Build.MODEL}\nAndroid: ${android.os.Build.VERSION.RELEASE}\n\nDescribe the issue:\n")
-                        }
-                        context.startActivity(intent)
+                        launchEmail(
+                            context = context,
+                            to = "bugs@vormex.in",
+                            subject = "Bug Report - Vormex App v${getAppVersion()}",
+                            body = "Describe the issue:\n\nExpected:\n\nActual:\n\nSteps to reproduce:\n\n${buildDiagnosticsText()}"
+                        )
                     }
                 )
             }
@@ -1608,11 +2005,12 @@ fun ContactScreen(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        val intent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = Uri.parse("mailto:feedback@vormex.in")
-                            putExtra(Intent.EXTRA_SUBJECT, "Feature Request - Vormex App")
-                        }
-                        context.startActivity(intent)
+                        launchEmail(
+                            context = context,
+                            to = "feedback@vormex.in",
+                            subject = "Feature Request - Vormex App",
+                            body = "I would love to see:\n\nWhy this helps:\n\n${buildDiagnosticsText()}"
+                        )
                     }
                 )
             }
@@ -1630,8 +2028,7 @@ fun ContactScreen(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://twitter.com/VormexApp"))
-                        context.startActivity(intent)
+                        openUrl(context, "https://twitter.com/VormexApp")
                     }
                 )
             }
@@ -1645,8 +2042,7 @@ fun ContactScreen(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://instagram.com/vormex.app"))
-                        context.startActivity(intent)
+                        openUrl(context, "https://instagram.com/vormex.app")
                     }
                 )
             }
@@ -1660,14 +2056,101 @@ fun ContactScreen(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://linkedin.com/company/vormex"))
-                        context.startActivity(intent)
+                        openUrl(context, "https://linkedin.com/company/vormex")
                     }
                 )
             }
             
             item { Spacer(Modifier.height(80.dp)) }
         }
+    }
+}
+
+@Composable
+private fun HelpFaqCard(
+    faq: HelpFaqItemData,
+    expanded: Boolean,
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(16.dp) },
+                effects = {
+                    vibrancy()
+                    blur(10f.dp.toPx())
+                    lens(4f.dp.toPx(), 8f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(Color.White.copy(alpha = 0.1f))
+                }
+            )
+            .clickable(onClick = onClick)
+            .padding(16.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BasicText(faq.icon, style = TextStyle(fontSize = 22.sp))
+                    Spacer(Modifier.width(12.dp))
+                    BasicText(
+                        faq.title,
+                        style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold)
+                    )
+                }
+                BasicText(
+                    if (expanded) "−" else "+",
+                    style = TextStyle(accentColor, 20.sp, FontWeight.Bold)
+                )
+            }
+
+            if (expanded) {
+                BasicText(
+                    faq.answer,
+                    style = TextStyle(contentColor.copy(alpha = 0.72f), 13.sp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BuildInfoRow(
+    label: String,
+    value: String,
+    contentColor: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        BasicText(
+            label,
+            style = TextStyle(contentColor.copy(alpha = 0.55f), 12.sp, FontWeight.Medium)
+        )
+        BasicText(
+            value,
+            modifier = Modifier.padding(start = 12.dp),
+            style = TextStyle(
+                contentColor,
+                12.sp,
+                FontWeight.SemiBold,
+                textAlign = TextAlign.End
+            )
+        )
     }
 }
 
@@ -1679,7 +2162,8 @@ fun SavedPostsScreen(
     contentColor: Color,
     accentColor: Color,
     onNavigateBack: () -> Unit,
-    onNavigateToPost: (String) -> Unit = {}
+    onNavigateToPost: (String) -> Unit = {},
+    onNavigateToReel: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1750,6 +2234,7 @@ fun SavedPostsScreen(
                             reel = reel,
                             backdrop = backdrop,
                             contentColor = contentColor,
+                            onClick = { onNavigateToReel(reel.id) },
                             onUnsave = {
                                     scope.launch {
                                         ApiClient.toggleReelSave(context, reel.id)
@@ -1795,6 +2280,7 @@ private fun SavedReelItem(
     reel: com.kyant.backdrop.catalog.network.models.Reel,
     backdrop: LayerBackdrop,
     contentColor: Color,
+    onClick: () -> Unit,
     onUnsave: () -> Unit
 ) {
     Box(
@@ -1812,6 +2298,7 @@ private fun SavedReelItem(
                     drawRect(Color.White.copy(alpha = 0.1f))
                 }
             )
+            .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
         Row(
@@ -2315,6 +2802,74 @@ fun SettingsOptionItem(
 }
 
 // ==================== HELPER FUNCTIONS ====================
+
+private fun openAppNotificationSettings(context: Context) {
+    val intent = Intent().apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            action = Settings.ACTION_APP_NOTIFICATION_SETTINGS
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        } else {
+            action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+            data = Uri.parse("package:${context.packageName}")
+        }
+    }
+    launchIntentSafely(context, intent)
+}
+
+private fun openUrl(context: Context, url: String) {
+    launchIntentSafely(context, Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+}
+
+private fun launchEmail(
+    context: Context,
+    to: String,
+    subject: String,
+    body: String
+) {
+    val mailTarget = if (to.isBlank()) "mailto:" else "mailto:$to"
+    val intent = Intent(Intent.ACTION_SENDTO).apply {
+        data = Uri.parse(mailTarget)
+        putExtra(Intent.EXTRA_SUBJECT, subject)
+        putExtra(Intent.EXTRA_TEXT, body)
+    }
+    launchIntentSafely(context, intent, failureMessage = "No email app available on this device.")
+}
+
+private fun launchIntentSafely(
+    context: Context,
+    intent: Intent,
+    failureMessage: String = "No app available to handle this action."
+) {
+    try {
+        context.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
+    }
+}
+
+private fun copyText(
+    context: Context,
+    label: String,
+    text: String
+) {
+    val clipboard = context.getSystemService(ClipboardManager::class.java)
+    clipboard?.setPrimaryClip(ClipData.newPlainText(label, text))
+    Toast.makeText(context, "$label copied", Toast.LENGTH_SHORT).show()
+}
+
+private fun buildInviteMessage(referralCode: String): String {
+    return "Join me on Vormex! Connect with professionals, share your journey, and discover opportunities. Use my code $referralCode and download here: https://vormex.in/download?ref=$referralCode"
+}
+
+private fun buildDiagnosticsText(): String {
+    return buildString {
+        appendLine("App Version: ${getAppVersion()}")
+        appendLine("Package: ${BuildConfig.APPLICATION_ID}")
+        appendLine("Backend: ${BuildConfig.API_BASE_URL}")
+        appendLine("Device: ${Build.MODEL}")
+        appendLine("Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
+    }.trim()
+}
 
 private fun getAppVersion(): String {
     return try {

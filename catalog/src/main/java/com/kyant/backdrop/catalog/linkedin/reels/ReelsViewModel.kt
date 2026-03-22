@@ -98,7 +98,6 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
     
     init {
         loadPreviewReels()
-        prefetchFeedSilently()
     }
 
     private fun prefetchFeedSilently(mode: String = "foryou") {

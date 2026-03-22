@@ -72,6 +72,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -359,7 +360,7 @@ fun LinkedInContent(
     val contentColor = if (isDarkTheme) Color.White else Color.Black
     val accentColor = Color(0xFF0A66C2) // LinkedIn blue
 
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var viewingProfileUserId by remember { mutableStateOf<String?>(null) }
     var openChatWithUserId by remember { mutableStateOf<String?>(null) }
     // Track if user is viewing a personal chat thread (for hiding bottom nav)
@@ -556,7 +557,6 @@ fun LinkedInContent(
     // Variable Rewards state (Hook Model)
     val rewardsViewModel: FindPeopleViewModel = viewModel(factory = FindPeopleViewModel.Factory(context))
     val rewardsState by rewardsViewModel.uiState.collectAsState()
-    val profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory(context))
     var showRewardCardsOverlay by remember { mutableStateOf(true) } // Show on app open
     var hasShownRewards by remember { mutableStateOf(false) }
     
@@ -575,7 +575,7 @@ fun LinkedInContent(
     // Load retention data when user logs in
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) {
-            retentionViewModel.loadAllRetentionData()
+            retentionViewModel.ensureRetentionLoaded()
         }
     }
     
@@ -585,9 +585,7 @@ fun LinkedInContent(
             hasShownRewards = true
             showRewardCardsOverlay = true
 
-            // Warm up data for fast first-open and tab revisits.
-            rewardsViewModel.prefetchInitialData()
-            profileViewModel.prefetchOwnProfile()
+            rewardsViewModel.ensureVariableRewardsLoaded()
         }
     }
 
@@ -738,7 +736,13 @@ fun LinkedInContent(
                                     viewModel.clearError() // Clear any error when navigating
                                     selectedTab = 1 
                                 },
-                                onRefresh = { viewModel.loadFeed(); viewModel.loadStories(); reelsViewModel.loadPreviewReels(); retentionViewModel.loadAllRetentionData() },
+                                onRefresh = {
+                                    viewModel.loadFeed(forceRefresh = true)
+                                    viewModel.loadStories(forceRefresh = true)
+                                    reelsViewModel.loadPreviewReels()
+                                    rewardsViewModel.refreshAllVariableRewards()
+                                    retentionViewModel.loadAllRetentionData(forceRefresh = true)
+                                },
                                 onLike = { postId -> viewModel.toggleLike(postId) },
                                 onComment = { postId ->
                                     selectedPostForComments = postId
@@ -914,6 +918,7 @@ fun LinkedInContent(
                             contentColor = contentColor,
                             accentColor = accentColor,
                             isGlassTheme = isGlassTheme,
+                            retentionState = retentionState,
                             currentUser = uiState.currentUser,
                             onNavigateToProfile = { selectedTab = 4 },
                             onNavigateToGroups = { showGroupsScreen = true },
@@ -1802,7 +1807,19 @@ fun LinkedInContent(
                         backdrop = backdrop,
                         contentColor = darkContentColor,
                         accentColor = darkAccentColor,
-                        onNavigateBack = { showSavedPostsScreen = false }
+                        onNavigateBack = { showSavedPostsScreen = false },
+                        onNavigateToPost = { postId ->
+                            showSavedPostsScreen = false
+                            selectedTab = 0
+                            selectedPostForComments = postId
+                            viewModel.loadComments(postId)
+                            showCommentsSheet = true
+                        },
+                        onNavigateToReel = { reelId ->
+                            showSavedPostsScreen = false
+                            selectedTab = 0
+                            reelsViewModel.loadReelById(reelId)
+                        }
                     )
                 }
             }
@@ -3444,6 +3461,7 @@ private fun MoreScreen(
     contentColor: Color,
     accentColor: Color,
     isGlassTheme: Boolean,
+    retentionState: RetentionUiState,
     currentUser: com.kyant.backdrop.catalog.network.models.User? = null,
     onNavigateToProfile: () -> Unit = {},
     onNavigateToGroups: () -> Unit = {},
@@ -3463,23 +3481,9 @@ private fun MoreScreen(
     onNavigateToContact: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val viewModel: FindPeopleViewModel = viewModel(factory = FindPeopleViewModel.Factory(context))
-    val uiState by viewModel.uiState.collectAsState()
-    
-    // Retention ViewModel for weekly goals and streaks
-    val retentionViewModel: RetentionViewModel = viewModel(factory = RetentionViewModel.Factory(context))
-    val retentionState by retentionViewModel.uiState.collectAsState()
-    
-    LaunchedEffect(Unit) {
-        retentionViewModel.loadAllRetentionData()
-    }
-    
     // Calculate weekly goals summary
     val goalsData = retentionState.weeklyGoals
     val goalsProgressText = if (goalsData.goals.isNotEmpty()) {
-        val completed = goalsData.goals.count { it.isComplete }
-        val total = goalsData.goals.size
         "${(goalsData.totalProgress * 100).toInt()}% complete"
     } else {
         "Start tracking"
@@ -3585,6 +3589,53 @@ private fun MoreScreen(
         }
         
         Spacer(Modifier.height(8.dp))
+
+        MoreWorkspaceCard(
+            backdrop = backdrop,
+            contentColor = contentColor,
+            accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
+            goalsProgressText = goalsProgressText,
+            connectionStreak = retentionState.streakData.connectionStreak,
+            liveNow = retentionState.liveActivity.activeNow,
+            remainingConnections = retentionState.connectionLimit.remaining
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            MoreQuickActionChip(
+                label = "Saved",
+                icon = "🔖",
+                accentColor = accentColor,
+                contentColor = contentColor,
+                onClick = onNavigateToSavedPosts
+            )
+            MoreQuickActionChip(
+                label = "Invite",
+                icon = "🎁",
+                accentColor = accentColor,
+                contentColor = contentColor,
+                onClick = onNavigateToInviteFriends
+            )
+            MoreQuickActionChip(
+                label = "Help",
+                icon = "🛟",
+                accentColor = accentColor,
+                contentColor = contentColor,
+                onClick = onNavigateToHelp
+            )
+            MoreQuickActionChip(
+                label = "Profile",
+                icon = "👤",
+                accentColor = accentColor,
+                contentColor = contentColor,
+                onClick = onNavigateToProfile
+            )
+        }
         
         // ==================== GROUP 1: Goals & Activity ====================
         MoreSectionHeader("Goals & Activity", contentColor)
@@ -3866,6 +3917,149 @@ private fun MoreSectionHeader(
         ),
         modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 6.dp)
     )
+}
+
+@Composable
+private fun MoreWorkspaceCard(
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    isGlassTheme: Boolean,
+    goalsProgressText: String,
+    connectionStreak: Int,
+    liveNow: Int,
+    remainingConnections: Int
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .then(
+                if (isGlassTheme) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(22.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(14f.dp.toPx())
+                            lens(8f.dp.toPx(), 16f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(accentColor.copy(alpha = 0.14f))
+                        }
+                    )
+                } else {
+                    Modifier.background(contentColor.copy(alpha = 0.08f))
+                }
+            )
+            .padding(18.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                BasicText(
+                    "Your workspace",
+                    style = TextStyle(contentColor, 18.sp, FontWeight.Bold)
+                )
+                BasicText(
+                    "Everything you revisit often should feel instant and easy to scan.",
+                    style = TextStyle(contentColor.copy(alpha = 0.65f), 12.sp)
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MoreWorkspaceMetric(
+                    modifier = Modifier.weight(1f),
+                    label = "Goals",
+                    value = goalsProgressText,
+                    accentColor = accentColor,
+                    contentColor = contentColor
+                )
+                MoreWorkspaceMetric(
+                    modifier = Modifier.weight(1f),
+                    label = "Streak",
+                    value = "${connectionStreak.coerceAtLeast(0)} days",
+                    accentColor = accentColor,
+                    contentColor = contentColor
+                )
+                MoreWorkspaceMetric(
+                    modifier = Modifier.weight(1f),
+                    label = "Room",
+                    value = "${remainingConnections.coerceAtLeast(0)} left",
+                    accentColor = accentColor,
+                    contentColor = contentColor
+                )
+            }
+
+            if (liveNow > 0) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White.copy(alpha = if (isGlassTheme) 0.12f else 0.06f))
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    BasicText(
+                        "$liveNow people are networking right now. Good moment to reply, connect, or post.",
+                        style = TextStyle(contentColor.copy(alpha = 0.72f), 12.sp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoreWorkspaceMetric(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String,
+    accentColor: Color,
+    contentColor: Color
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(accentColor.copy(alpha = 0.12f))
+            .padding(horizontal = 12.dp, vertical = 12.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            BasicText(
+                label,
+                style = TextStyle(contentColor.copy(alpha = 0.58f), 11.sp, FontWeight.Medium)
+            )
+            BasicText(
+                value,
+                style = TextStyle(contentColor, 13.sp, FontWeight.SemiBold)
+            )
+        }
+    }
+}
+
+@Composable
+private fun MoreQuickActionChip(
+    label: String,
+    icon: String,
+    accentColor: Color,
+    contentColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(accentColor.copy(alpha = 0.14f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            BasicText(icon, style = TextStyle(fontSize = 14.sp))
+            BasicText(
+                label,
+                style = TextStyle(contentColor, 12.sp, FontWeight.SemiBold)
+            )
+        }
+    }
 }
 
 @Composable

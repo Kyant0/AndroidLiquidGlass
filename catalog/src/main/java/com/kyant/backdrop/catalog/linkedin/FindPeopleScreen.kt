@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -134,6 +135,8 @@ fun FindPeopleScreenNew(
     // Clear any existing errors when this screen is opened
     LaunchedEffect(Unit) {
         viewModel.clearAllErrors()
+        viewModel.ensureFindSurfaceLoaded()
+        retentionViewModel.ensureRetentionLoaded()
     }
     
     Box(Modifier.fillMaxSize()) {
@@ -169,15 +172,13 @@ fun FindPeopleScreenNew(
             
             // Connection Limit Indicator (only show if not scrolled)
             AnimatedVisibility(visible = !isScrolled) {
-                retentionState.connectionLimit?.let { limit ->
-                    Column {
-                        ConnectionLimitIndicator(
-                            limitData = limit,
-                            contentColor = contentColor,
-                            accentColor = accentColor
-                        )
-                        Spacer(Modifier.height(8.dp))
-                    }
+                Column {
+                    ConnectionLimitIndicator(
+                        limitData = retentionState.connectionLimit,
+                        contentColor = contentColor,
+                        accentColor = accentColor
+                    )
+                    Spacer(Modifier.height(8.dp))
                 }
             }
             
@@ -232,7 +233,7 @@ fun FindPeopleScreenNew(
                     selectedFilter = uiState.smartMatchFilter,
                     onFilterSelected = { viewModel.setSmartMatchFilter(it) },
                     onNavigateToProfile = onNavigateToProfile,
-                    onRetry = { viewModel.loadSmartMatches() },
+                    onRetry = { viewModel.loadSmartMatches(forceRefresh = true) },
                     onDismissError = { viewModel.dismissErrorsWithCooldown() }
                 )
             
@@ -262,7 +263,7 @@ fun FindPeopleScreenNew(
                 connectionActionInProgress = uiState.connectionActionInProgress,
                 onConnect = { viewModel.sendConnectionRequest(it) },
                 onNavigateToProfile = onNavigateToProfile,
-                onRetry = { viewModel.loadAllPeople(resetPage = true) },
+                onRetry = { viewModel.loadAllPeople(resetPage = true, forceRefresh = true) },
                 onDismissError = { viewModel.dismissErrorsWithCooldown() }
             )
             
@@ -278,7 +279,7 @@ fun FindPeopleScreenNew(
                 connectionActionInProgress = uiState.connectionActionInProgress,
                 onConnect = { viewModel.sendConnectionRequest(it) },
                 onNavigateToProfile = onNavigateToProfile,
-                onRetry = { viewModel.loadSuggestions() },
+                onRetry = { viewModel.loadSuggestions(forceRefresh = true) },
                 onDismissError = { viewModel.dismissErrorsWithCooldown() }
             )
             
@@ -298,7 +299,7 @@ fun FindPeopleScreenNew(
                 connectionActionInProgress = uiState.connectionActionInProgress,
                 onConnect = { viewModel.sendConnectionRequest(it) },
                 onNavigateToProfile = onNavigateToProfile,
-                onRetry = { viewModel.loadSameCampus() },
+                onRetry = { viewModel.loadSameCampus(forceRefresh = true) },
                 onSaveCollege = { viewModel.saveCollege(it) },
                 onCollegeSearch = { viewModel.searchColleges(it) },
                 onDismissError = { viewModel.dismissErrorsWithCooldown() }
@@ -321,7 +322,7 @@ fun FindPeopleScreenNew(
                 onLocationUpdate = { lat, lng, acc -> viewModel.updateLocation(lat, lng, acc) },
                 onRadiusChange = { viewModel.setRadius(it) },
                 onNavigateToProfile = onNavigateToProfile,
-                onRefresh = { viewModel.loadNearbyPeople() }
+                onRefresh = { viewModel.loadNearbyPeople(forceRefresh = true) }
             )
         }
         }
@@ -559,19 +560,19 @@ private fun PersonCardSkeleton(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(if (isLightTheme) Color.Black.copy(alpha = 0.04f) else Color.White.copy(alpha = 0.04f))
-            .padding(12.dp)
+            .padding(10.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // Top row: Avatar + Name
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier
-                        .size(48.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
                         .background(shimmer)
                 )
                 
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(8.dp))
                 
                 Column {
                     Box(
@@ -750,9 +751,9 @@ fun PersonCard(
                 }
             )
             .clickable(onClick = onCardClick)
-            .padding(12.dp)
+            .padding(10.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // Top row: Avatar + Name + Online indicator
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -761,7 +762,7 @@ fun PersonCard(
                 // Avatar
                 Box(
                     Modifier
-                        .size(48.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
                         .background(accentColor.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
@@ -786,29 +787,29 @@ fun PersonCard(
                             .joinToString("")
                         BasicText(
                             initials,
-                            style = TextStyle(accentColor, 16.sp, FontWeight.SemiBold)
+                            style = TextStyle(accentColor, 14.sp, FontWeight.SemiBold)
                         )
                     }
                 }
                 
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(8.dp))
                 
                 // Name + Username
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         BasicText(
                             person.name ?: "Unknown",
-                            style = TextStyle(contentColor, 14.sp, FontWeight.SemiBold),
+                            style = TextStyle(contentColor, 13.sp, FontWeight.SemiBold),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         
                         // Online indicator
                         if (person.isOnline) {
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(4.dp))
                             Box(
                                 Modifier
-                                    .size(8.dp)
+                                    .size(7.dp)
                                     .clip(CircleShape)
                                     .background(Color(0xFF22C55E))
                             )
@@ -818,8 +819,9 @@ fun PersonCard(
                     person.username?.let { username ->
                         BasicText(
                             "@$username",
-                            style = TextStyle(contentColor.copy(alpha = 0.5f), 12.sp),
-                            maxLines = 1
+                            style = TextStyle(contentColor.copy(alpha = 0.5f), 11.sp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -829,8 +831,8 @@ fun PersonCard(
             person.headline?.let { headline ->
                 BasicText(
                     headline,
-                    style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp),
-                    maxLines = 2,
+                    style = TextStyle(contentColor.copy(alpha = 0.7f), 11.sp),
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -851,11 +853,11 @@ fun PersonCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    person.skills.take(3).forEach { skill ->
+                    person.skills.take(2).forEach { skill ->
                         SkillChip(skill, contentColor)
                     }
-                    if (person.skills.size > 3) {
-                        SkillChip("+${person.skills.size - 3}", contentColor)
+                    if (person.skills.size > 2) {
+                        SkillChip("+${person.skills.size - 2}", contentColor)
                     }
                 }
             }
@@ -892,11 +894,11 @@ private fun SkillChip(text: String, contentColor: Color) {
         Modifier
             .clip(RoundedCornerShape(8.dp))
             .background(contentColor.copy(alpha = 0.08f))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .padding(horizontal = 7.dp, vertical = 3.dp)
     ) {
         BasicText(
             text,
-            style = TextStyle(contentColor.copy(alpha = 0.7f), 10.sp)
+            style = TextStyle(contentColor.copy(alpha = 0.7f), 9.sp)
         )
     }
 }
@@ -937,7 +939,7 @@ private fun ConnectionButton(
             .clip(RoundedCornerShape(8.dp))
             .background(bgColor as Color)
             .clickable(enabled = enabled as Boolean && !isLoading, onClick = onConnect)
-            .padding(vertical = 8.dp),
+            .padding(vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
         if (isLoading) {
@@ -949,7 +951,7 @@ private fun ConnectionButton(
         } else {
             BasicText(
                 text as String,
-                style = TextStyle(textColor as Color, 13.sp, FontWeight.Medium)
+                style = TextStyle(textColor as Color, 12.sp, FontWeight.Medium)
             )
         }
     }
@@ -1116,9 +1118,7 @@ private fun SmartMatchesContent(
     onRetry: () -> Unit,
     onDismissError: () -> Unit = {}
 ) {
-    Column(
-        Modifier.fillMaxSize()
-    ) {
+    Column(Modifier.fillMaxSize()) {
         // Sub-filters
         Row(
             Modifier
@@ -1158,39 +1158,43 @@ private fun SmartMatchesContent(
         Spacer(Modifier.height(12.dp))
         
         // Content
-        Column(
+        LazyColumn(
             Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
+                .padding(bottom = 80.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             when {
                 isLoading -> {
-                    repeat(4) {
+                    items(4) {
                         SmartMatchCardSkeleton(backdrop, isLightTheme)
                     }
                 }
                 error != null -> {
-                    ErrorState(
-                        message = error,
-                        backdrop = backdrop,
-                        contentColor = contentColor,
-                        accentColor = accentColor,
-                        onRetry = onRetry,
-                        onDismiss = onDismissError
-                    )
+                    item {
+                        ErrorState(
+                            message = error,
+                            backdrop = backdrop,
+                            contentColor = contentColor,
+                            accentColor = accentColor,
+                            onRetry = onRetry,
+                            onDismiss = onDismissError
+                        )
+                    }
                 }
                 matches.isEmpty() -> {
-                    EmptyState(
-                        iconRes = R.drawable.ic_search,
-                        title = "No matches found",
-                        subtitle = "Complete your profile and add interests to get matched",
-                        backdrop = backdrop,
-                        contentColor = contentColor
-                    )
+                    item {
+                        EmptyState(
+                            iconRes = R.drawable.ic_search,
+                            title = "No matches found",
+                            subtitle = "Complete your profile and add interests to get matched",
+                            backdrop = backdrop,
+                            contentColor = contentColor
+                        )
+                    }
                 }
                 else -> {
-                    matches.forEach { match ->
+                    items(matches, key = { it.user.id }) { match ->
                         SmartMatchCard(
                             match = match,
                             backdrop = backdrop,
@@ -1201,8 +1205,6 @@ private fun SmartMatchesContent(
                     }
                 }
             }
-            
-            Spacer(Modifier.height(80.dp))
         }
     }
 }
@@ -1238,6 +1240,8 @@ private fun AllPeopleContent(
     onDismissError: () -> Unit = {}
 ) {
     Column(Modifier.fillMaxSize()) {
+        val normalizedQuery = searchQuery.trim().lowercase()
+
         // Search bar
         Box(
             Modifier
@@ -1283,6 +1287,15 @@ private fun AllPeopleContent(
                         innerTextField()
                     }
                 )
+
+                if (isLoading && normalizedQuery.isNotBlank()) {
+                    Spacer(Modifier.width(8.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        color = accentColor,
+                        strokeWidth = 2.dp
+                    )
+                }
                 
                 if (searchQuery.isNotEmpty()) {
                     Spacer(Modifier.width(8.dp))
@@ -1352,6 +1365,21 @@ private fun AllPeopleContent(
             selectedBranch?.let { "Branch: $it" to { onBranchSelected(null) } },
             selectedGraduationYear?.let { "Year: $it" to { onYearSelected(null) } }
         )
+        val displayedPeople = remember(people, normalizedQuery) {
+            if (normalizedQuery.isBlank()) {
+                people
+            } else {
+                people.filter { person ->
+                    person.name.orEmpty().lowercase().contains(normalizedQuery) ||
+                        person.username.orEmpty().lowercase().contains(normalizedQuery) ||
+                        person.headline.orEmpty().lowercase().contains(normalizedQuery) ||
+                        person.college.orEmpty().lowercase().contains(normalizedQuery) ||
+                        person.branch.orEmpty().lowercase().contains(normalizedQuery) ||
+                        person.skills.any { it.lowercase().contains(normalizedQuery) } ||
+                        person.interests.any { it.lowercase().contains(normalizedQuery) }
+                }
+            }
+        }
         if (activeFilters.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             Row(
@@ -1388,17 +1416,19 @@ private fun AllPeopleContent(
         }
         
         Spacer(Modifier.height(12.dp))
+        val showInitialLoading = isLoading && people.isEmpty()
         
         // People grid
         when {
-            isLoading && people.isEmpty() -> {
+            showInitialLoading -> {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(bottom = 88.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(6) {
+                    items(8) {
                         PersonCardSkeleton(backdrop, isLightTheme)
                     }
                 }
@@ -1413,11 +1443,17 @@ private fun AllPeopleContent(
                     onDismiss = onDismissError
                 )
             }
-            people.isEmpty() -> {
+            displayedPeople.isEmpty() -> {
                 EmptyState(
                     iconRes = R.drawable.ic_users,
                     title = "No people found",
-                    subtitle = "Try adjusting your search or filters",
+                    subtitle = if (normalizedQuery.isNotBlank() && isLoading) {
+                        "Looking for matches across the network..."
+                    } else if (normalizedQuery.isNotBlank()) {
+                        "Try another name, username, college, or skill."
+                    } else {
+                        "Try adjusting your search or filters"
+                    },
                     backdrop = backdrop,
                     contentColor = contentColor
                 )
@@ -1425,12 +1461,12 @@ private fun AllPeopleContent(
             else -> {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = 80.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(bottom = 88.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(people) { person ->
+                    items(items = displayedPeople, key = { it.id }) { person ->
                         PersonCard(
                             person = person,
                             backdrop = backdrop,
@@ -1445,8 +1481,8 @@ private fun AllPeopleContent(
                     }
                     
                     if (hasMore) {
-                        item {
-                            LaunchedEffect(Unit) {
+                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                            LaunchedEffect(displayedPeople.size, hasMore, normalizedQuery) {
                                 onLoadMore()
                             }
                             Box(

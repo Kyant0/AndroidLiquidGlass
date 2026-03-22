@@ -133,49 +133,99 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     val uiState: StateFlow<FindPeopleUiState> = _uiState.asStateFlow()
     
     private var searchJob: Job? = null
-    private var hasPrefetchedInitialData: Boolean = false
+    private val dataTtlMillis = 5 * 60 * 1000L
+    private val searchResultsTtlMillis = 2 * 60 * 1000L
+    private val nearbyTtlMillis = 90 * 1000L
+
+    private var filterOptionsLoadedAt = 0L
+    private var streakLoadedAt = 0L
+    private var suggestionsLoadedAt = 0L
+    private var sameCampusLoadedAt = 0L
+    private var dailyMatchesLoadedAt = 0L
+    private var hiddenGemLoadedAt = 0L
+    private var trendingStatusLoadedAt = 0L
+    private var nearbyLoadedAt = 0L
+
+    private var isFilterOptionsRequestInFlight = false
+    private var isStreakRequestInFlight = false
+    private var isSuggestionsRequestInFlight = false
+    private var isSameCampusRequestInFlight = false
+    private var isDailyMatchesRequestInFlight = false
+    private var isHiddenGemRequestInFlight = false
+    private var isTrendingStatusRequestInFlight = false
+
+    private val smartMatchesCache = mutableMapOf<SmartMatchFilter, List<SmartMatch>>()
+    private val smartMatchesLoadedAt = mutableMapOf<SmartMatchFilter, Long>()
+    private val allPeopleCache = mutableMapOf<String, CachedPeopleResult>()
+    private val smartMatchRequestsInFlight = mutableSetOf<SmartMatchFilter>()
+    private val allPeopleRequestsInFlight = mutableSetOf<String>()
+    private val nearbyRequestsInFlight = mutableSetOf<String>()
+    private var lastNearbyKey: String? = null
+
+    private data class CachedPeopleResult(
+        val people: List<PersonInfo>,
+        val total: Int,
+        val hasMore: Boolean,
+        val page: Int,
+        val loadedAt: Long
+    )
     
     init {
-        loadFilterOptions()
-        loadAllPeople(resetPage = true)
-        loadStreakData()
-        loadVariableRewards() // Variable rewards on screen load
+        ensureVariableRewardsLoaded()
     }
 
     fun prefetchInitialData() {
-        if (hasPrefetchedInitialData) return
-        hasPrefetchedInitialData = true
+        ensureVariableRewardsLoaded()
+    }
 
-        if (_uiState.value.smartMatches.isEmpty() && !_uiState.value.isLoadingSmartMatches) {
-            loadSmartMatches()
+    fun ensureFindSurfaceLoaded(forceRefresh: Boolean = false) {
+        loadStreakData(forceRefresh = forceRefresh)
+        ensureTabDataLoaded(_uiState.value.selectedTab, forceRefresh = forceRefresh)
+    }
+
+    fun ensureTabDataLoaded(tab: FindPeopleTab, forceRefresh: Boolean = false) {
+        when (tab) {
+            FindPeopleTab.SMART_MATCHES -> loadSmartMatches(forceRefresh = forceRefresh)
+            FindPeopleTab.ALL_PEOPLE -> {
+                loadFilterOptions(forceRefresh = forceRefresh)
+                loadAllPeople(resetPage = true, forceRefresh = forceRefresh)
+            }
+            FindPeopleTab.FOR_YOU -> loadSuggestions(forceRefresh = forceRefresh)
+            FindPeopleTab.SAME_CAMPUS -> loadSameCampus(forceRefresh = forceRefresh)
+            FindPeopleTab.NEARBY -> loadNearbyPeople(forceRefresh = forceRefresh)
         }
-        if (_uiState.value.allPeople.isEmpty() && !_uiState.value.isLoadingAllPeople) {
-            loadAllPeople(resetPage = true)
-        }
-        if (_uiState.value.suggestions.isEmpty() && !_uiState.value.isLoadingSuggestions) {
-            loadSuggestions()
-        }
+    }
+
+    fun ensureVariableRewardsLoaded(forceRefresh: Boolean = false) {
+        loadVariableRewards(forceRefresh = forceRefresh)
     }
     
     // ==================== Variable Rewards (Hook Model) ====================
     
-    private fun loadVariableRewards() {
+    private fun loadVariableRewards(forceRefresh: Boolean = false) {
         // Load all variable rewards in parallel for faster UX
-        loadDailyMatches()
-        loadHiddenGem()
-        loadTrendingStatus()
+        loadDailyMatches(forceRefresh = forceRefresh)
+        loadHiddenGem(forceRefresh = forceRefresh)
+        loadTrendingStatus(forceRefresh = forceRefresh)
     }
     
     /**
      * Load daily matches with variable count (1-5).
      * Creates anticipation: "Will I get 1 or 5 matches today?"
      */
-    private fun loadDailyMatches() {
+    private fun loadDailyMatches(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(dailyMatchesLoadedAt)) {
+            return
+        }
+        if (isDailyMatchesRequestInFlight) return
+
         viewModelScope.launch {
+            isDailyMatchesRequestInFlight = true
             _uiState.value = _uiState.value.copy(isLoadingDailyMatches = true)
             
             ApiClient.getDailyMatches(context)
                 .onSuccess { data ->
+                    dailyMatchesLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
                         dailyMatches = data.matches,
                         dailyMatchCount = data.matchCount,
@@ -190,6 +240,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
                         showDailyMatchesBanner = false
                     )
                 }
+            isDailyMatchesRequestInFlight = false
         }
     }
     
@@ -197,12 +248,19 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
      * Load weekly hidden gem - a special match.
      * Creates scarcity: "This week's hidden gem!"
      */
-    private fun loadHiddenGem() {
+    private fun loadHiddenGem(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(hiddenGemLoadedAt)) {
+            return
+        }
+        if (isHiddenGemRequestInFlight) return
+
         viewModelScope.launch {
+            isHiddenGemRequestInFlight = true
             _uiState.value = _uiState.value.copy(isLoadingHiddenGem = true)
             
             ApiClient.getHiddenGem(context)
                 .onSuccess { data ->
+                    hiddenGemLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
                         hiddenGem = data?.match,
                         hiddenGemMessage = data?.message ?: "",
@@ -216,6 +274,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
                         showHiddenGemCard = false
                     )
                 }
+            isHiddenGemRequestInFlight = false
         }
     }
     
@@ -223,10 +282,17 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
      * Check if user is trending today.
      * Creates excitement: "You're trending today!"
      */
-    private fun loadTrendingStatus() {
+    private fun loadTrendingStatus(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(trendingStatusLoadedAt)) {
+            return
+        }
+        if (isTrendingStatusRequestInFlight) return
+
         viewModelScope.launch {
+            isTrendingStatusRequestInFlight = true
             ApiClient.getTrendingStatus(context)
                 .onSuccess { status ->
+                    trendingStatusLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
                         isTrending = status.isTrending,
                         trendingRank = status.rank,
@@ -235,14 +301,15 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
                         showTrendingBanner = status.isTrending
                     )
                 }
+            isTrendingStatusRequestInFlight = false
         }
     }
     
     // Expose refresh methods for pull-to-refresh
-    fun refreshDailyMatches() = loadDailyMatches()
-    fun refreshHiddenGem() = loadHiddenGem()
-    fun refreshTrendingStatus() = loadTrendingStatus()
-    fun refreshAllVariableRewards() = loadVariableRewards()
+    fun refreshDailyMatches() = loadDailyMatches(forceRefresh = true)
+    fun refreshHiddenGem() = loadHiddenGem(forceRefresh = true)
+    fun refreshTrendingStatus() = loadTrendingStatus(forceRefresh = true)
+    fun refreshAllVariableRewards() = loadVariableRewards(forceRefresh = true)
     
     // Dismiss banners
     fun dismissDailyMatchesBanner() {
@@ -259,8 +326,14 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     
     // ==================== Streak Data (from Backend API) ====================
     
-    private fun loadStreakData() {
+    private fun loadStreakData(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(streakLoadedAt)) {
+            return
+        }
+        if (isStreakRequestInFlight) return
+
         viewModelScope.launch {
+            isStreakRequestInFlight = true
             // Check if we're in 24-hour cooldown period (user dismissed or connected recently)
             val prefs = context.getSharedPreferences("vormex_find_people", Context.MODE_PRIVATE)
             val lastDismissTime = prefs.getLong("last_error_dismiss_time", 0)
@@ -272,7 +345,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
                 .onSuccess { streakData ->
                     // If in cooldown, don't show as at risk
                     val showAtRisk = streakData.isAtRisk.connection && !isInCooldown
-                    
+                    streakLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
                         connectionStreak = streakData.connectionStreak,
                         isStreakAtRisk = showAtRisk,
@@ -283,11 +356,12 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
                     // Silently fail - streaks are not critical
                     println("Failed to load streaks: ${it.message}")
                 }
+            isStreakRequestInFlight = false
         }
     }
     
     fun refreshStreaks() {
-        loadStreakData()
+        loadStreakData(forceRefresh = true)
     }
     
     /**
@@ -331,24 +405,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
         clearAllErrors()
         
         _uiState.value = _uiState.value.copy(selectedTab = tab)
-        
-        when (tab) {
-            FindPeopleTab.SMART_MATCHES -> {
-                if (_uiState.value.smartMatches.isEmpty()) loadSmartMatches()
-            }
-            FindPeopleTab.ALL_PEOPLE -> {
-                if (_uiState.value.allPeople.isEmpty()) loadAllPeople()
-            }
-            FindPeopleTab.FOR_YOU -> {
-                if (_uiState.value.suggestions.isEmpty()) loadSuggestions()
-            }
-            FindPeopleTab.SAME_CAMPUS -> {
-                if (_uiState.value.sameCampusPeople.isEmpty()) loadSameCampus()
-            }
-            FindPeopleTab.NEARBY -> {
-                // Will be loaded when location is available
-            }
-        }
+        ensureTabDataLoaded(tab)
     }
     
     // ==================== Smart Matches ====================
@@ -358,11 +415,23 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
         loadSmartMatches()
     }
     
-    fun loadSmartMatches() {
+    fun loadSmartMatches(forceRefresh: Boolean = false) {
+        val filter = _uiState.value.smartMatchFilter
+        val cached = smartMatchesCache[filter]
+        if (!forceRefresh && cached != null && isFresh(smartMatchesLoadedAt[filter] ?: 0L)) {
+            _uiState.value = _uiState.value.copy(
+                smartMatches = cached,
+                isLoadingSmartMatches = false,
+                smartMatchError = null
+            )
+            return
+        }
+        if (!smartMatchRequestsInFlight.add(filter)) return
+
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingSmartMatches = true, smartMatchError = null)
             
-            val type = when (_uiState.value.smartMatchFilter) {
+            val type = when (filter) {
                 SmartMatchFilter.ALL -> "all"
                 SmartMatchFilter.SAME_CAMPUS -> "same_campus"
                 SmartMatchFilter.SAME_GOAL -> "same_goal"
@@ -371,28 +440,44 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
             
             ApiClient.getSmartMatches(context, type)
                 .onSuccess { response ->
-                    _uiState.value = _uiState.value.copy(
-                        smartMatches = response.matches,
-                        isLoadingSmartMatches = false
-                    )
+                    val rankedMatches = rankSmartMatches(response.matches)
+                    smartMatchesCache[filter] = rankedMatches
+                    smartMatchesLoadedAt[filter] = System.currentTimeMillis()
+                    if (_uiState.value.smartMatchFilter == filter) {
+                        _uiState.value = _uiState.value.copy(
+                            smartMatches = rankedMatches,
+                            isLoadingSmartMatches = false
+                        )
+                    }
                 }
                 .onFailure { e ->
-                    _uiState.value = _uiState.value.copy(
-                        isLoadingSmartMatches = false,
-                        smartMatchError = e.message ?: "Failed to load matches"
-                    )
+                    if (_uiState.value.smartMatchFilter == filter) {
+                        _uiState.value = _uiState.value.copy(
+                            isLoadingSmartMatches = false,
+                            smartMatchError = e.message ?: "Failed to load matches"
+                        )
+                    }
                 }
+            smartMatchRequestsInFlight.remove(filter)
         }
     }
     
     // ==================== All People ====================
     
-    fun loadFilterOptions() {
+    fun loadFilterOptions(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(filterOptionsLoadedAt)) {
+            return
+        }
+        if (isFilterOptionsRequestInFlight) return
+
         viewModelScope.launch {
+            isFilterOptionsRequestInFlight = true
             ApiClient.getFilterOptions(context)
                 .onSuccess { options ->
+                    filterOptionsLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(filterOptions = options)
                 }
+            isFilterOptionsRequestInFlight = false
         }
     }
     
@@ -402,24 +487,27 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
         // Debounce search
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            delay(300)
-            loadAllPeople(resetPage = true)
+            delay(if (query.length <= 1) 80 else 120)
+            loadAllPeople(
+                resetPage = true,
+                forceRefresh = query.isNotBlank()
+            )
         }
     }
     
     fun setCollegeFilter(college: String?) {
         _uiState.value = _uiState.value.copy(selectedCollege = college)
-        loadAllPeople(resetPage = true)
+        loadAllPeople(resetPage = true, forceRefresh = true)
     }
     
     fun setBranchFilter(branch: String?) {
         _uiState.value = _uiState.value.copy(selectedBranch = branch)
-        loadAllPeople(resetPage = true)
+        loadAllPeople(resetPage = true, forceRefresh = true)
     }
     
     fun setGraduationYearFilter(year: Int?) {
         _uiState.value = _uiState.value.copy(selectedGraduationYear = year)
-        loadAllPeople(resetPage = true)
+        loadAllPeople(resetPage = true, forceRefresh = true)
     }
     
     fun clearFilters() {
@@ -428,16 +516,38 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
             selectedBranch = null,
             selectedGraduationYear = null
         )
-        loadAllPeople(resetPage = true)
+        loadAllPeople(resetPage = true, forceRefresh = true)
     }
     
     fun toggleFilterExpanded() {
         _uiState.value = _uiState.value.copy(isFilterExpanded = !_uiState.value.isFilterExpanded)
     }
     
-    fun loadAllPeople(resetPage: Boolean = false) {
+    fun loadAllPeople(
+        resetPage: Boolean = false,
+        forceRefresh: Boolean = false,
+        pageOverride: Int? = null
+    ) {
+        val state = _uiState.value
+        val queryKey = buildAllPeopleQueryKey(state)
+        val cached = allPeopleCache[queryKey]
+        val previousPage = state.allPeoplePage
+
+        if (resetPage && !forceRefresh && cached != null && isFresh(cached.loadedAt, searchResultsTtlMillis)) {
+            _uiState.value = state.copy(
+                allPeople = cached.people,
+                isLoadingAllPeople = false,
+                allPeopleError = null,
+                hasMoreAllPeople = cached.hasMore,
+                totalPeopleCount = cached.total,
+                allPeoplePage = cached.page
+            )
+            return
+        }
+        if (!allPeopleRequestsInFlight.add(queryKey)) return
+
         viewModelScope.launch {
-            val page = if (resetPage) 1 else _uiState.value.allPeoplePage
+            val page = pageOverride ?: if (resetPage) 1 else state.allPeoplePage
             
             _uiState.value = _uiState.value.copy(
                 isLoadingAllPeople = true,
@@ -445,38 +555,65 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
                 allPeoplePage = page
             )
             
-            val state = _uiState.value
+            val currentState = _uiState.value
+            val search = currentState.searchQuery.trim().takeIf { it.isNotBlank() }
+            val limit = when {
+                search != null -> 30
+                currentState.selectedCollege != null ||
+                    currentState.selectedBranch != null ||
+                    currentState.selectedGraduationYear != null -> 32
+                else -> 40
+            }
             ApiClient.getPeople(
                 context = context,
-                search = state.searchQuery.takeIf { it.isNotBlank() },
-                college = state.selectedCollege,
-                branch = state.selectedBranch,
-                graduationYear = state.selectedGraduationYear,
-                page = page
+                search = search,
+                college = currentState.selectedCollege,
+                branch = currentState.selectedBranch,
+                graduationYear = currentState.selectedGraduationYear,
+                page = page,
+                limit = limit
             )
                 .onSuccess { response ->
-                    val newPeople = if (resetPage) response.people else _uiState.value.allPeople + response.people
-                    _uiState.value = _uiState.value.copy(
-                        allPeople = newPeople,
-                        isLoadingAllPeople = false,
-                        hasMoreAllPeople = response.hasMore,
-                        totalPeopleCount = response.total,
-                        allPeoplePage = page
+                    val rankedPeople = rankPeople(response.people)
+                    val newPeople = if (resetPage) {
+                        rankedPeople
+                    } else {
+                        mergePeople(_uiState.value.allPeople, rankedPeople)
+                    }
+                    val loadedAt = System.currentTimeMillis()
+                    allPeopleCache[queryKey] = CachedPeopleResult(
+                        people = newPeople,
+                        total = response.total,
+                        hasMore = response.hasMore,
+                        page = page,
+                        loadedAt = loadedAt
                     )
+                    if (buildAllPeopleQueryKey(_uiState.value) == queryKey) {
+                        _uiState.value = _uiState.value.copy(
+                            allPeople = newPeople,
+                            isLoadingAllPeople = false,
+                            hasMoreAllPeople = response.hasMore,
+                            totalPeopleCount = response.total,
+                            allPeoplePage = page
+                        )
+                    }
                 }
                 .onFailure { e ->
-                    _uiState.value = _uiState.value.copy(
-                        isLoadingAllPeople = false,
-                        allPeopleError = e.message ?: "Failed to load people"
-                    )
+                    if (buildAllPeopleQueryKey(_uiState.value) == queryKey) {
+                        _uiState.value = _uiState.value.copy(
+                            isLoadingAllPeople = false,
+                            allPeopleError = e.message ?: "Failed to load people",
+                            allPeoplePage = previousPage
+                        )
+                    }
                 }
+            allPeopleRequestsInFlight.remove(queryKey)
         }
     }
     
     fun loadMorePeople() {
         if (_uiState.value.isLoadingAllPeople || !_uiState.value.hasMoreAllPeople) return
-        _uiState.value = _uiState.value.copy(allPeoplePage = _uiState.value.allPeoplePage + 1)
-        loadAllPeople()
+        loadAllPeople(pageOverride = _uiState.value.allPeoplePage + 1)
     }
     
     // ==================== Mock Data Helpers ====================
@@ -528,14 +665,21 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     
     // ==================== For You ====================
     
-    fun loadSuggestions() {
+    fun loadSuggestions(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(suggestionsLoadedAt)) {
+            return
+        }
+        if (isSuggestionsRequestInFlight) return
+
         viewModelScope.launch {
+            isSuggestionsRequestInFlight = true
             _uiState.value = _uiState.value.copy(isLoadingSuggestions = true, suggestionsError = null)
             
             ApiClient.getPeopleSuggestions(context)
                 .onSuccess { response ->
+                    suggestionsLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
-                        suggestions = response.suggestions,
+                        suggestions = rankPeople(response.suggestions),
                         isLoadingSuggestions = false
                     )
                 }
@@ -546,20 +690,28 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
                         suggestionsError = e.message ?: "Failed to load suggestions"
                     )
                 }
+            isSuggestionsRequestInFlight = false
         }
     }
     
     // ==================== Same Campus ====================
     
-    fun loadSameCampus() {
+    fun loadSameCampus(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(sameCampusLoadedAt)) {
+            return
+        }
+        if (isSameCampusRequestInFlight) return
+
         viewModelScope.launch {
+            isSameCampusRequestInFlight = true
             _uiState.value = _uiState.value.copy(isLoadingSameCampus = true, sameCampusError = null)
             
             ApiClient.getSameCollegePeople(context, limit = 20)
                 .onSuccess { response ->
                     android.util.Log.d("FindPeopleVM", "Same campus loaded: ${response.people.size} people, userCollege: ${response.userCollege}")
+                    sameCampusLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
-                        sameCampusPeople = response.people,
+                        sameCampusPeople = rankPeople(response.people),
                         userCollege = response.userCollege,
                         isLoadingSameCampus = false
                     )
@@ -572,6 +724,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
                         sameCampusError = e.message ?: "Failed to load campus mates"
                     )
                 }
+            isSameCampusRequestInFlight = false
         }
     }
     
@@ -590,7 +743,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
                         collegeSuggestions = emptyList()
                     )
                     // Reload same campus people after saving college
-                    loadSameCampus()
+                    loadSameCampus(forceRefresh = true)
                 }
                 .onFailure { e ->
                     android.util.Log.e("FindPeopleVM", "Save college error: ${e.message}", e)
@@ -702,13 +855,23 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     )
     
     fun setRadius(radius: Int) {
+        if (_uiState.value.selectedRadius == radius) return
         _uiState.value = _uiState.value.copy(selectedRadius = radius)
-        loadNearbyPeople()
+        loadNearbyPeople(forceRefresh = true)
     }
     
-    fun loadNearbyPeople() {
+    fun loadNearbyPeople(forceRefresh: Boolean = false) {
         val lat = _uiState.value.currentLat ?: return
         val lng = _uiState.value.currentLng ?: return
+        val nearbyKey = buildNearbyKey(lat = lat, lng = lng, radius = _uiState.value.selectedRadius)
+        if (
+            !forceRefresh &&
+            lastNearbyKey == nearbyKey &&
+            isFresh(nearbyLoadedAt, nearbyTtlMillis)
+        ) {
+            return
+        }
+        if (!nearbyRequestsInFlight.add(nearbyKey)) return
         
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingNearby = true, nearbyError = null)
@@ -716,20 +879,37 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
             ApiClient.getNearbyPeople(context, lat, lng, _uiState.value.selectedRadius)
                 .onSuccess { response ->
                     android.util.Log.d("FindPeopleVM", "Nearby loaded: ${response.users.size} users, yourLocation: ${response.yourLocation}")
-                    _uiState.value = _uiState.value.copy(
-                        nearbyPeople = response.users,
-                        currentCity = response.yourLocation?.city,
-                        isLoadingNearby = false
-                    )
+                    lastNearbyKey = nearbyKey
+                    nearbyLoadedAt = System.currentTimeMillis()
+                    if (buildNearbyKey(
+                            lat = _uiState.value.currentLat ?: lat,
+                            lng = _uiState.value.currentLng ?: lng,
+                            radius = _uiState.value.selectedRadius
+                        ) == nearbyKey
+                    ) {
+                        _uiState.value = _uiState.value.copy(
+                            nearbyPeople = rankNearbyPeople(response.users),
+                            currentCity = response.yourLocation?.city,
+                            isLoadingNearby = false
+                        )
+                    }
                 }
                 .onFailure { e ->
                     android.util.Log.e("FindPeopleVM", "Nearby error: ${e.message}", e)
-                    _uiState.value = _uiState.value.copy(
-                        nearbyPeople = emptyList(),
-                        isLoadingNearby = false,
-                        nearbyError = e.message ?: "Failed to load nearby users"
-                    )
+                    if (buildNearbyKey(
+                            lat = _uiState.value.currentLat ?: lat,
+                            lng = _uiState.value.currentLng ?: lng,
+                            radius = _uiState.value.selectedRadius
+                        ) == nearbyKey
+                    ) {
+                        _uiState.value = _uiState.value.copy(
+                            nearbyPeople = emptyList(),
+                            isLoadingNearby = false,
+                            nearbyError = e.message ?: "Failed to load nearby users"
+                        )
+                    }
                 }
+            nearbyRequestsInFlight.remove(nearbyKey)
         }
     }
     
@@ -915,6 +1095,89 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return FindPeopleViewModel(context.applicationContext) as T
         }
+    }
+
+    private fun isFresh(loadedAt: Long, ttlMillis: Long = dataTtlMillis): Boolean {
+        return loadedAt != 0L && System.currentTimeMillis() - loadedAt < ttlMillis
+    }
+
+    private fun buildAllPeopleQueryKey(state: FindPeopleUiState): String {
+        return listOf(
+            state.searchQuery.trim().lowercase(Locale.getDefault()),
+            state.selectedCollege.orEmpty(),
+            state.selectedBranch.orEmpty(),
+            state.selectedGraduationYear?.toString().orEmpty()
+        ).joinToString("|")
+    }
+
+    private fun buildNearbyKey(lat: Double, lng: Double, radius: Int): String {
+        return String.format(Locale.US, "%.3f|%.3f|%d", lat, lng, radius)
+    }
+
+    private fun rankSmartMatches(matches: List<SmartMatch>): List<SmartMatch> {
+        return matches
+            .distinctBy { it.user.id }
+            .sortedByDescending { match ->
+                (match.matchPercentage * 1000) +
+                    (match.user.stats?.xp ?: 0) * 2 +
+                    match.user.skills.size * 24 +
+                    match.user.interests.size * 20 +
+                    match.tags.size * 18 +
+                    match.reasons.size * 14 +
+                    if (match.user.githubConnected) 40 else 0 +
+                    if (!match.user.headline.isNullOrBlank()) 25 else 0 +
+                    if (!match.user.bio.isNullOrBlank()) 15 else 0
+            }
+    }
+
+    private fun rankPeople(people: List<PersonInfo>): List<PersonInfo> {
+        return people
+            .distinctBy { it.id }
+            .sortedWith(
+                compareByDescending<PersonInfo> { connectionPriority(it.connectionStatus) }
+                    .thenByDescending { if (it.isOnline) 1 else 0 }
+                    .thenByDescending { it.mutualConnections }
+                    .thenByDescending { profileStrength(it) }
+                    .thenBy { it.name.orEmpty().lowercase(Locale.getDefault()) }
+            )
+    }
+
+    private fun rankNearbyPeople(people: List<NearbyUser>): List<NearbyUser> {
+        return people
+            .distinctBy { it.id }
+            .sortedWith(
+                compareByDescending<NearbyUser> { if (it.isOnline) 1 else 0 }
+                    .thenBy { it.distance }
+                    .thenByDescending { it.skills.size + it.interests.size }
+                    .thenBy { it.name.orEmpty().lowercase(Locale.getDefault()) }
+            )
+    }
+
+    private fun mergePeople(existing: List<PersonInfo>, incoming: List<PersonInfo>): List<PersonInfo> {
+        val merged = LinkedHashMap<String, PersonInfo>()
+        existing.forEach { merged[it.id] = it }
+        incoming.forEach { merged[it.id] = it }
+        return merged.values.toList()
+    }
+
+    private fun connectionPriority(status: String): Int {
+        return when (status) {
+            "none" -> 4
+            "pending_received" -> 3
+            "pending_sent" -> 2
+            "connected" -> 1
+            else -> 0
+        }
+    }
+
+    private fun profileStrength(person: PersonInfo): Int {
+        return person.skills.size * 6 +
+            person.interests.size * 5 +
+            person.mutualConnections * 3 +
+            if (!person.headline.isNullOrBlank()) 10 else 0 +
+            if (!person.bio.isNullOrBlank()) 8 else 0 +
+            if (!person.college.isNullOrBlank()) 6 else 0 +
+            if (!person.branch.isNullOrBlank()) 4 else 0
     }
 }
 

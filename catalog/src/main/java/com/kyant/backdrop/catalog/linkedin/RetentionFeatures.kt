@@ -173,6 +173,10 @@ class RetentionViewModel(private val context: Context) : ViewModel() {
     
     private val _uiState = MutableStateFlow(RetentionUiState())
     val uiState: StateFlow<RetentionUiState> = _uiState.asStateFlow()
+
+    private val cacheTtlMillis = 5 * 60 * 1000L
+    private var lastLoadedAtMillis = 0L
+    private var isRequestInFlight = false
     
     // 12-hour seed that changes twice a day for variety in recommendations
     private val twelveHourSeed: Long
@@ -188,13 +192,17 @@ class RetentionViewModel(private val context: Context) : ViewModel() {
         val random = java.util.Random(twelveHourSeed + 1) // Different seed for variety
         return mockTodaysMatches.shuffled(random)
     }
-    
-    init {
-        loadAllRetentionData()
+
+    fun ensureRetentionLoaded(forceRefresh: Boolean = false) {
+        loadAllRetentionData(forceRefresh = forceRefresh)
     }
-    
-    fun loadAllRetentionData() {
+
+    fun loadAllRetentionData(forceRefresh: Boolean = false) {
+        if (!forceRefresh && hasFreshCache()) return
+        if (isRequestInFlight) return
+
         viewModelScope.launch {
+            isRequestInFlight = true
             _uiState.value = _uiState.value.copy(isLoading = true)
             
             // Load all data in parallel
@@ -207,6 +215,7 @@ class RetentionViewModel(private val context: Context) : ViewModel() {
             val dailyMatchesResult = ApiClient.getDailyMatches(context)
             
             // Use API data with mock fallbacks
+            lastLoadedAtMillis = System.currentTimeMillis()
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
                 streakData = streaksResult.getOrDefault(mockStreakData),
@@ -218,6 +227,7 @@ class RetentionViewModel(private val context: Context) : ViewModel() {
                 peopleLikeYou = peopleLikeYouResult.getOrNull()?.people ?: getShuffledPeopleLikeYou(),
                 todaysMatches = dailyMatchesResult.getOrNull()?.matches ?: getShuffledTodaysMatches()
             )
+            isRequestInFlight = false
         }
     }
     
@@ -263,6 +273,10 @@ class RetentionViewModel(private val context: Context) : ViewModel() {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return RetentionViewModel(context) as T
         }
+    }
+
+    private fun hasFreshCache(): Boolean {
+        return lastLoadedAtMillis != 0L && System.currentTimeMillis() - lastLoadedAtMillis < cacheTtlMillis
     }
 }
 
@@ -469,7 +483,7 @@ fun WeeklyGoalsDetailScreen(
     val goalsData = state.weeklyGoals
     
     LaunchedEffect(Unit) {
-        viewModel.loadAllRetentionData()
+        viewModel.ensureRetentionLoaded()
     }
     
     Column(
@@ -853,7 +867,7 @@ fun StreakDetailsScreen(
     val streaks = state.streakData
     
     LaunchedEffect(Unit) {
-        viewModel.loadAllRetentionData()
+        viewModel.ensureRetentionLoaded()
     }
     
     Column(
