@@ -110,7 +110,9 @@ fun ChatTabContent(
     contentColor: Color,
     accentColor: Color,
     isGlassTheme: Boolean = true,
+    openConversationId: String? = null,
     openChatWithUserId: String? = null,
+    onConsumedOpenConversation: () -> Unit = {},
     onConsumedOpenChat: () -> Unit = {},
     onInChatThread: (Boolean) -> Unit = {},
     onNavigateToProfile: (String) -> Unit = {}
@@ -157,6 +159,12 @@ fun ChatTabContent(
         val userId = openChatWithUserId ?: return@LaunchedEffect
         viewModel.openChatWithUser(userId)
         onConsumedOpenChat()
+    }
+
+    LaunchedEffect(openConversationId) {
+        val conversationId = openConversationId ?: return@LaunchedEffect
+        viewModel.openConversationById(conversationId)
+        onConsumedOpenConversation()
     }
 
     if (isInThread) {

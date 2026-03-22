@@ -22,6 +22,7 @@ import androidx.core.view.WindowCompat
 import com.kyant.backdrop.catalog.network.ChatSocketManager
 import com.kyant.backdrop.catalog.notifications.BatteryOptimizationHelper
 import com.kyant.backdrop.catalog.notifications.MessageNotificationManager
+import com.kyant.backdrop.catalog.notifications.PushTokenRegistrar
 import com.kyant.backdrop.catalog.notifications.VormexMessagingService
 import com.kyant.backdrop.catalog.onboarding.AppRoot
 import com.google.firebase.messaging.FirebaseMessaging
@@ -106,6 +107,7 @@ class MainActivity : ComponentActivity() {
     
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handleIntent(intent)
     }
     
@@ -171,21 +173,7 @@ class MainActivity : ComponentActivity() {
     
     private fun initializeFirebaseMessaging() {
         try {
-            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                if (!task.isSuccessful) {
-                    Log.w(TAG, "Fetching FCM token failed", task.exception)
-                    return@addOnCompleteListener
-                }
-                val token = task.result
-                Log.d(TAG, "FCM Token: $token")
-                
-                // Register token with backend
-                com.kyant.backdrop.catalog.network.ApiClient.registerDeviceTokenAsync(
-                    this,
-                    token,
-                    "android"
-                )
-            }
+            PushTokenRegistrar.syncCurrentToken(this)
             
             // Subscribe to general announcements topic
             FirebaseMessaging.getInstance().subscribeToTopic("announcements")

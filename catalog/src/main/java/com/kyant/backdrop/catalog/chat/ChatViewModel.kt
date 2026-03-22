@@ -693,6 +693,30 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
         }
     }
+
+    fun openConversationById(conversationId: String) {
+        _uiState.value.conversations.firstOrNull { it.id == conversationId }?.let { conversation ->
+            selectConversation(conversation)
+            return
+        }
+
+        viewModelScope.launch {
+            ApiClient.getConversation(context, conversationId)
+                .onSuccess { conversation ->
+                    _uiState.update { state ->
+                        state.copy(
+                            conversations = listOf(conversation) + state.conversations.filterNot { it.id == conversation.id },
+                            error = null
+                        )
+                    }
+                    selectConversation(conversation)
+                }
+                .onFailure { error ->
+                    Log.e(TAG, "Failed to open conversation $conversationId", error)
+                    _uiState.update { it.copy(error = error.message ?: "Failed to open chat") }
+                }
+        }
+    }
     
     fun clearLocalMessages() {
         _uiState.update { it.copy(messages = emptyList()) }

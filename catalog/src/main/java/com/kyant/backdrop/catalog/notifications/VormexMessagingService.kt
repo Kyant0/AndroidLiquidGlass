@@ -17,11 +17,6 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.kyant.backdrop.catalog.MainActivity
 import com.kyant.backdrop.catalog.R
-import com.kyant.backdrop.catalog.network.ApiClient
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 
 /**
  * Firebase Cloud Messaging Service for Vormex
@@ -37,8 +32,6 @@ import kotlinx.coroutines.launch
  * - Engagement (daily matches, weekly goals)
  */
 class VormexMessagingService : FirebaseMessagingService() {
-
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     companion object {
         private const val TAG = "VormexMessaging"
@@ -315,16 +308,8 @@ class VormexMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d(TAG, "New FCM token: $token")
-        
-        // Send token to backend
-        serviceScope.launch {
-            try {
-                ApiClient.registerDeviceToken(applicationContext, token, "android")
-                Log.d(TAG, "FCM token registered with backend")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to register FCM token with backend", e)
-            }
-        }
+
+        PushTokenRegistrar.syncToken(applicationContext, token)
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {

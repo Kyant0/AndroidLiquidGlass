@@ -21,6 +21,7 @@ import com.kyant.backdrop.catalog.network.models.Story
 import com.kyant.backdrop.catalog.network.models.StoryGroup
 import com.kyant.backdrop.catalog.network.models.User
 import com.kyant.backdrop.catalog.network.models.Connection
+import com.kyant.backdrop.catalog.notifications.PushTokenRegistrar
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -329,6 +330,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             ApiClient.login(email, password)
                 .onSuccess { response ->
                     ApiClient.saveToken(context, response.token, response.user.id)
+                    PushTokenRegistrar.syncCurrentToken(context)
                     _uiState.value = _uiState.value.copy(
                         isLoggedIn = true,
                         currentUser = response.user,
@@ -356,6 +358,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             ApiClient.register(email, password, name, username)
                 .onSuccess { response ->
                     ApiClient.saveToken(context, response.token, response.user.id)
+                    PushTokenRegistrar.syncCurrentToken(context)
                     _uiState.value = _uiState.value.copy(
                         isLoggedIn = true,
                         currentUser = response.user,
@@ -386,6 +389,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     ApiClient.googleSignIn(result.idToken)
                         .onSuccess { response ->
                             ApiClient.saveToken(context, response.token, response.user.id)
+                            PushTokenRegistrar.syncCurrentToken(context)
                             _uiState.value = _uiState.value.copy(
                                 isLoggedIn = true,
                                 currentUser = response.user,

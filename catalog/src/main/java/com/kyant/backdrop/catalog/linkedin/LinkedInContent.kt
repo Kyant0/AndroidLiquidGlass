@@ -502,13 +502,16 @@ fun LinkedInContent(
                     }
                 }
                 com.kyant.backdrop.catalog.notifications.VormexMessagingService.ACTION_CHAT -> {
-                    // Navigate to chat - use conversationId or userId
+                    // Navigate to the exact chat thread when we have a conversation id.
                     selectedTab = 2 // Chat tab
                     link.conversationId?.let { convId ->
                         deepLinkConversationId = convId
+                        openChatWithUserId = null
                     }
-                    link.userId?.let { userId ->
-                        openChatWithUserId = userId
+                    if (link.conversationId == null) {
+                        link.userId?.let { userId ->
+                            openChatWithUserId = userId
+                        }
                     }
                 }
                 com.kyant.backdrop.catalog.notifications.VormexMessagingService.ACTION_POST -> {
@@ -1424,7 +1427,9 @@ fun LinkedInContent(
                             contentColor = messagesContentColor,
                             accentColor = messagesAccentColor,
                             isGlassTheme = isGlassTheme,
+                            openConversationId = deepLinkConversationId,
                             openChatWithUserId = openChatWithUserId,
+                            onConsumedOpenConversation = { deepLinkConversationId = null },
                             onConsumedOpenChat = { openChatWithUserId = null },
                             onInChatThread = { inThread -> isInChatThread = inThread },
                             onNavigateToProfile = { userId ->
