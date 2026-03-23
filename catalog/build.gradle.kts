@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.google.services)
 }
@@ -143,6 +144,11 @@ dependencies {
     
     // Image Loading
     implementation(libs.coil.compose)
+
+    // Room cache
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
     
     // Media3 (ExoPlayer) for video playback
     implementation(libs.media3.exoplayer)

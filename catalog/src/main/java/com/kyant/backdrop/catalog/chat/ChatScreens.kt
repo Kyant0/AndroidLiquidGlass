@@ -1,8 +1,11 @@
 package com.kyant.backdrop.catalog.chat
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -61,7 +64,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -69,11 +71,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.catalog.R
@@ -86,18 +93,9 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import androidx.compose.runtime.DisposableEffect
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.widget.Toast
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 
 /**
  * Main entry point for the Chat tab.
@@ -109,6 +107,7 @@ fun ChatTabContent(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    viewModel: ChatViewModel,
     isGlassTheme: Boolean = true,
     openConversationId: String? = null,
     openChatWithUserId: String? = null,
@@ -117,8 +116,6 @@ fun ChatTabContent(
     onInChatThread: (Boolean) -> Unit = {},
     onNavigateToProfile: (String) -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val viewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory(context))
     val uiState by viewModel.uiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     
@@ -197,9 +194,10 @@ private fun ChatListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
+    val isRefreshingConversations = uiState.isLoadingConversations && uiState.conversations.isNotEmpty()
     
     // Filter conversations based on search
-    val filteredConversations = if (searchQuery.isNotBlank()) {
+    val searchedConversations = if (searchQuery.isNotBlank()) {
         uiState.conversations.filter { conv ->
             val name = conv.otherParticipant.name ?: conv.otherParticipant.username ?: ""
             name.contains(searchQuery, ignoreCase = true)
@@ -207,56 +205,55 @@ private fun ChatListScreen(
     } else {
         uiState.conversations
     }
+    val requestConversations = searchedConversations.filter { it.isMessageRequest }
+    val unreadConversations = searchedConversations.filter { !it.isMessageRequest && it.unreadCount > 0 }
+    val recentConversations = searchedConversations.filter { !it.isMessageRequest && it.unreadCount == 0 }
+    val orderedConversations = buildList {
+        addAll(requestConversations)
+        addAll(unreadConversations)
+        addAll(recentConversations)
+    }
+    val hasVisibleConversations = orderedConversations.isNotEmpty()
 
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
         Spacer(Modifier.height(4.dp))
-        
-        // Search Bar
+
+        if (isRefreshingConversations || !uiState.socketConnected) {
+            ChatSyncStatusPill(
+                text = if (uiState.socketConnected) "Refreshing chats..." else "Reconnecting chat...",
+                contentColor = contentColor,
+                accentColor = accentColor
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+
         Row(
             Modifier
                 .fillMaxWidth()
-                .then(
-                    if (isGlassTheme) {
-                        Modifier
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { RoundedRectangle(24f.dp) },
-                                effects = {
-                                    vibrancy()
-                                    blur(8f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(Color.White.copy(alpha = 0.25f))
-                                }
-                            )
-                    } else {
-                        Modifier
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(contentColor.copy(alpha = 0.08f))
-                    }
-                )
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .clip(RoundedCornerShape(18.dp))
+                .background(contentColor.copy(alpha = if (isGlassTheme) 0.09f else 0.07f))
+                .padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             androidx.compose.foundation.Image(
                 painter = painterResource(R.drawable.ic_search),
                 contentDescription = "Search",
-                modifier = Modifier.size(18.dp),
-                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor.copy(alpha = 0.6f))
+                modifier = Modifier.size(16.dp),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor.copy(alpha = 0.52f))
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
             BasicTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.weight(1f),
-                textStyle = TextStyle(contentColor, 14.sp),
+                textStyle = TextStyle(contentColor, 13.sp),
                 cursorBrush = SolidColor(contentColor),
                 singleLine = true,
                 decorationBox = { innerTextField ->
                     if (searchQuery.isEmpty()) {
                         BasicText(
                             "Search conversations...",
-                            style = TextStyle(contentColor.copy(alpha = 0.5f), 14.sp)
+                            style = TextStyle(contentColor.copy(alpha = 0.42f), 13.sp)
                         )
                     }
                     innerTextField()
@@ -267,59 +264,41 @@ private fun ChatListScreen(
                     painter = painterResource(R.drawable.ic_close),
                     contentDescription = "Clear",
                     modifier = Modifier
-                        .size(18.dp)
+                        .size(16.dp)
                         .clickable { searchQuery = "" },
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor.copy(alpha = 0.6f))
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor.copy(alpha = 0.52f))
                 )
             }
         }
-        
-        Spacer(Modifier.height(12.dp))
 
-        if (uiState.isLoadingConversations) {
+        Spacer(Modifier.height(8.dp))
+
+        if (uiState.isLoadingConversations && uiState.conversations.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                AppIconLoadingIndicator(contentColor = contentColor)
+                ChatConversationListLoadingState(contentColor = contentColor)
             }
-        } else if (uiState.error != null) {
-            BasicText(uiState.error!!, style = TextStyle(contentColor.copy(alpha = 0.8f), 14.sp))
-        } else if (uiState.conversations.isEmpty()) {
+        } else if (!hasVisibleConversations) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText(
-                    "No conversations yet.\nStart a chat from someone's profile.",
-                    style = TextStyle(contentColor.copy(alpha = 0.7f), 14.sp)
+                ChatInboxEmptyState(
+                    searchQuery = searchQuery,
+                    contentColor = contentColor
                 )
             }
+        } else if (uiState.error != null && uiState.conversations.isEmpty()) {
+            BasicText(uiState.error!!, style = TextStyle(contentColor.copy(alpha = 0.8f), 14.sp))
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)
             ) {
-                // General section header
-                item {
-                    BasicText(
-                        "General",
-                        style = TextStyle(
-                            color = contentColor.copy(alpha = 0.6f),
-                            fontSize = 12.sp,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                        ),
-                        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 6.dp)
-                    )
-                }
-                
-                items(filteredConversations, key = { it.id }) { conv ->
+                items(orderedConversations, key = { it.id }) { conv ->
                     SwipeableConversationRow(
                         conversation = conv,
                         contentColor = contentColor,
                         accentColor = accentColor,
-                        backdrop = backdrop,
-                        isGlassTheme = isGlassTheme,
-                        onClick = { viewModel.selectConversation(conv) },
-                        onClearChat = { /* TODO: Implement clear chat */ },
-                        onDelete = { /* TODO: Implement delete */ },
-                        onArchive = { /* TODO: Implement archive */ },
-                        onMarkUnread = { /* TODO: Implement mark unread */ }
+                        currentUserId = uiState.currentUserId,
+                        onClick = { viewModel.selectConversation(conv) }
                     )
                 }
             }
@@ -332,282 +311,156 @@ private fun SwipeableConversationRow(
     conversation: Conversation,
     contentColor: Color,
     accentColor: Color,
-    backdrop: LayerBackdrop,
-    isGlassTheme: Boolean,
-    onClick: () -> Unit,
-    onClearChat: () -> Unit,
-    onDelete: () -> Unit,
-    onArchive: () -> Unit,
-    onMarkUnread: () -> Unit
+    currentUserId: String?,
+    onClick: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val density = LocalDensity.current
-    val swipeThreshold = with(density) { 80.dp.toPx() }
-    val offsetX = remember { Animatable(0f) }
-    var showActionMenu by remember { mutableStateOf(false) }
-    
     val other = conversation.otherParticipant
     val lastMsg = conversation.lastMessage
+    val previewText = conversationPreviewText(conversation, currentUserId)
+    val rowTime = lastMsg?.createdAt ?: conversation.updatedAt
+    val showUnreadAccent = conversation.unreadCount > 0
+    val avatarInitial = (other.name ?: other.username ?: "?")
+        .trim()
+        .firstOrNull()
+        ?.uppercaseChar()
+        ?.toString()
+        ?: "?"
 
-    Box(Modifier.fillMaxWidth()) {
-        // Background action buttons (revealed on swipe)
-        Row(
-            Modifier
-                .matchParentSize()
-                .padding(end = 4.dp),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Archive button
-            Box(
-                Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF6C5CE7))
-                    .clickable {
-                        scope.launch { offsetX.animateTo(0f, tween(200)) }
-                        onArchive()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                androidx.compose.foundation.Image(
-                    painter = painterResource(R.drawable.ic_archive),
-                    contentDescription = "Archive",
-                    modifier = Modifier.size(20.dp),
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            // Delete button
-            Box(
-                Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFFF6B6B))
-                    .clickable {
-                        scope.launch { offsetX.animateTo(0f, tween(200)) }
-                        showActionMenu = true
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                androidx.compose.foundation.Image(
-                    painter = painterResource(R.drawable.ic_delete),
-                    contentDescription = "Delete",
-                    modifier = Modifier.size(20.dp),
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
-                )
-            }
-        }
-        
-        // Main conversation row (swipeable)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            scope.launch {
-                                if (offsetX.value < -swipeThreshold) {
-                                    offsetX.animateTo(-swipeThreshold * 1.3f, tween(200))
-                                } else {
-                                    offsetX.animateTo(0f, tween(200))
-                                }
-                            }
-                        },
-                        onHorizontalDrag = { _, dragAmount ->
-                            scope.launch {
-                                val newValue = offsetX.value + dragAmount
-                                offsetX.snapTo(newValue.coerceIn(-swipeThreshold * 1.5f, 0f))
-                            }
-                        }
-                    )
-                }
-                .then(
-                    if (isGlassTheme) {
-                        Modifier.drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(12f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(8f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color.White.copy(alpha = 0.3f))
-                            }
-                        )
-                    } else {
-                        Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(contentColor.copy(alpha = 0.08f))
-                    }
-                )
-                .clickable(onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 2.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 Modifier
-                    .size(44.dp)
+                    .size(38.dp)
                     .clip(CircleShape)
-                    .background(contentColor.copy(alpha = 0.15f))
+                    .background(
+                        when {
+                            conversation.isMessageRequest -> accentColor.copy(alpha = 0.16f)
+                            showUnreadAccent -> accentColor.copy(alpha = 0.1f)
+                            else -> contentColor.copy(alpha = 0.1f)
+                        }
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = other.profileImage,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (!other.profileImage.isNullOrBlank()) {
+                    AsyncImage(
+                        model = other.profileImage,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    BasicText(
+                        avatarInitial,
+                        style = TextStyle(
+                            color = if (conversation.isMessageRequest) accentColor else contentColor.copy(alpha = 0.82f),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                }
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     BasicText(
                         other.name ?: other.username ?: "Unknown",
-                        style = TextStyle(contentColor, 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 14.sp,
+                            fontWeight = if (showUnreadAccent) FontWeight.SemiBold else FontWeight.Medium
+                        ),
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
-                    lastMsg?.createdAt?.let { time ->
-                        BasicText(
-                            formatTime(time),
-                            style = TextStyle(contentColor.copy(alpha = 0.6f), 11.sp)
+                    Spacer(Modifier.width(8.dp))
+                    BasicText(
+                        formatTime(rowTime),
+                        style = TextStyle(
+                            color = if (showUnreadAccent) accentColor else contentColor.copy(alpha = 0.44f),
+                            fontSize = 10.sp,
+                            fontWeight = if (showUnreadAccent) FontWeight.Medium else FontWeight.Normal
                         )
-                    }
+                    )
                 }
                 Spacer(Modifier.height(2.dp))
                 BasicText(
-                    lastMsg?.content?.take(50)?.let { if (it.length >= 50) "$it..." else it } ?: "No messages yet",
-                    style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp),
+                    previewText,
+                    style = TextStyle(
+                        color = contentColor.copy(alpha = if (showUnreadAccent) 0.72f else 0.54f),
+                        fontSize = 11.sp,
+                        fontWeight = if (showUnreadAccent) FontWeight.Medium else FontWeight.Normal
+                    ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
             if (conversation.unreadCount > 0) {
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
                 Box(
                     Modifier
-                        .size(18.dp)
-                        .clip(CircleShape)
-                        .background(accentColor),
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(accentColor)
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     BasicText(
                         if (conversation.unreadCount > 99) "99+" else conversation.unreadCount.toString(),
-                        style = TextStyle(Color.White, 10.sp)
+                        style = TextStyle(Color.White, 9.sp, fontWeight = FontWeight.SemiBold)
                     )
                 }
             }
         }
-        
-        // Action menu popup
-        if (showActionMenu) {
-            Popup(
-                alignment = Alignment.Center,
-                onDismissRequest = { showActionMenu = false },
-                properties = PopupProperties(focusable = true)
-            ) {
-                Box(
-                    Modifier
-                        .width(220.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF2a2a3e))
-                        .padding(8.dp)
-                ) {
-                    Column {
-                        // Clear Chat option
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    showActionMenu = false
-                                    onClearChat()
-                                }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            androidx.compose.foundation.Image(
-                                painter = painterResource(R.drawable.ic_clear_chat),
-                                contentDescription = "Clear Chat",
-                                modifier = Modifier.size(20.dp),
-                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            BasicText("Clear Chat", style = TextStyle(Color.White, 14.sp))
-                        }
-                        
-                        // Delete User option
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    showActionMenu = false
-                                    onDelete()
-                                }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            androidx.compose.foundation.Image(
-                                painter = painterResource(R.drawable.ic_delete),
-                                contentDescription = "Delete",
-                                modifier = Modifier.size(20.dp),
-                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFFFF6B6B))
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            BasicText("Delete Chat", style = TextStyle(Color(0xFFFF6B6B), 14.sp))
-                        }
-                        
-                        // Archive option
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    showActionMenu = false
-                                    onArchive()
-                                }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            androidx.compose.foundation.Image(
-                                painter = painterResource(R.drawable.ic_archive),
-                                contentDescription = "Archive",
-                                modifier = Modifier.size(20.dp),
-                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            BasicText("Archive", style = TextStyle(Color.White, 14.sp))
-                        }
-                        
-                        // Mark Unread option
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    showActionMenu = false
-                                    onMarkUnread()
-                                }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            androidx.compose.foundation.Image(
-                                painter = painterResource(R.drawable.ic_mark_unread),
-                                contentDescription = "Mark Unread",
-                                modifier = Modifier.size(20.dp),
-                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            BasicText("Mark as Unread", style = TextStyle(Color.White, 14.sp))
-                        }
-                    }
-                }
-            }
-        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 48.dp)
+                .height(1.dp)
+                .background(contentColor.copy(alpha = 0.08f))
+        )
+    }
+}
+
+@Composable
+private fun ChatInboxEmptyState(
+    searchQuery: String,
+    contentColor: Color
+) {
+    val title: String
+    val subtitle: String
+
+    if (searchQuery.isNotBlank()) {
+        title = "No chats match \"$searchQuery\""
+        subtitle = "Try a different name or username."
+    } else {
+        title = "No conversations yet"
+        subtitle = "Start a chat from a profile and it will appear here."
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        BasicText(
+            title,
+            style = TextStyle(contentColor, 18.sp, fontWeight = FontWeight.SemiBold)
+        )
+        BasicText(
+            subtitle,
+            style = TextStyle(contentColor.copy(alpha = 0.58f), 13.sp)
+        )
     }
 }
 
@@ -623,10 +476,19 @@ private fun ChatThreadScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val conv = uiState.selectedConversation ?: return
-    var inputText by remember { mutableStateOf("") }
+    var inputText by remember(conv.id) { mutableStateOf("") }
     val listState = rememberLazyListState()
     val lastMessageId = uiState.messages.lastOrNull()?.id
-    
+    val latestOwnMessageId = uiState.messages.lastOrNull { it.senderId == uiState.currentUserId }?.id
+    val connectionStatus = when {
+        uiState.typingUserId != null -> "typing..."
+        !uiState.socketConnected -> "reconnecting..."
+        uiState.isLoadingMessages -> "syncing messages..."
+        else -> "live chat"
+    }
+    val showLoadingWithoutCache = uiState.threadReadyState == ChatThreadReadyState.LOADING_WITHOUT_CACHE
+    val showEmptyThread = uiState.threadReadyState == ChatThreadReadyState.EMPTY_THREAD
+
     // Chat menu state
     var showChatMenu by remember { mutableStateOf(false) }
     var isSearchMode by remember { mutableStateOf(false) }
@@ -647,6 +509,12 @@ private fun ChatThreadScreen(
         // Only load suggestions if the last message is from the other person
         if (lastMsg != null && lastMsg.senderId != uiState.currentUserId) {
             viewModel.loadAiSuggestions()
+        }
+    }
+
+    DisposableEffect(conv.id) {
+        onDispose {
+            viewModel.sendTyping(false)
         }
     }
 
@@ -685,295 +553,331 @@ private fun ChatThreadScreen(
             Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
         ) {
             // Header (normal or search mode)
             if (isSearchMode) {
-            // Search mode header
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(16f.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(12f.dp.toPx())
-                        },
-                        onDrawSurface = { drawRect(Color.White.copy(alpha = 0.08f)) }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(R.drawable.ic_back),
+                        contentDescription = "Close search",
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clickable {
+                                isSearchMode = false
+                                searchQuery = ""
+                            },
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
                     )
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                androidx.compose.foundation.Image(
-                    painter = painterResource(R.drawable.ic_back),
-                    contentDescription = "Close search",
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clickable { 
-                            isSearchMode = false 
-                            searchQuery = ""
-                        },
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
-                )
-                Spacer(Modifier.width(8.dp))
-                BasicTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier
-                        .weight(1f)
-                        .background(contentColor.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    textStyle = TextStyle(contentColor, 15.sp),
-                    cursorBrush = SolidColor(contentColor),
-                    singleLine = true,
-                    decorationBox = { innerTextField ->
-                        if (searchQuery.isEmpty()) {
-                            BasicText(
-                                "Search messages...",
-                                style = TextStyle(contentColor.copy(alpha = 0.5f), 15.sp)
-                            )
+                    Spacer(Modifier.width(10.dp))
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(contentColor.copy(alpha = 0.08f))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        textStyle = TextStyle(contentColor, 13.sp),
+                        cursorBrush = SolidColor(contentColor),
+                        singleLine = true,
+                        decorationBox = { innerTextField ->
+                            if (searchQuery.isEmpty()) {
+                                BasicText(
+                                    "Search messages...",
+                                    style = TextStyle(contentColor.copy(alpha = 0.5f), 13.sp)
+                                )
+                            }
+                            innerTextField()
                         }
-                        innerTextField()
-                    }
-                )
-                if (searchQuery.isNotEmpty()) {
-                    Spacer(Modifier.width(8.dp))
-                    BasicText(
-                        "${displayedMessages.size} found",
-                        style = TextStyle(contentColor.copy(alpha = 0.6f), 12.sp)
                     )
-                }
-            }
-        } else {
-            // Normal header - clean design without glass
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Back button
-                androidx.compose.foundation.Image(
-                    painter = painterResource(R.drawable.ic_back),
-                    contentDescription = "Back",
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable { viewModel.selectConversation(null) },
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
-                )
-                Spacer(Modifier.width(12.dp))
-                Box(
-                    Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(contentColor.copy(alpha = 0.15f))
-                        .clickable { onNavigateToProfile(conv.otherParticipant.id) }
-                ) {
-                    AsyncImage(model = conv.otherParticipant.profileImage, contentDescription = null, Modifier.fillMaxSize())
-                }
-                Spacer(Modifier.width(10.dp))
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .clickable { onNavigateToProfile(conv.otherParticipant.id) }
-                ) {
-                    BasicText(
-                        conv.otherParticipant.name ?: conv.otherParticipant.username ?: "Unknown",
-                        style = TextStyle(contentColor, 15.sp, fontWeight = FontWeight.Medium)
-                    )
-                    if (uiState.typingUserId != null) {
-                        BasicText("typing...", style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp))
+                    if (searchQuery.isNotEmpty()) {
+                        Spacer(Modifier.width(8.dp))
+                        BasicText(
+                            "${displayedMessages.size}",
+                            style = TextStyle(contentColor.copy(alpha = 0.55f), 11.sp)
+                        )
                     }
                 }
-                // Menu button (3-dot)
-                Spacer(Modifier.width(8.dp))
-                Box {
+            } else {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(R.drawable.ic_back),
+                        contentDescription = "Back",
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clickable { viewModel.selectConversation(null) },
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Box(
+                        Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(contentColor.copy(alpha = 0.12f))
+                            .clickable { onNavigateToProfile(conv.otherParticipant.id) }
+                    ) {
+                        AsyncImage(
+                            model = conv.otherParticipant.profileImage,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .clickable { onNavigateToProfile(conv.otherParticipant.id) }
+                    ) {
+                        BasicText(
+                            conv.otherParticipant.name ?: conv.otherParticipant.username ?: "Unknown",
+                            style = TextStyle(contentColor, 14.sp, fontWeight = FontWeight.SemiBold)
+                        )
+                        BasicText(
+                            connectionStatus,
+                            style = TextStyle(contentColor.copy(alpha = 0.6f), 11.sp)
+                        )
+                    }
                     androidx.compose.foundation.Image(
                         painter = painterResource(R.drawable.ic_more),
                         contentDescription = "Menu",
                         modifier = Modifier
-                            .size(24.dp)
+                            .size(20.dp)
                             .clickable { showChatMenu = true },
                         colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
                     )
                 }
             }
-        }
 
-        // Messages
-        if (uiState.isLoadingMessages) {
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                AppIconLoadingIndicator(contentColor = contentColor)
-            }
-        } else if (isSearchMode && searchQuery.isNotBlank() && displayedMessages.isEmpty()) {
-            // No search results
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    BasicText("🔍", style = TextStyle(fontSize = 48.sp))
-                    Spacer(Modifier.height(12.dp))
-                    BasicText(
-                        "No messages found",
-                        style = TextStyle(contentColor, 16.sp)
-                    )
-                    BasicText(
-                        "Try a different search term",
-                        style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp)
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Bottom),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 10.dp, bottom = 10.dp)
-            ) {
-                items(displayedMessages, key = { it.id }) { msg ->
-                    MessageBubble(
-                        message = msg,
-                        isFromMe = msg.senderId == uiState.currentUserId,
-                        contentColor = contentColor,
-                        accentColor = accentColor,
-                        backdrop = backdrop,
-                        isGlassTheme = isGlassTheme,
-                        onReply = { viewModel.setReplyTo(msg) },
-                        onReact = { emoji -> viewModel.reactToMessage(msg.id, emoji) },
-                        onDelete = { forEveryone -> viewModel.deleteMessage(msg.id, forEveryone) },
-                        onCopy = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Message", msg.content))
-                            Toast.makeText(context, "Message copied", Toast.LENGTH_SHORT).show()
-                        },
-                        currentUserId = uiState.currentUserId
-                    )
-                }
-            }
-        }
-        
-        // Reply preview (shown when replying to a message)
-        uiState.replyToMessage?.let { replyMsg ->
-            ReplyPreview(
-                message = replyMsg,
-                contentColor = contentColor,
-                accentColor = accentColor,
-                backdrop = backdrop,
-                onDismiss = { viewModel.clearReplyTo() }
-            )
-        }
-        
-        // AI Smart Reply Suggestions (shown above input when available)
-        if (uiState.aiSuggestions.isNotEmpty() && inputText.isEmpty()) {
-            AiSuggestionsRow(
-                suggestions = uiState.aiSuggestions,
-                contentColor = contentColor,
-                accentColor = accentColor,
-                backdrop = backdrop,
-                onSuggestionClick = { suggestion ->
-                    viewModel.useAiSuggestion(suggestion)
-                }
-            )
-        }
-
-        // Input area
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(16f.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(12f.dp.toPx())
-                    },
-                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.08f)) }
-                )
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Plus button for attachments
-            Box(
-                Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(contentColor.copy(alpha = 0.1f))
-                    .clickable {
-                        // TODO: Open media picker
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                androidx.compose.foundation.Image(
-                    painter = painterResource(R.drawable.ic_plus),
-                    contentDescription = "Attach",
-                    modifier = Modifier.size(20.dp),
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor.copy(alpha = 0.7f))
-                )
-            }
-            Spacer(Modifier.width(6.dp))
-            BasicTextField(
-                value = inputText,
-                onValueChange = {
-                    inputText = it
-                    viewModel.sendTyping(it.isNotEmpty())
-                    // Clear suggestions when user starts typing
-                    if (it.isNotEmpty()) {
-                        viewModel.clearAiSuggestions()
+            // Messages
+            when {
+                showLoadingWithoutCache -> {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    ) {
+                        ChatThreadLoadingState(
+                            contentColor = contentColor,
+                            accentColor = accentColor
+                        )
                     }
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .background(contentColor.copy(alpha = 0.1f), RoundedCornerShape(20.dp)),
-                textStyle = TextStyle(contentColor, 14.sp),
-                cursorBrush = SolidColor(contentColor),
-                singleLine = false,
-                maxLines = 3,
-                decorationBox = { innerTextField ->
-                    Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        if (inputText.isEmpty()) {
+                }
+                isSearchMode && searchQuery.isNotBlank() && displayedMessages.isEmpty() && uiState.messages.isNotEmpty() -> {
+            // No search results
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            BasicText("🔍", style = TextStyle(fontSize = 26.sp))
+                            Spacer(Modifier.height(8.dp))
                             BasicText(
-                                "Message...",
-                                style = TextStyle(contentColor.copy(alpha = 0.5f), 14.sp)
+                                "No messages found",
+                                style = TextStyle(contentColor, 14.sp, fontWeight = FontWeight.Medium)
+                            )
+                            BasicText(
+                                "Try a different search term",
+                                style = TextStyle(contentColor.copy(alpha = 0.6f), 12.sp)
                             )
                         }
-                        innerTextField()
                     }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(
-                    onSend = {
-                        if (inputText.isNotBlank()) {
-                            viewModel.sendMessage(inputText.trim(), uiState.replyToMessage?.id)
-                            viewModel.clearAiSuggestions()
-                            viewModel.clearReplyTo()
-                            inputText = ""
+                }
+                showEmptyThread -> {
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        ChatThreadEmptyState(
+                            contentColor = contentColor,
+                            accentColor = accentColor,
+                            onStarterSelected = { starter ->
+                                inputText = starter
+                                viewModel.clearAiSuggestions()
+                                viewModel.sendTyping(true)
+                            }
+                        )
+                    }
+                }
+                else -> {
+                    Column(Modifier.weight(1f)) {
+                        if (uiState.isLoadingMessages && uiState.messages.isNotEmpty()) {
+                            ChatSyncStatusPill(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                text = "syncing messages...",
+                                contentColor = contentColor,
+                                accentColor = accentColor
+                            )
+                        }
+
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = 8.dp)
+                        ) {
+                            items(displayedMessages, key = { it.id }) { msg ->
+                                val isFromMe = msg.senderId == uiState.currentUserId
+                                val deliveryStateText = if (isFromMe && msg.id == latestOwnMessageId) {
+                                    if (msg.status.equals("READ", ignoreCase = true) || msg.readAt != null) {
+                                        "Read"
+                                    } else {
+                                        "Sent"
+                                    }
+                                } else {
+                                    null
+                                }
+
+                                MessageBubble(
+                                    message = msg,
+                                    isFromMe = isFromMe,
+                                    contentColor = contentColor,
+                                    accentColor = accentColor,
+                                    backdrop = backdrop,
+                                    isGlassTheme = isGlassTheme,
+                                    onReply = { viewModel.setReplyTo(msg) },
+                                    onReact = { emoji -> viewModel.reactToMessage(msg.id, emoji) },
+                                    onDelete = { forEveryone -> viewModel.deleteMessage(msg.id, forEveryone) },
+                                    onCopy = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("Message", msg.content))
+                                        Toast.makeText(context, "Message copied", Toast.LENGTH_SHORT).show()
+                                    },
+                                    currentUserId = uiState.currentUserId,
+                                    deliveryStateText = deliveryStateText
+                                )
+                            }
                         }
                     }
-                )
-            )
-            Spacer(Modifier.width(6.dp))
-            Box(
-                Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(if (inputText.isNotBlank()) accentColor else accentColor.copy(alpha = 0.5f))
-                    .clickable(enabled = inputText.isNotBlank()) {
-                        if (inputText.isNotBlank()) {
-                            viewModel.sendMessage(inputText.trim(), uiState.replyToMessage?.id)
-                            viewModel.clearAiSuggestions()
-                            viewModel.clearReplyTo()
-                            inputText = ""
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                androidx.compose.foundation.Image(
-                    painter = painterResource(R.drawable.ic_send),
-                    contentDescription = "Send",
-                    modifier = Modifier.size(18.dp),
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                }
+            }
+            
+            // Reply preview (shown when replying to a message)
+            uiState.replyToMessage?.let { replyMsg ->
+                ReplyPreview(
+                    message = replyMsg,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    backdrop = backdrop,
+                    onDismiss = { viewModel.clearReplyTo() }
                 )
             }
-        } // End of Input Row
+
+            // AI Smart Reply Suggestions (shown above input when available)
+            if (uiState.aiSuggestions.isNotEmpty() && inputText.isEmpty() && !showEmptyThread) {
+                AiSuggestionsRow(
+                    suggestions = uiState.aiSuggestions,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    backdrop = backdrop,
+                    onSuggestionClick = { suggestion ->
+                        inputText = suggestion
+                        viewModel.clearAiSuggestions()
+                        viewModel.sendTyping(true)
+                    }
+                )
+            }
+
+            val sendCurrentMessage = {
+                if (inputText.isNotBlank()) {
+                    viewModel.sendMessage(inputText.trim(), uiState.replyToMessage?.id)
+                    viewModel.sendTyping(false)
+                    viewModel.clearAiSuggestions()
+                    viewModel.clearReplyTo()
+                    inputText = ""
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(contentColor.copy(alpha = 0.08f))
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Box(
+                        Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(contentColor.copy(alpha = 0.08f))
+                            .clickable {
+                                // TODO: Open media picker
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(R.drawable.ic_plus),
+                            contentDescription = "Attach",
+                            modifier = Modifier.size(18.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor.copy(alpha = 0.7f))
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    BasicTextField(
+                        value = inputText,
+                        onValueChange = {
+                            inputText = it
+                            viewModel.sendTyping(it.isNotEmpty())
+                            if (it.isNotEmpty()) {
+                                viewModel.clearAiSuggestions()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        textStyle = TextStyle(contentColor, 13.sp),
+                        cursorBrush = SolidColor(contentColor),
+                        singleLine = false,
+                        maxLines = 3,
+                        decorationBox = { innerTextField ->
+                            Box(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+                                if (inputText.isEmpty()) {
+                                    BasicText(
+                                        "Message...",
+                                        style = TextStyle(contentColor.copy(alpha = 0.5f), 13.sp)
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = { sendCurrentMessage() })
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Box(
+                        Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(if (inputText.isNotBlank()) accentColor else accentColor.copy(alpha = 0.45f))
+                            .clickable(enabled = inputText.isNotBlank()) { sendCurrentMessage() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(R.drawable.ic_send),
+                            contentDescription = "Send",
+                            modifier = Modifier.size(16.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                        )
+                    }
+                }
+                if (!uiState.socketConnected) {
+                    BasicText(
+                        "reconnecting...",
+                        modifier = Modifier.padding(start = 10.dp, top = 4.dp),
+                        style = TextStyle(contentColor.copy(alpha = 0.52f), 11.sp)
+                    )
+                }
+            }
         } // End of Column
     
         // Glass-styled chat options menu (overlay)
@@ -1030,49 +934,238 @@ private fun ChatThreadScreen(
 }
 
 @Composable
-private fun AppIconLoadingIndicator(contentColor: Color) {
-    val infiniteTransition = rememberInfiniteTransition(label = "chat_loader")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1100, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "chat_loader_rotation"
-    )
+private fun ChatSyncStatusPill(
+    text: String,
+    contentColor: Color,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val pulseAlpha = rememberLoaderPulseAlpha()
 
-    val pulse by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 700, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "chat_loader_pulse"
-    )
-
-    Box(
-        modifier = Modifier
-            .size(66.dp)
-            .clip(CircleShape)
-            .background(contentColor.copy(alpha = 0.08f)),
-        contentAlignment = Alignment.Center
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(contentColor.copy(alpha = 0.08f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        androidx.compose.foundation.Image(
-            painter = painterResource(R.mipmap.ic_launcher_foreground),
-            contentDescription = "Loading",
-            modifier = Modifier
-                .size(34.dp * pulse)
-                .graphicsLayer {
-                    rotationZ = rotation
-                }
+        Box(
+            Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(accentColor.copy(alpha = pulseAlpha))
+        )
+        Spacer(Modifier.width(8.dp))
+        BasicText(
+            text,
+            style = TextStyle(contentColor.copy(alpha = 0.78f), 12.sp, fontWeight = FontWeight.Medium)
         )
     }
 }
 
+@Composable
+private fun ChatConversationListLoadingState(contentColor: Color) {
+    val pulseAlpha = rememberLoaderPulseAlpha()
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically)
+    ) {
+        repeat(5) { index ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LoadingPlaceholder(
+                    modifier = Modifier.size(52.dp),
+                    contentColor = contentColor,
+                    pulseAlpha = pulseAlpha,
+                    shape = CircleShape
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    LoadingPlaceholder(
+                        modifier = Modifier.fillMaxWidth(if (index % 2 == 0) 0.58f else 0.7f).height(14.dp),
+                        contentColor = contentColor,
+                        pulseAlpha = pulseAlpha
+                    )
+                    LoadingPlaceholder(
+                        modifier = Modifier.fillMaxWidth(if (index % 2 == 0) 0.36f else 0.44f).height(11.dp),
+                        contentColor = contentColor,
+                        pulseAlpha = pulseAlpha
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatThreadLoadingState(
+    contentColor: Color,
+    accentColor: Color
+) {
+    val pulseAlpha = rememberLoaderPulseAlpha()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.Top
+    ) {
+        ChatSyncStatusPill(
+            text = "syncing messages...",
+            contentColor = contentColor,
+            accentColor = accentColor
+        )
+        Spacer(Modifier.height(12.dp))
+        repeat(5) { index ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            ) {
+                LoadingPlaceholder(
+                    modifier = Modifier
+                        .align(if (index % 2 == 0) Alignment.CenterStart else Alignment.CenterEnd)
+                        .fillMaxWidth(if (index % 2 == 0) 0.52f else 0.46f)
+                        .height(if (index == 2) 44.dp else 34.dp),
+                    contentColor = contentColor,
+                    pulseAlpha = pulseAlpha
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatThreadEmptyState(
+    contentColor: Color,
+    accentColor: Color,
+    onStarterSelected: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        BasicText(
+            "👋",
+            modifier = Modifier.fillMaxWidth(),
+            style = TextStyle(fontSize = 20.sp, textAlign = TextAlign.Center)
+        )
+        BasicText(
+            text = "Start the conversation",
+            modifier = Modifier.fillMaxWidth(),
+            style = TextStyle(
+                color = contentColor,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
+        )
+        BasicText(
+            text = "Send the first message to begin chatting on Vormex.",
+            modifier = Modifier.fillMaxWidth(),
+            style = TextStyle(
+                color = contentColor.copy(alpha = 0.62f),
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center
+            )
+        )
+        Spacer(Modifier.height(4.dp))
+        starterMessages.forEach { starter ->
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                ChatStarterChip(
+                    text = starter,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    onClick = { onStarterSelected(starter) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatStarterChip(
+    text: String,
+    contentColor: Color,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(accentColor.copy(alpha = 0.14f))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        BasicText(
+            text,
+            style = TextStyle(contentColor, 12.sp, fontWeight = FontWeight.Medium)
+        )
+    }
+}
+
+@Composable
+private fun LoadingPlaceholder(
+    modifier: Modifier,
+    contentColor: Color,
+    pulseAlpha: Float,
+    shape: RoundedCornerShape = RoundedCornerShape(18.dp)
+) {
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(contentColor.copy(alpha = 0.08f + (pulseAlpha * 0.14f)))
+    )
+}
+
+@Composable
+private fun LoadingPlaceholder(
+    modifier: Modifier,
+    contentColor: Color,
+    pulseAlpha: Float,
+    shape: androidx.compose.ui.graphics.Shape
+) {
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(contentColor.copy(alpha = 0.08f + (pulseAlpha * 0.14f)))
+    )
+}
+
+@Composable
+private fun rememberLoaderPulseAlpha(): Float {
+    val infiniteTransition = rememberInfiniteTransition(label = "chat_loader_pulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.24f,
+        targetValue = 0.8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "chat_loader_pulse_alpha"
+    )
+    return pulseAlpha
+}
+
 // Common emoji reactions
 private val quickReactions = listOf("❤️", "👍", "😂", "😮", "😢", "🔥")
+private val starterMessages = listOf(
+    "Hey, good to connect",
+    "What are you building right now?",
+    "What are your goals on Vormex?"
+)
 
 @Composable
 private fun MessageBubble(
@@ -1086,7 +1179,8 @@ private fun MessageBubble(
     onReact: (String) -> Unit = {},
     onDelete: (Boolean) -> Unit = {},
     onCopy: () -> Unit = {},
-    currentUserId: String? = null
+    currentUserId: String? = null,
+    deliveryStateText: String? = null
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -1177,36 +1271,16 @@ private fun MessageBubble(
                 Column(horizontalAlignment = if (isFromMe) Alignment.End else Alignment.Start) {
                     Box(
                         modifier = Modifier
-                            .then(
-                                if (isGlassTheme) {
-                                    Modifier.drawBackdrop(
-                                        backdrop = backdrop,
-                                        shape = { RoundedRectangle(18f.dp) },
-                                        effects = {
-                                            vibrancy()
-                                            blur(8f.dp.toPx())
-                                        },
-                                        onDrawSurface = {
-                                            drawRect(
-                                                if (isFromMe) accentColor.copy(alpha = 0.35f)
-                                                else Color.White.copy(alpha = 0.2f)
-                                            )
-                                        }
-                                    )
-                                } else {
-                                    Modifier
-                                        .clip(RoundedCornerShape(18.dp))
-                                        .background(
-                                            if (isFromMe) accentColor.copy(alpha = 0.15f)
-                                            else contentColor.copy(alpha = 0.08f)
-                                        )
-                                }
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                if (isFromMe) accentColor.copy(alpha = 0.18f)
+                                else contentColor.copy(alpha = 0.08f)
                             )
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                            .widthIn(max = 280.dp)
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .widthIn(max = 252.dp)
                     ) {
                         if (message.isDeleted) {
-                            BasicText("Message deleted", style = TextStyle(contentColor.copy(alpha = 0.5f), 14.sp))
+                            BasicText("Message deleted", style = TextStyle(contentColor.copy(alpha = 0.5f), 13.sp))
                         } else {
                             // Try to parse as shared post
                             val sharedPost = SharedPostContent.tryParse(message.content)
@@ -1219,7 +1293,7 @@ private fun MessageBubble(
                             } else {
                                 BasicText(
                                     message.content,
-                                    style = TextStyle(contentColor, 15.sp)
+                                    style = TextStyle(contentColor, 14.sp)
                                 )
                             }
                         }
@@ -1230,7 +1304,7 @@ private fun MessageBubble(
                         Row(
                             modifier = Modifier
                                 .padding(top = 2.dp)
-                                .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                .background(contentColor.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
@@ -1248,6 +1322,19 @@ private fun MessageBubble(
                             }
                         }
                     }
+
+                    val metaLine = buildList {
+                        add(formatTime(message.createdAt))
+                        if (!deliveryStateText.isNullOrBlank()) {
+                            add(deliveryStateText)
+                        }
+                    }.joinToString(" • ")
+
+                    BasicText(
+                        metaLine,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        style = TextStyle(contentColor.copy(alpha = 0.5f), 10.sp)
+                    )
                 }
                 
                 // Reply indicator (shown during swipe for own messages)
@@ -1464,6 +1551,28 @@ private fun formatTime(iso: String): String {
     } catch (_: Exception) {
         iso.take(5)
     }
+}
+
+private fun conversationPreviewText(
+    conversation: Conversation,
+    currentUserId: String?
+): String {
+    val lastMessage = conversation.lastMessage ?: return when {
+        conversation.isMessageRequest -> "Message request"
+        else -> "No messages yet"
+    }
+
+    val prefix = if (lastMessage.senderId == currentUserId) "You: " else ""
+    val body = when (lastMessage.contentType.lowercase()) {
+        "image" -> "sent a photo"
+        "video" -> "sent a video"
+        "audio" -> "sent a voice note"
+        "document", "file" -> "shared a file"
+        "post" -> "shared a post"
+        else -> lastMessage.content
+    }
+
+    return "$prefix$body".trim()
 }
 
 /**

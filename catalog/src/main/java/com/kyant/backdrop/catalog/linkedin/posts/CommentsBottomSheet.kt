@@ -1,6 +1,7 @@
 package com.kyant.backdrop.catalog.linkedin.posts
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -67,9 +68,10 @@ fun CommentsBottomSheet(
     onClearError: () -> Unit,
     onProfileClick: (String) -> Unit = {}
 ) {
-    // Theme-aware glass colors
-    val glassBackground = if (isLightTheme) Color(0xFFecf0f3) else Color(0xFF1a1a2e)
-    val glassBubbleBackground = if (isLightTheme) Color.White else Color(0xFF252538)
+    val sheetSurfaceTop = if (isLightTheme) Color.White.copy(alpha = 0.78f) else Color(0xFF0F1724).copy(alpha = 0.9f)
+    val sheetSurfaceBottom = if (isLightTheme) accentColor.copy(alpha = 0.08f) else accentColor.copy(alpha = 0.18f)
+    val glassBubbleBackground = if (isLightTheme) Color.White.copy(alpha = 0.72f) else Color(0xFF182233).copy(alpha = 0.82f)
+    val surfaceBorderColor = if (isLightTheme) Color.White.copy(alpha = 0.74f) else Color.White.copy(alpha = 0.12f)
     
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
@@ -97,10 +99,18 @@ fun CommentsBottomSheet(
                         lens(16f.dp.toPx(), 32f.dp.toPx())
                     },
                     onDrawSurface = {
-                        // More translucent for glass effect
-                        drawRect(glassBackground.copy(alpha = 0.75f))
+                        drawRect(
+                            Brush.verticalGradient(
+                                listOf(
+                                    sheetSurfaceTop,
+                                    sheetSurfaceBottom,
+                                    sheetSurfaceTop.copy(alpha = if (isLightTheme) 0.72f else 0.86f)
+                                )
+                            )
+                        )
                     }
                 )
+                .border(1.dp, surfaceBorderColor, RoundedCornerShape(28.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -112,6 +122,7 @@ fun CommentsBottomSheet(
                     commentCount = comments.size,
                     contentColor = contentColor,
                     glassBubbleBackground = glassBubbleBackground,
+                    surfaceBorderColor = surfaceBorderColor,
                     onClose = onDismiss
                 )
                 
@@ -164,9 +175,9 @@ fun CommentsBottomSheet(
                                 backdrop = backdrop,
                                 contentColor = contentColor,
                                 accentColor = accentColor,
-                                glassBackground = glassBackground,
                                 glassBubbleBackground = glassBubbleBackground,
                                 isLightTheme = isLightTheme,
+                                surfaceBorderColor = surfaceBorderColor,
                                 currentUserId = "", // Would need actual user ID
                                 onLike = { onLikeComment(comment.id) },
                                 onReply = { replyingTo = comment },
@@ -365,6 +376,7 @@ fun CommentsBottomSheet(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     glassBubbleBackground = glassBubbleBackground,
+                    surfaceBorderColor = surfaceBorderColor,
                     onSend = {
                         if (commentText.isNotBlank()) {
                             onSendComment(commentText, replyingTo?.id)
@@ -384,6 +396,7 @@ private fun CommentsHeader(
     commentCount: Int,
     contentColor: Color,
     glassBubbleBackground: Color,
+    surfaceBorderColor: Color,
     onClose: () -> Unit
 ) {
     Row(
@@ -403,7 +416,8 @@ private fun CommentsHeader(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(glassBubbleBackground.copy(alpha = 0.5f))
+                .background(glassBubbleBackground)
+                .border(1.dp, surfaceBorderColor, CircleShape)
                 .clickable(onClick = onClose),
             contentAlignment = Alignment.Center
         ) {
@@ -418,9 +432,9 @@ private fun CommentItem(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
-    glassBackground: Color,
     glassBubbleBackground: Color,
     isLightTheme: Boolean,
+    surfaceBorderColor: Color,
     currentUserId: String,
     onLike: () -> Unit,
     onReply: () -> Unit,
@@ -512,21 +526,28 @@ private fun CommentItem(
                         .fillMaxWidth()
                         .drawBackdrop(
                             backdrop = backdrop,
-                            shape = { RoundedRectangle(16f.dp) },
+                            shape = { RoundedRectangle(18f.dp) },
                             effects = {
                                 vibrancy()
-                                blur(12f.dp.toPx())
-                                lens(6f.dp.toPx(), 12f.dp.toPx())
+                                blur(10f.dp.toPx())
+                                lens(8f.dp.toPx(), 14f.dp.toPx())
                             },
                             onDrawSurface = {
-                                val surfaceColor = if (isLightTheme) {
-                                    Color.White.copy(alpha = if (indentLevel > 0) 0.35f else 0.45f)
-                                } else {
-                                    glassBubbleBackground.copy(alpha = if (indentLevel > 0) 0.4f else 0.5f)
-                                }
-                                drawRect(surfaceColor)
+                                drawRect(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            if (isLightTheme) {
+                                                Color.White.copy(alpha = if (indentLevel > 0) 0.62f else 0.74f)
+                                            } else {
+                                                glassBubbleBackground.copy(alpha = if (indentLevel > 0) 0.82f else 0.9f)
+                                            },
+                                            accentColor.copy(alpha = if (indentLevel > 0) 0.05f else 0.08f)
+                                        )
+                                    )
+                                )
                             }
                         )
+                        .border(1.dp, surfaceBorderColor, RoundedCornerShape(18.dp))
                         .padding(12.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -626,9 +647,9 @@ private fun CommentItem(
                                 backdrop = backdrop,
                                 contentColor = contentColor,
                                 accentColor = accentColor,
-                                glassBackground = glassBackground,
                                 glassBubbleBackground = glassBubbleBackground,
                                 isLightTheme = isLightTheme,
+                                surfaceBorderColor = surfaceBorderColor,
                                 currentUserId = currentUserId,
                                 onLike = { /* Need to implement for reply */ },
                                 onReply = { /* Reply to parent or nested */ },
@@ -674,6 +695,7 @@ private fun CommentInput(
     contentColor: Color,
     accentColor: Color,
     glassBubbleBackground: Color,
+    surfaceBorderColor: Color,
     onSend: () -> Unit
 ) {
     val context = LocalContext.current
@@ -682,6 +704,7 @@ private fun CommentInput(
         modifier = Modifier
             .fillMaxWidth()
             .background(glassBubbleBackground.copy(alpha = 0.4f))
+            .border(1.dp, surfaceBorderColor.copy(alpha = 0.6f))
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -718,7 +741,8 @@ private fun CommentInput(
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(20.dp))
-                .background(glassBubbleBackground.copy(alpha = 0.6f))
+                .background(glassBubbleBackground.copy(alpha = 0.88f))
+                .border(1.dp, surfaceBorderColor, RoundedCornerShape(20.dp))
                 .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
             BasicTextField(

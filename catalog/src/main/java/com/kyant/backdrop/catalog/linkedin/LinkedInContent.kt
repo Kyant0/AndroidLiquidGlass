@@ -71,6 +71,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -581,6 +582,12 @@ fun LinkedInContent(
     // Chat state for unread message indicator
     val chatViewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory(context))
     val chatState by chatViewModel.uiState.collectAsState()
+
+    LaunchedEffect(uiState.isLoggedIn) {
+        if (uiState.isLoggedIn) {
+            chatViewModel.preloadChats()
+        }
+    }
     
     // Load retention data when user logs in
     LaunchedEffect(uiState.isLoggedIn) {
@@ -737,6 +744,7 @@ fun LinkedInContent(
                                     backdrop = backdrop,
                                     contentColor = contentColor,
                                     accentColor = accentColor,
+                                    glassBackgroundKey = glassBackgroundKey,
                                     posts = uiState.posts,
                                     storyGroups = uiState.storyGroups,
                                     // Reels data
@@ -1478,6 +1486,7 @@ fun LinkedInContent(
                             backdrop = backdrop,
                             contentColor = messagesContentColor,
                             accentColor = messagesAccentColor,
+                            viewModel = chatViewModel,
                             isGlassTheme = isGlassTheme,
                             openConversationId = deepLinkConversationId,
                             openChatWithUserId = openChatWithUserId,
@@ -2224,6 +2233,7 @@ private fun FeedScreen(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    glassBackgroundKey: String = DefaultGlassBackgroundPresetKey,
     posts: List<Post> = emptyList(),
     storyGroups: List<StoryGroup> = emptyList(),
     // Reels data
@@ -2582,6 +2592,7 @@ private fun FeedScreen(
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
+                    glassBackgroundKey = glassBackgroundKey,
                     onLike = onLike,
                     onComment = onComment,
                     onShare = onShare,
@@ -5883,6 +5894,7 @@ private fun ApiPostCard(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    glassBackgroundKey: String = DefaultGlassBackgroundPresetKey,
     onLike: (String) -> Unit,
     onComment: (String) -> Unit = {},
     onShare: (String) -> Unit = {},
@@ -5895,49 +5907,75 @@ private fun ApiPostCard(
     var showImageViewer by remember { mutableStateOf(false) }
     var selectedImageIndex by remember { mutableIntStateOf(0) }
     var showFullScreenVideo by remember { mutableStateOf(false) }
+    var displayIsLiked by remember(post.id) { mutableStateOf(post.isLiked) }
+    var displayLikesCount by remember(post.id) { mutableIntStateOf(post.likesCount) }
+    var isLikePending by remember(post.id) { mutableStateOf(false) }
     
     // Mention preview state
     var showMentionPreview by remember { mutableStateOf(false) }
     var mentionUsername by remember { mutableStateOf("") }
     val context = LocalContext.current
+    val relativeTimeLabel by rememberRelativeTimeLabel(post.createdAt)
+
+    LaunchedEffect(post.id, post.isLiked, post.likesCount) {
+        displayIsLiked = post.isLiked
+        displayLikesCount = post.likesCount
+        isLikePending = false
+    }
     
     // Red color for active likes
     val likeActiveColor = Color(0xFFE53935)
-    val containerShape = RoundedCornerShape(28.dp)
-    val innerSectionShape = RoundedCornerShape(22.dp)
+    val useCrystalPureGlass = glassBackgroundKey == "crystal"
+    val containerShape = RoundedCornerShape(0.dp)
+    val innerSectionShape = RoundedCornerShape(0.dp)
     val subtleTextColor = contentColor.copy(alpha = 0.62f)
     val hasMedia = !post.videoUrl.isNullOrEmpty() || post.mediaUrls.isNotEmpty()
     val hasLinkPreview = !post.linkUrl.isNullOrEmpty()
-    val hasPoll = post.pollOptions.isNotEmpty()
     val showContentBlock = !post.content.isNullOrBlank()
-    val totalEngagement = post.likesCount + post.commentsCount + post.sharesCount
+    val cardBorderColor = if (useCrystalPureGlass) {
+        Color.White.copy(alpha = 0.22f)
+    } else {
+        Color.White.copy(alpha = 0.16f)
+    }
+    val mediaContainerColor = if (useCrystalPureGlass) {
+        Color.White.copy(alpha = 0.05f)
+    } else {
+        Color.Black.copy(alpha = 0.08f)
+    }
     
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp)
             .clip(containerShape)
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { RoundedRectangle(28f.dp) },
+                shape = { RoundedRectangle(0f.dp) },
                 effects = {
                     vibrancy()
-                    blur(18f.dp.toPx())
-                    lens(8f.dp.toPx(), 16f.dp.toPx())
+                    if (useCrystalPureGlass) {
+                        lens(16f.dp.toPx(), 32f.dp.toPx())
+                    } else {
+                        blur(18f.dp.toPx())
+                        lens(8f.dp.toPx(), 16f.dp.toPx())
+                    }
                 },
                 onDrawSurface = {
-                    drawRect(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.16f),
-                                Color.White.copy(alpha = 0.08f),
-                                accentColor.copy(alpha = 0.05f)
+                    if (useCrystalPureGlass) {
+                        drawRect(Color.White.copy(alpha = 0.06f))
+                    } else {
+                        drawRect(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.16f),
+                                    Color.White.copy(alpha = 0.08f),
+                                    accentColor.copy(alpha = 0.05f)
+                                )
                             )
                         )
-                    )
+                    }
                 }
             )
-            .border(1.dp, Color.White.copy(alpha = 0.16f), containerShape)
+            .border(1.dp, cardBorderColor, containerShape)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
             // Author info with menu
@@ -6023,7 +6061,7 @@ private fun ApiPostCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             ApiMetricChip(
-                                label = formatTimeAgo(post.createdAt),
+                                label = relativeTimeLabel,
                                 contentColor = subtleTextColor,
                                 containerColor = Color.White.copy(alpha = 0.08f)
                             )
@@ -6132,7 +6170,7 @@ private fun ApiPostCard(
                     Modifier
                         .padding(horizontal = 10.dp)
                         .clip(innerSectionShape)
-                        .background(Color.Black.copy(alpha = 0.08f))
+                        .background(mediaContainerColor)
                 ) {
                     VideoPlayer(
                         videoUrl = post.videoUrl,
@@ -6148,7 +6186,7 @@ private fun ApiPostCard(
                     Modifier
                         .padding(horizontal = 10.dp)
                         .clip(innerSectionShape)
-                        .background(Color.Black.copy(alpha = 0.08f))
+                        .background(mediaContainerColor)
                 ) {
                     ApiImagePostGrid(
                         images = post.mediaUrls,
@@ -6200,7 +6238,7 @@ private fun ApiPostCard(
                 modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (totalEngagement > 0) {
+                if (displayLikesCount > 0) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -6209,30 +6247,15 @@ private fun ApiPostCard(
                         ApiMetricChip(
                             icon = {
                                 LikeIcon(
-                                    color = if (post.isLiked) likeActiveColor else contentColor.copy(alpha = 0.72f),
+                                    color = if (displayIsLiked) likeActiveColor else contentColor.copy(alpha = 0.72f),
                                     size = 13.dp,
-                                    filled = post.isLiked
+                                    filled = displayIsLiked
                                 )
                             },
-                            label = "${post.likesCount} like${if (post.likesCount == 1) "" else "s"}",
+                            label = "${displayLikesCount} like${if (displayLikesCount == 1) "" else "s"}",
                             contentColor = contentColor
                         )
-                        ApiMetricChip(
-                            label = "${post.commentsCount} comment${if (post.commentsCount == 1) "" else "s"}",
-                            contentColor = contentColor
-                        )
-                        if (post.sharesCount > 0) {
-                            ApiMetricChip(
-                                label = "${post.sharesCount} share${if (post.sharesCount == 1) "" else "s"}",
-                                contentColor = contentColor
-                            )
-                        }
                     }
-                } else {
-                    BasicText(
-                        "Be the first to react",
-                        style = TextStyle(subtleTextColor, 12.sp, FontWeight.Medium)
-                    )
                 }
 
                 Row(
@@ -6243,33 +6266,32 @@ private fun ApiPostCard(
                         modifier = Modifier.weight(1f),
                         icon = {
                             LikeIcon(
-                                color = if (post.isLiked) likeActiveColor else contentColor.copy(alpha = 0.7f),
+                                color = if (displayIsLiked) likeActiveColor else contentColor.copy(alpha = 0.7f),
                                 size = 18.dp,
-                                filled = post.isLiked
+                                filled = displayIsLiked
                             )
                         },
                         label = "Like",
-                        contentColor = if (post.isLiked) likeActiveColor else contentColor,
-                        backgroundColor = if (post.isLiked) likeActiveColor.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.08f),
-                        borderColor = if (post.isLiked) likeActiveColor.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.12f),
-                        onClick = { onLike(post.id) }
+                        onClick = {
+                            if (!isLikePending) {
+                                val nextLiked = !displayIsLiked
+                                displayIsLiked = nextLiked
+                                displayLikesCount = if (nextLiked) displayLikesCount + 1 else (displayLikesCount - 1).coerceAtLeast(0)
+                                isLikePending = true
+                                onLike(post.id)
+                            }
+                        }
                     )
                     ApiActionButton(
                         modifier = Modifier.weight(1f),
                         icon = { CommentIcon(contentColor.copy(alpha = 0.72f), size = 18.dp) },
                         label = "Comment",
-                        contentColor = contentColor,
-                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                        borderColor = Color.White.copy(alpha = 0.12f),
                         onClick = { onComment(post.id) }
                     )
                     ApiActionButton(
                         modifier = Modifier.weight(1f),
                         icon = { ShareIcon(contentColor.copy(alpha = 0.72f), size = 18.dp) },
                         label = "Share",
-                        contentColor = contentColor,
-                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                        borderColor = Color.White.copy(alpha = 0.12f),
                         onClick = { onShare(post.id) }
                     )
                 }
@@ -6333,24 +6355,15 @@ private fun ApiActionButton(
     modifier: Modifier = Modifier,
     icon: @Composable () -> Unit,
     label: String,
-    contentColor: Color,
-    backgroundColor: Color,
-    borderColor: Color,
     onClick: () -> Unit
 ) {
-    Row(
+    Box(
         modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(backgroundColor)
-            .border(1.dp, borderColor, RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 11.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+            .clickable(onClickLabel = label, onClick = onClick)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
     ) {
         icon()
-        Spacer(Modifier.width(6.dp))
-        BasicText(label, style = TextStyle(contentColor, 13.sp, FontWeight.SemiBold))
     }
 }
 
@@ -6394,7 +6407,7 @@ private fun ApiLinkPreview(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(0.dp))
             .background(
                 Brush.linearGradient(
                     listOf(
@@ -6403,7 +6416,7 @@ private fun ApiLinkPreview(
                     )
                 )
             )
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(22.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(0.dp))
             .clickable(onClick = onClick)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -6451,9 +6464,9 @@ private fun ApiPollContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(0.dp))
             .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(22.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(0.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -6468,7 +6481,7 @@ private fun ApiPollContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(0.dp))
                     .background(Color.White.copy(alpha = 0.08f))
                     .clickable(enabled = !hasVoted && !isPollEnded) { onVote(option.id) }
             ) {
@@ -6553,11 +6566,59 @@ private fun isPollExpired(endsAt: String?): Boolean {
 }
 
 private fun formatTimeAgo(dateString: String): String {
-    // Simple time ago formatter - in production use a proper date library
     return try {
-        "Just now" // Simplified - you can add proper date parsing
+        val patterns = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            "yyyy-MM-dd'T'HH:mm:ss"
+        )
+
+        var parsedDate: java.util.Date? = null
+        for (pattern in patterns) {
+            val parser = java.text.SimpleDateFormat(pattern, java.util.Locale.US).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }
+            parsedDate = runCatching { parser.parse(dateString) }.getOrNull()
+            if (parsedDate != null) break
+        }
+
+        val date = parsedDate ?: return dateString
+        val diffMillis = (System.currentTimeMillis() - date.time).coerceAtLeast(0L)
+        val seconds = diffMillis / 1000L
+        val minutes = seconds / 60L
+        val hours = minutes / 60L
+        val days = hours / 24L
+        val weeks = days / 7L
+
+        when {
+            seconds < 60L -> "Just now"
+            minutes < 60L -> "${minutes}m"
+            hours < 24L -> "${hours}h"
+            days < 7L -> "${days}d"
+            weeks < 4L -> "${weeks}w"
+            else -> java.text.SimpleDateFormat("MMM d", java.util.Locale.US).format(date)
+        }
     } catch (e: Exception) {
         dateString
+    }
+}
+
+@Composable
+private fun rememberRelativeTimeLabel(dateString: String) = produceState(
+    initialValue = formatTimeAgo(dateString),
+    key1 = dateString
+) {
+    while (true) {
+        value = formatTimeAgo(dateString)
+        delay(
+            when (value) {
+                "Just now" -> 15_000L
+                else -> 60_000L
+            }
+        )
     }
 }
 
@@ -6576,7 +6637,7 @@ private fun ApiImagePostGrid(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(0.dp))
     ) {
         when (images.size) {
             1 -> {
