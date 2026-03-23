@@ -79,6 +79,11 @@ data class LoginRequest(
 )
 
 @Serializable
+data class ForgotPasswordRequest(
+    val email: String
+)
+
+@Serializable
 data class RegisterRequest(
     val email: String,
     val password: String,
@@ -129,6 +134,11 @@ data class ApiError(
 ) {
     fun getErrorMessage(): String = error ?: message ?: "Unknown error"
 }
+
+@Serializable
+data class MessageResponse(
+    val message: String = ""
+)
 
 // Comment models
 @Serializable

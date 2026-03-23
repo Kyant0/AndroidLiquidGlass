@@ -138,7 +138,23 @@ object ApiClient {
             Result.failure(e)
         }
     }
-    
+
+    suspend fun forgotPassword(email: String): Result<MessageResponse> {
+        return try {
+            val response = client.post("$BASE_URL/auth/forgot-password") {
+                setBody(ForgotPasswordRequest(email))
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // Register new user
     suspend fun register(
         email: String,

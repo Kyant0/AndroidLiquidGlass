@@ -2,6 +2,7 @@ package com.kyant.backdrop.catalog.linkedin
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -108,6 +109,7 @@ import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.components.LiquidBottomTab
 import com.kyant.backdrop.catalog.components.LiquidBottomTabs
 import com.kyant.backdrop.catalog.components.LiquidButton
+import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.models.Comment
 import com.kyant.backdrop.catalog.network.models.FullProfileResponse
 import com.kyant.backdrop.catalog.network.models.PollOption
@@ -135,7 +137,6 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.catalog.data.SettingsPreferences
 import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
-import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.kyant.backdrop.catalog.chat.ChatViewModel
@@ -349,6 +350,7 @@ fun LinkedInContent(
 ) {
     val context = LocalContext.current
     val activity = context.findActivity()
+    val appScope = rememberCoroutineScope()
     val viewModel: FeedViewModel = viewModel(factory = FeedViewModel.Factory(context))
     val uiState by viewModel.uiState.collectAsState()
     
@@ -630,6 +632,27 @@ fun LinkedInContent(
                     error = uiState.error,
                     onLogin = { email, password -> viewModel.login(email, password) },
                     onGoogleSignIn = { activity?.let { viewModel.googleSignIn(it) } },
+                    onForgotPassword = { email ->
+                        appScope.launch {
+                            ApiClient.forgotPassword(email)
+                                .onSuccess { response ->
+                                    Toast.makeText(
+                                        context,
+                                        response.message.ifBlank {
+                                            "Password reset link sent. Check your email."
+                                        },
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                .onFailure { error ->
+                                    Toast.makeText(
+                                        context,
+                                        error.message ?: "Could not send reset email",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                        }
+                    },
                     onSignUpClick = { viewModel.showSignUp() },
                     onClearError = { viewModel.clearError() }
                 )
@@ -825,6 +848,7 @@ fun LinkedInContent(
                             if (uiState.isStoryViewerOpen && uiState.storyGroups.isNotEmpty()) {
                                 StoryViewerDialog(
                                     storyGroups = uiState.storyGroups,
+                                    accentColor = accentColor,
                                     initialGroupIndex = uiState.currentStoryGroupIndex,
                                     onDismiss = { viewModel.closeStoryViewer() },
                                     onStoryViewed = { storyId -> viewModel.viewStory(storyId) },
@@ -959,6 +983,7 @@ fun LinkedInContent(
                                 contentColor = contentColor,
                                 accentColor = accentColor,
                                 onNavigateBack = { selectedTab = 0 },
+                                onEditProfile = { showOnboardingScreen = true },
                                 onOpenFeedItem = { item ->
                                     when (item.entityType?.lowercase()) {
                                         "reel" -> {
@@ -2256,6 +2281,8 @@ private fun FeedScreen(
     onTopNetworkersClick: () -> Unit = {}
 ) {
     val listState = rememberLazyListState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
     var isRefreshing by remember { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
@@ -2522,7 +2549,25 @@ private fun FeedScreen(
                                     contentColor = contentColor,
                                     accentColor = accentColor,
                                     onMatchClick = { userId -> onProfileClick(userId) },
-                                    onConnect = { /* TODO: Send connection request */ },
+                                    onConnect = { userId ->
+                                        scope.launch {
+                                            ApiClient.sendConnectionRequest(context, userId)
+                                                .onSuccess {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Connection request sent",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                                .onFailure { error ->
+                                                    Toast.makeText(
+                                                        context,
+                                                        error.message ?: "Could not send request",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                        }
+                                    },
                                     onSeeAll = onNavigateToFindPeople
                                 )
                             }
@@ -2585,7 +2630,25 @@ private fun FeedScreen(
                             contentColor = contentColor,
                             accentColor = accentColor,
                             onMatchClick = { userId -> onProfileClick(userId) },
-                            onConnect = { /* TODO: Send connection request */ },
+                            onConnect = { userId ->
+                                scope.launch {
+                                    ApiClient.sendConnectionRequest(context, userId)
+                                        .onSuccess {
+                                            Toast.makeText(
+                                                context,
+                                                "Connection request sent",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                        .onFailure { error ->
+                                            Toast.makeText(
+                                                context,
+                                                error.message ?: "Could not send request",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                }
+                            },
                             onSeeAll = onNavigateToFindPeople
                         )
                     }
@@ -5262,9 +5325,11 @@ private fun LoginScreen(
     error: String?,
     onLogin: (String, String) -> Unit,
     onGoogleSignIn: () -> Unit,
+    onForgotPassword: (String) -> Unit,
     onSignUpClick: () -> Unit,
     onClearError: () -> Unit
 ) {
+    val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     
@@ -5471,7 +5536,18 @@ private fun LoginScreen(
                 BasicText(
                     "Forgot password?",
                     modifier = Modifier
-                        .clickable { /* TODO: Navigate to forgot password */ }
+                        .clickable {
+                            val trimmedEmail = email.trim()
+                            if (trimmedEmail.isBlank()) {
+                                Toast.makeText(
+                                    context,
+                                    "Enter your email first",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                onForgotPassword(trimmedEmail)
+                            }
+                        }
                         .padding(vertical = 8.dp),
                     style = TextStyle(accentColor, 14.sp, FontWeight.Medium)
                 )

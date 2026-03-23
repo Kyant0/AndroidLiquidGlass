@@ -5,6 +5,19 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
+fun secret(name: String): String? = providers.gradleProperty(name).orNull ?: System.getenv(name)
+
+val releaseStoreFilePath = secret("VORMEX_RELEASE_STORE_FILE")
+val releaseStorePassword = secret("VORMEX_RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = secret("VORMEX_RELEASE_KEY_ALIAS")
+val releaseKeyPassword = secret("VORMEX_RELEASE_KEY_PASSWORD")
+val hasReleaseSigning = listOf(
+    releaseStoreFilePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+).all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.kyant.backdrop.catalog"
     compileSdk {
@@ -13,11 +26,13 @@ android {
     buildToolsVersion = "36.1.0"
 
     signingConfigs {
-        create("release") {
-            storeFile = file("../keystore/vormex-release.keystore")
-            storePassword = "vormex123"
-            keyAlias = "vormex"
-            keyPassword = "vormex123"
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStoreFilePath!!)
+                storePassword = releaseStorePassword!!
+                keyAlias = releaseKeyAlias!!
+                keyPassword = releaseKeyPassword!!
+            }
         }
     }
 
@@ -38,7 +53,9 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             vcsInfo.include = false
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     buildFeatures {

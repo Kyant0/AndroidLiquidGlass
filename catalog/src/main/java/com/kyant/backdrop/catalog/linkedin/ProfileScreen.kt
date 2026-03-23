@@ -122,6 +122,7 @@ fun ProfileScreen(
     contentColor: Color,
     accentColor: Color,
     onNavigateBack: () -> Unit = {},
+    onEditProfile: () -> Unit = {},
     onMessage: (String) -> Unit = {},
     onOpenFeedItem: (FeedItem) -> Unit = {}
 ) {
@@ -220,6 +221,7 @@ fun ProfileScreen(
                     isDarkTheme = isDarkTheme,
                     showBackButton = userId != null,
                     onNavigateBack = onNavigateBack,
+                    onEditProfile = onEditProfile,
                     onConnect = { viewModel.sendConnectionRequest() },
                     onCancelRequest = { viewModel.cancelConnectionRequest() },
                     onAcceptRequest = { viewModel.acceptConnectionRequest() },
@@ -652,6 +654,7 @@ private fun ProfileContent(
     isDarkTheme: Boolean,
     showBackButton: Boolean = false,
     onNavigateBack: () -> Unit = {},
+    onEditProfile: () -> Unit = {},
     onConnect: () -> Unit,
     onCancelRequest: () -> Unit,
     onAcceptRequest: () -> Unit,
@@ -800,14 +803,15 @@ private fun ProfileContent(
                 mutualConnectionsCount = uiState.mutualConnectionsCount,
                 isUploadingAvatar = uiState.isUploadingAvatar,
                 isUploadingBanner = uiState.isUploadingBanner,
+                onEditProfile = onEditProfile,
                 onConnect = onConnect,
                 onCancelRequest = onCancelRequest,
                 onAcceptRequest = onAcceptRequest,
                 onRemoveConnection = onRemoveConnection,
-                    onToggleFollow = onToggleFollow,
-                    onMessage = onMessage,
-                    onUploadAvatar = onUploadAvatar,
-                    onUploadBanner = onUploadBanner
+                onToggleFollow = onToggleFollow,
+                onMessage = onMessage,
+                onUploadAvatar = onUploadAvatar,
+                onUploadBanner = onUploadBanner
             )
         }
         
@@ -1006,6 +1010,7 @@ private fun ProfileHeader(
     mutualConnectionsCount: Int,
     isUploadingAvatar: Boolean = false,
     isUploadingBanner: Boolean = false,
+    onEditProfile: () -> Unit = {},
     onConnect: () -> Unit,
     onCancelRequest: () -> Unit,
     onAcceptRequest: () -> Unit,
@@ -1334,7 +1339,7 @@ private fun ProfileHeader(
                                 Modifier
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(accentColor)
-                                    .clickable { /* TODO: Edit profile */ }
+                                    .clickable(onClick = onEditProfile)
                                     .padding(horizontal = 16.dp, vertical = 8.dp)
                             ) {
                                 BasicText(
@@ -1644,7 +1649,7 @@ private fun ProfileHeader(
                             icon = "in",
                             label = "LinkedIn",
                             url = url,
-                            accentColor = Color(0xFF0A66C2)
+                            accentColor = accentColor
                         )
                     }
                     user.githubProfileUrl?.let { url ->

@@ -81,6 +81,7 @@ data class StoryViewerUser(
 @Composable
 fun StoryViewerDialog(
     storyGroups: List<StoryGroup>,
+    accentColor: Color,
     initialGroupIndex: Int,
     onDismiss: () -> Unit,
     onStoryViewed: (String) -> Unit,
@@ -105,6 +106,7 @@ fun StoryViewerDialog(
     ) {
         StoryViewer(
             storyGroups = storyGroups,
+            accentColor = accentColor,
             initialGroupIndex = initialGroupIndex,
             onDismiss = onDismiss,
             onStoryViewed = onStoryViewed,
@@ -118,6 +120,7 @@ fun StoryViewerDialog(
 @Composable
 private fun StoryViewer(
     storyGroups: List<StoryGroup>,
+    accentColor: Color,
     initialGroupIndex: Int,
     onDismiss: () -> Unit,
     onStoryViewed: (String) -> Unit,
@@ -153,6 +156,7 @@ private fun StoryViewer(
             val storyGroup = storyGroups[groupIndex]
             StoryGroupViewer(
                 storyGroup = storyGroup,
+                accentColor = accentColor,
                 isCurrentGroup = pagerState.currentPage == groupIndex,
                 onDismiss = onDismiss,
                 onStoryViewed = onStoryViewed,
@@ -214,6 +218,7 @@ private fun StoryViewer(
 @Composable
 private fun StoryGroupViewer(
     storyGroup: StoryGroup,
+    accentColor: Color,
     isCurrentGroup: Boolean,
     onDismiss: () -> Unit,
     onStoryViewed: (String) -> Unit,
@@ -645,7 +650,7 @@ private fun StoryGroupViewer(
                                         .size(44.dp)
                                         .clip(CircleShape)
                                         .background(
-                                            if (replyText.isNotBlank()) Color(0xFF0A66C2) 
+                                            if (replyText.isNotBlank()) accentColor
                                             else Color.White.copy(alpha = 0.2f)
                                         )
                                         .clickable(enabled = replyText.isNotBlank()) {
