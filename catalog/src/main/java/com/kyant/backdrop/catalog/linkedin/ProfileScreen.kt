@@ -123,7 +123,7 @@ fun ProfileScreen(
     accentColor: Color,
     onNavigateBack: () -> Unit = {},
     onMessage: (String) -> Unit = {},
-    onOpenPost: (String) -> Unit = {}
+    onOpenFeedItem: (FeedItem) -> Unit = {}
 ) {
     val context = LocalContext.current
     val viewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory(context))
@@ -235,7 +235,8 @@ fun ProfileScreen(
                     onBioChange = { viewModel.updateEditedBio(it) },
                     onToggleOpenToWork = { viewModel.updateOpenToOpportunities(it) },
                     onMessage = onMessage,
-                    onOpenPost = onOpenPost,
+                    onOpenFeedItem = onOpenFeedItem,
+                    onVotePoll = { postId, optionId -> viewModel.votePoll(postId, optionId) },
                     onUploadAvatar = { viewModel.uploadAvatar(it) },
                     onUploadBanner = { viewModel.uploadBanner(it) },
                     // Project callbacks
@@ -666,7 +667,8 @@ private fun ProfileContent(
     onBioChange: (String) -> Unit,
     onToggleOpenToWork: (Boolean) -> Unit,
     onMessage: (String) -> Unit,
-    onOpenPost: (String) -> Unit,
+    onOpenFeedItem: (FeedItem) -> Unit,
+    onVotePoll: (String, String) -> Unit,
     onUploadAvatar: (ByteArray) -> Unit,
     onUploadBanner: (ByteArray) -> Unit,
     // Project callbacks
@@ -975,7 +977,8 @@ private fun ProfileContent(
                 isOwner = uiState.isOwner,
                 onFilterChange = onFilterChange,
                 onLoadMore = onLoadMore,
-                onPostClick = onOpenPost,
+                onOpenItem = onOpenFeedItem,
+                onVotePoll = onVotePoll,
                 onDeletePost = onDeleteFeedPost
             )
         }

@@ -253,6 +253,72 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
         }
     }
 
+    fun votePoll(postId: String, optionId: String) {
+        val currentItem = _uiState.value.feedItems.find { it.id == postId } ?: return
+        if (currentItem.userVotedOptionId != null || currentItem.pollOptions.isEmpty()) return
+
+        val originalOptions = currentItem.pollOptions
+        val optimisticOptions = originalOptions.map { option ->
+            if (option.id == optionId) option.copy(votes = option.votes + 1, hasVoted = true) else option
+        }
+        val totalVotes = optimisticOptions.sumOf { it.votes }
+        val optionsWithPercentages = optimisticOptions.map { option ->
+            option.copy(
+                percentage = if (totalVotes > 0) {
+                    (option.votes.toDouble() / totalVotes.toDouble()) * 100.0
+                } else {
+                    0.0
+                },
+                hasVoted = option.id == optionId
+            )
+        }
+
+        _uiState.value = _uiState.value.copy(
+            feedItems = _uiState.value.feedItems.map { item ->
+                if (item.id == postId) {
+                    item.copy(
+                        pollOptions = optionsWithPercentages,
+                        userVotedOptionId = optionId
+                    )
+                } else {
+                    item
+                }
+            }
+        )
+
+        viewModelScope.launch {
+            PostsApiService.votePoll(context, postId, optionId)
+                .onSuccess { response ->
+                    _uiState.value = _uiState.value.copy(
+                        feedItems = _uiState.value.feedItems.map { item ->
+                            if (item.id == postId) {
+                                item.copy(
+                                    pollOptions = response.pollOptions,
+                                    userVotedOptionId = response.userVotedOptionId ?: optionId
+                                )
+                            } else {
+                                item
+                            }
+                        }
+                    )
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        feedItems = _uiState.value.feedItems.map { item ->
+                            if (item.id == postId) {
+                                item.copy(
+                                    pollOptions = originalOptions,
+                                    userVotedOptionId = currentItem.userVotedOptionId
+                                )
+                            } else {
+                                item
+                            }
+                        }
+                    )
+                }
+        }
+    }
+
     fun deleteFeedPost(postId: String, onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
         viewModelScope.launch {
             PostsApiService.deletePost(context, postId)

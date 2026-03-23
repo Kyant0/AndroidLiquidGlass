@@ -35,7 +35,10 @@ object SettingsPreferences {
     private val DISCOVERABLE_BY_PHONE = booleanPreferencesKey("discoverable_by_phone")
     
     // ==================== APPEARANCE SETTINGS ====================
-    private val THEME_MODE = stringPreferencesKey("theme_mode") // "light", "dark", "system"
+    private val THEME_MODE = stringPreferencesKey("theme_mode") // "glass", "light", "dark"
+    private val GLASS_BACKGROUND_PRESET = stringPreferencesKey("glass_background_preset")
+    private val ACCENT_PALETTE = stringPreferencesKey("accent_palette")
+    private val GLASS_MOTION_STYLE = stringPreferencesKey("glass_motion_style")
     private val DYNAMIC_COLORS = booleanPreferencesKey("dynamic_colors")
     private val FONT_SIZE = stringPreferencesKey("font_size") // "small", "medium", "large"
     private val REDUCE_ANIMATIONS = booleanPreferencesKey("reduce_animations")
@@ -99,6 +102,15 @@ object SettingsPreferences {
     
     fun themeMode(context: Context): Flow<String> =
         context.settingsDataStore.data.map { it[THEME_MODE] ?: "glass" }
+
+    fun glassBackgroundPreset(context: Context): Flow<String> =
+        context.settingsDataStore.data.map { it[GLASS_BACKGROUND_PRESET] ?: "wallpaper" }
+
+    fun accentPalette(context: Context): Flow<String> =
+        context.settingsDataStore.data.map { it[ACCENT_PALETTE] ?: "linkedin" }
+
+    fun glassMotionStyle(context: Context): Flow<String> =
+        context.settingsDataStore.data.map { it[GLASS_MOTION_STYLE] ?: "float" }
     
     fun dynamicColors(context: Context): Flow<Boolean> =
         context.settingsDataStore.data.map { it[DYNAMIC_COLORS] ?: true }
@@ -185,6 +197,18 @@ object SettingsPreferences {
     
     suspend fun setThemeMode(context: Context, value: String) {
         context.settingsDataStore.edit { it[THEME_MODE] = value }
+    }
+
+    suspend fun setGlassBackgroundPreset(context: Context, value: String) {
+        context.settingsDataStore.edit { it[GLASS_BACKGROUND_PRESET] = value }
+    }
+
+    suspend fun setAccentPalette(context: Context, value: String) {
+        context.settingsDataStore.edit { it[ACCENT_PALETTE] = value }
+    }
+
+    suspend fun setGlassMotionStyle(context: Context, value: String) {
+        context.settingsDataStore.edit { it[GLASS_MOTION_STYLE] = value }
     }
     
     suspend fun setDynamicColors(context: Context, value: Boolean) {

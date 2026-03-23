@@ -63,8 +63,11 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
+import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Locale
+import java.util.TimeZone
 
 // ==================== Section Card Wrapper ====================
 
@@ -2483,7 +2486,8 @@ fun ActivityFeedSection(
     isOwner: Boolean,
     onFilterChange: (String) -> Unit,
     onLoadMore: () -> Unit,
-    onPostClick: (String) -> Unit,
+    onOpenItem: (FeedItem) -> Unit,
+    onVotePoll: (String, String) -> Unit,
     onDeletePost: (String) -> Unit
 ) {
     val filters = listOf(
@@ -2548,7 +2552,8 @@ fun ActivityFeedSection(
                             contentColor = contentColor,
                             accentColor = accentColor,
                             isOwner = isOwner,
-                            onOpenItem = onPostClick,
+                            onOpenItem = onOpenItem,
+                            onVotePoll = onVotePoll,
                             onDeletePost = onDeletePost
                         )
                     }
@@ -2594,14 +2599,20 @@ private fun FeedItemCard(
     contentColor: Color,
     accentColor: Color,
     isOwner: Boolean,
-    onOpenItem: (String) -> Unit,
+    onOpenItem: (FeedItem) -> Unit,
+    onVotePoll: (String, String) -> Unit,
     onDeletePost: (String) -> Unit
 ) {
-    val canDelete = item.contentType == "post" || item.contentType == "article" || item.contentType == "short_video"
+    val canDelete = item.entityType == "post"
+    val canOpen = item.entityType == "post" || item.entityType == "reel"
     val mediaItems = when {
         !item.images.isNullOrEmpty() -> item.images
         !item.mediaUrls.isNullOrEmpty() -> item.mediaUrls
         else -> emptyList()
+    }
+    val previewMediaItems = when {
+        !item.videoThumbnail.isNullOrBlank() && mediaItems.isEmpty() -> listOf(item.videoThumbnail)
+        else -> mediaItems
     }
     var showMenu by remember { mutableStateOf(false) }
 
@@ -2622,7 +2633,7 @@ private fun FeedItemCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(contentColor.copy(alpha = 0.05f))
-            .clickable { onOpenItem(item.id) }
+            .clickable(enabled = canOpen) { onOpenItem(item) }
             .padding(12.dp)
     ) {
         Column {
@@ -2692,12 +2703,61 @@ private fun FeedItemCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+
+            if (item.postType?.equals("POLL", ignoreCase = true) == true && item.pollOptions.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                ActivityPollPreview(
+                    options = item.pollOptions,
+                    endsAt = item.pollEndsAt,
+                    userVotedOptionId = item.userVotedOptionId,
+                    showResultsBeforeVote = item.showResultsBeforeVote,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    onVote = { optionId -> onVotePoll(item.id, optionId) }
+                )
+            } else if (!item.linkUrl.isNullOrBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(contentColor.copy(alpha = 0.04f))
+                        .border(1.dp, contentColor.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                        .padding(12.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        BasicText(
+                            text = item.linkTitle ?: item.linkUrl ?: "Open link",
+                            style = TextStyle(contentColor, 13.sp, FontWeight.Medium),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        item.linkDomain?.let { domain ->
+                            BasicText(
+                                text = domain,
+                                style = TextStyle(accentColor, 12.sp)
+                            )
+                        }
+                        item.linkDescription?.takeIf { it.isNotBlank() }?.let { description ->
+                            BasicText(
+                                text = description,
+                                style = TextStyle(contentColor.copy(alpha = 0.65f), 12.sp),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
             
             // Display media preview (images/videos)
-            if (mediaItems.isNotEmpty()) {
+            if (previewMediaItems.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
-                val isVideo = item.contentType == "short_video"
-                val imageCount = mediaItems.size
+                val isVideo =
+                    item.contentType == "short_video" ||
+                    item.postType?.equals("VIDEO", ignoreCase = true) == true ||
+                    item.entityType == "reel"
+                val imageCount = previewMediaItems.size
                 
                 if (imageCount == 1) {
                     // Single image/video
@@ -2709,7 +2769,7 @@ private fun FeedItemCard(
                     ) {
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
-                                .data(mediaItems.first())
+                                .data(previewMediaItems.first())
                                 .crossfade(true)
                                 .build(),
                             contentDescription = if (isVideo) "Video thumbnail" else "Post image",
@@ -2752,8 +2812,8 @@ private fun FeedItemCard(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // Show first 2-3 images
-                        mediaItems.take(3).forEachIndexed { index, imageUrl ->
-                            val isLastVisible = index == 2 || index == mediaItems.lastIndex
+                        previewMediaItems.take(3).forEachIndexed { index, imageUrl ->
+                            val isLastVisible = index == 2 || index == previewMediaItems.lastIndex
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -2822,6 +2882,106 @@ private fun FeedItemCard(
             }
         }
     }
+}
+
+@Composable
+private fun ActivityPollPreview(
+    options: List<PollOption>,
+    endsAt: String?,
+    userVotedOptionId: String?,
+    showResultsBeforeVote: Boolean,
+    contentColor: Color,
+    accentColor: Color,
+    onVote: (String) -> Unit
+) {
+    val hasVoted = userVotedOptionId != null
+    val showResults = hasVoted || showResultsBeforeVote
+    val isPollEnded = isProfilePollExpired(endsAt)
+    val totalVotes = options.sumOf { it.votes }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.take(4).forEach { option ->
+            val isSelected = option.id == userVotedOptionId
+            val percentage = if (showResults) option.percentage else 0.0
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(contentColor.copy(alpha = 0.05f))
+                    .clickable(enabled = !hasVoted && !isPollEnded) { onVote(option.id) }
+            ) {
+                if (showResults) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth((percentage / 100.0).toFloat().coerceIn(0f, 1f))
+                            .height(42.dp)
+                            .background(
+                                if (isSelected) accentColor.copy(alpha = 0.22f)
+                                else contentColor.copy(alpha = 0.06f)
+                            )
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BasicText(
+                        text = option.text,
+                        style = TextStyle(
+                            color = if (isSelected) accentColor else contentColor,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (showResults) {
+                        BasicText(
+                            text = "${percentage.toInt()}%",
+                            style = TextStyle(contentColor.copy(alpha = 0.6f), 11.sp, FontWeight.Medium)
+                        )
+                    }
+                }
+            }
+        }
+
+        BasicText(
+            text = if (isPollEnded) {
+                "$totalVotes vote${if (totalVotes == 1) "" else "s"} • Poll ended"
+            } else {
+                "$totalVotes vote${if (totalVotes == 1) "" else "s"}"
+            },
+            style = TextStyle(contentColor.copy(alpha = 0.55f), 11.sp)
+        )
+    }
+}
+
+private fun isProfilePollExpired(endsAt: String?): Boolean {
+    if (endsAt.isNullOrBlank()) return false
+
+    val formats = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXX"
+    )
+
+    for (pattern in formats) {
+        val parser = SimpleDateFormat(pattern, Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        val parsed = runCatching { parser.parse(endsAt) }.getOrNull()
+        if (parsed != null) {
+            return parsed.time < System.currentTimeMillis()
+        }
+    }
+
+    return false
 }
 
 // ==================== Helper Components ====================

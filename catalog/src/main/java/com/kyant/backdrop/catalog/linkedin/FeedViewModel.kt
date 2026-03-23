@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.PostsApiService
 import com.kyant.backdrop.catalog.network.GoogleAuthHelper
+import com.kyant.backdrop.catalog.network.PostSocketManager
 import com.kyant.backdrop.catalog.network.models.FullComment
 import com.kyant.backdrop.catalog.network.models.FullPost
 import com.kyant.backdrop.catalog.network.models.MentionUser
@@ -23,6 +24,7 @@ import com.kyant.backdrop.catalog.network.models.User
 import com.kyant.backdrop.catalog.network.models.Connection
 import com.kyant.backdrop.catalog.notifications.PushTokenRegistrar
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -96,18 +98,51 @@ private fun diversifyFeed(posts: List<Post>, userId: String?): List<Post> {
 // Helper to convert FullPost to Post for FeedUiState compatibility
 private fun FullPost.toPost(): Post = Post(
     id = id,
+    kind = kind,
     type = type,
     authorId = authorId,
     author = author,
     content = content,
+    contentType = contentType,
+    mentions = mentions,
     mediaUrls = mediaUrls,
+    mediaCount = mediaCount,
     videoUrl = videoUrl,
+    videoThumbnail = videoThumbnail,
+    videoDuration = videoDuration,
+    videoSize = videoSize,
+    videoFormat = videoFormat,
+    documentUrl = documentUrl,
+    documentName = documentName,
+    documentType = documentType,
+    documentSize = documentSize,
+    documentPages = documentPages,
+    documentThumbnail = documentThumbnail,
+    linkUrl = linkUrl,
+    linkTitle = linkTitle,
+    linkDescription = linkDescription,
+    linkImage = linkImage,
+    linkDomain = linkDomain,
+    articleTitle = articleTitle,
+    articleCoverImage = articleCoverImage,
+    articleReadTime = articleReadTime,
+    articleTags = articleTags,
+    pollDuration = pollDuration,
+    pollEndsAt = pollEndsAt,
+    pollOptions = pollOptions,
+    userVotedOptionId = userVotedOptionId,
+    showResultsBeforeVote = showResultsBeforeVote,
+    celebrationType = celebrationType,
+    celebrationMeta = celebrationMeta,
+    celebrationBadge = celebrationBadge,
     likesCount = likesCount,
     commentsCount = commentsCount,
     sharesCount = sharesCount,
     savesCount = savesCount,
     isLiked = isLiked,
     isSaved = isSaved,
+    userReactionType = userReactionType,
+    reactionSummary = reactionSummary,
     visibility = visibility,
     createdAt = createdAt,
     updatedAt = updatedAt
@@ -211,7 +246,126 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     private var isStreakRequestInFlight = false
     
     init {
+        observePostRealtime()
         checkLoginStatus()
+    }
+
+    private fun observePostRealtime() {
+        viewModelScope.launch {
+            PostSocketManager.postCreatedFlow.collectLatest { post ->
+                _uiState.value = _uiState.value.copy(
+                    posts = listOf(post) + _uiState.value.posts.filterNot { it.id == post.id }
+                )
+            }
+        }
+
+        viewModelScope.launch {
+            PostSocketManager.postLikedFlow.collectLatest { event ->
+                _uiState.value = _uiState.value.copy(
+                    posts = _uiState.value.posts.map { post ->
+                        if (post.id == event.postId) {
+                            post.copy(
+                                likesCount = event.likesCount,
+                                isLiked = if (_uiState.value.currentUserId == event.userId) event.liked else post.isLiked
+                            )
+                        } else {
+                            post
+                        }
+                    }
+                )
+            }
+        }
+
+        viewModelScope.launch {
+            PostSocketManager.postSharedFlow.collectLatest { event ->
+                _uiState.value = _uiState.value.copy(
+                    posts = _uiState.value.posts.map { post ->
+                        if (post.id == event.postId) post.copy(sharesCount = event.sharesCount) else post
+                    }
+                )
+            }
+        }
+
+        viewModelScope.launch {
+            PostSocketManager.commentCreatedFlow.collectLatest { event ->
+                val updatedPosts = _uiState.value.posts.map { post ->
+                    if (post.id == event.postId) post.copy(commentsCount = event.commentsCount) else post
+                }
+                val selectedPostId = _uiState.value.selectedPostId
+                val updatedComments =
+                    if (selectedPostId == event.postId && event.comment != null) {
+                        insertComment(_uiState.value.comments, event.comment)
+                    } else {
+                        _uiState.value.comments
+                    }
+
+                _uiState.value = _uiState.value.copy(
+                    posts = updatedPosts,
+                    comments = updatedComments
+                )
+            }
+        }
+
+        viewModelScope.launch {
+            PostSocketManager.commentLikedFlow.collectLatest { event ->
+                if (_uiState.value.selectedPostId == event.postId) {
+                    _uiState.value = _uiState.value.copy(
+                        comments = updateCommentLike(
+                            _uiState.value.comments,
+                            event.commentId,
+                            event.liked,
+                            event.likesCount
+                        )
+                    )
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            PostSocketManager.commentDeletedFlow.collectLatest { event ->
+                val updatedPosts = _uiState.value.posts.map { post ->
+                    if (post.id == event.postId) post.copy(commentsCount = event.commentsCount) else post
+                }
+                val updatedComments =
+                    if (_uiState.value.selectedPostId == event.postId) {
+                        removeComment(_uiState.value.comments, event.commentId)
+                    } else {
+                        _uiState.value.comments
+                    }
+
+                _uiState.value = _uiState.value.copy(
+                    posts = updatedPosts,
+                    comments = updatedComments
+                )
+            }
+        }
+
+        viewModelScope.launch {
+            PostSocketManager.pollUpdatedFlow.collectLatest { event ->
+                _uiState.value = _uiState.value.copy(
+                    posts = _uiState.value.posts.map { post ->
+                        if (post.id == event.postId) {
+                            post.copy(
+                                pollOptions = event.pollOptions,
+                                userVotedOptionId =
+                                    if (_uiState.value.currentUserId == event.voterId) {
+                                        event.votedOptionId ?: post.userVotedOptionId
+                                    } else {
+                                        post.userVotedOptionId
+                                    }
+                            )
+                        } else {
+                            post
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    private suspend fun ensurePostRealtimeConnected() {
+        val token = ApiClient.getToken(context) ?: return
+        PostSocketManager.connect(token)
     }
     
     fun showLogin() {
@@ -226,6 +380,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             val token = ApiClient.getToken(context)
             if (token != null) {
+                ensurePostRealtimeConnected()
                 _uiState.value = _uiState.value.copy(isLoggedIn = true)
                 loadCurrentUser()
                 loadFeed()
@@ -351,6 +506,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                 .onSuccess { response ->
                     ApiClient.saveToken(context, response.token, response.user.id)
                     PushTokenRegistrar.syncCurrentToken(context)
+                    ensurePostRealtimeConnected()
                     _uiState.value = _uiState.value.copy(
                         isLoggedIn = true,
                         currentUser = response.user,
@@ -381,6 +537,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                 .onSuccess { response ->
                     ApiClient.saveToken(context, response.token, response.user.id)
                     PushTokenRegistrar.syncCurrentToken(context)
+                    ensurePostRealtimeConnected()
                     _uiState.value = _uiState.value.copy(
                         isLoggedIn = true,
                         currentUser = response.user,
@@ -414,6 +571,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         .onSuccess { response ->
                             ApiClient.saveToken(context, response.token, response.user.id)
                             PushTokenRegistrar.syncCurrentToken(context)
+                            ensurePostRealtimeConnected()
                             _uiState.value = _uiState.value.copy(
                                 isLoggedIn = true,
                                 currentUser = response.user,
@@ -449,6 +607,8 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     
     fun logout() {
         viewModelScope.launch {
+            _uiState.value.selectedPostId?.let { PostSocketManager.leavePost(it) }
+            PostSocketManager.disconnect()
             ApiClient.clearToken(context)
             _uiState.value = FeedUiState()
         }
@@ -1267,10 +1427,76 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                 }
         }
     }
+
+    fun votePoll(postId: String, optionId: String) {
+        val currentPost = _uiState.value.posts.find { it.id == postId } ?: return
+        if (currentPost.userVotedOptionId != null) return
+
+        val originalOptions = currentPost.pollOptions
+        val optimisticOptions = originalOptions.map { option ->
+            if (option.id == optionId) option.copy(votes = option.votes + 1, hasVoted = true) else option
+        }
+        val totalVotes = optimisticOptions.sumOf { it.votes }
+        val optionsWithPercentages = optimisticOptions.map { option ->
+            option.copy(
+                percentage = if (totalVotes > 0) (option.votes.toDouble() / totalVotes.toDouble()) * 100.0 else 0.0,
+                hasVoted = option.id == optionId
+            )
+        }
+
+        _uiState.value = _uiState.value.copy(
+            posts = _uiState.value.posts.map { post ->
+                if (post.id == postId) {
+                    post.copy(
+                        pollOptions = optionsWithPercentages,
+                        userVotedOptionId = optionId
+                    )
+                } else {
+                    post
+                }
+            }
+        )
+
+        viewModelScope.launch {
+            PostsApiService.votePoll(context, postId, optionId)
+                .onSuccess { response ->
+                    _uiState.value = _uiState.value.copy(
+                        posts = _uiState.value.posts.map { post ->
+                            if (post.id == postId) {
+                                post.copy(
+                                    pollOptions = response.pollOptions,
+                                    userVotedOptionId = response.userVotedOptionId ?: optionId
+                                )
+                            } else {
+                                post
+                            }
+                        }
+                    )
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        posts = _uiState.value.posts.map { post ->
+                            if (post.id == postId) {
+                                post.copy(
+                                    pollOptions = originalOptions,
+                                    userVotedOptionId = currentPost.userVotedOptionId
+                                )
+                            } else {
+                                post
+                            }
+                        }
+                    )
+                }
+        }
+    }
     
     // Comments functionality
     fun loadComments(postId: String, page: Int = 1) {
         viewModelScope.launch {
+            if (page == 1 && _uiState.value.selectedPostId != postId) {
+                _uiState.value.selectedPostId?.let { PostSocketManager.leavePost(it) }
+                PostSocketManager.joinPost(postId)
+            }
             _uiState.value = _uiState.value.copy(
                 selectedPostId = postId,
                 isLoadingComments = page == 1,
@@ -1317,22 +1543,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             
             PostsApiService.createComment(context, postId, content, parentId, mentions)
                 .onSuccess { newComment ->
-                    // If it's a reply, add to parent's replies
-                    val updatedComments = if (parentId != null) {
-                        _uiState.value.comments.map { comment ->
-                            if (comment.id == parentId) {
-                                comment.copy(
-                                    replies = comment.replies + newComment,
-                                    replyCount = comment.replyCount + 1
-                                )
-                            } else {
-                                comment
-                            }
-                        }
-                    } else {
-                        // Top-level comment, add at top
-                        listOf(newComment) + _uiState.value.comments
-                    }
+                    val updatedComments = insertComment(_uiState.value.comments, newComment)
                     
                     // Update the post's comment count
                     val updatedPosts = _uiState.value.posts.map { post ->
@@ -1386,6 +1597,32 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             }
         }
     }
+
+    private fun insertComment(comments: List<FullComment>, newComment: FullComment): List<FullComment> {
+        if (comments.any { it.id == newComment.id }) return comments
+
+        if (newComment.parentId == null) {
+            return listOf(newComment) + comments
+        }
+
+        return comments.map { comment ->
+            if (comment.id == newComment.parentId) {
+                val updatedReplies =
+                    if (comment.replies.any { it.id == newComment.id }) comment.replies else comment.replies + newComment
+                comment.copy(
+                    replies = updatedReplies,
+                    replyCount = maxOf(comment.replyCount, updatedReplies.size)
+                )
+            } else {
+                val updatedReplies = insertComment(comment.replies, newComment)
+                if (updatedReplies != comment.replies) {
+                    comment.copy(replies = updatedReplies)
+                } else {
+                    comment
+                }
+            }
+        }
+    }
     
     fun deleteComment(commentId: String) {
         val postId = _uiState.value.selectedPostId ?: return
@@ -1415,8 +1652,17 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     }
     
     private fun removeComment(comments: List<FullComment>, commentId: String): List<FullComment> {
-        return comments.filter { it.id != commentId }.map { comment ->
-            comment.copy(replies = removeComment(comment.replies, commentId))
+        return comments.mapNotNull { comment ->
+            if (comment.id == commentId) {
+                null
+            } else {
+                val updatedReplies = removeComment(comment.replies, commentId)
+                val replyRemoved = updatedReplies.size != comment.replies.size
+                comment.copy(
+                    replies = updatedReplies,
+                    replyCount = if (replyRemoved) maxOf(0, comment.replyCount - 1) else comment.replyCount
+                )
+            }
         }
     }
     
@@ -1457,6 +1703,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     }
     
     fun clearComments() {
+        _uiState.value.selectedPostId?.let { PostSocketManager.leavePost(it) }
         _uiState.value = _uiState.value.copy(
             selectedPostId = null,
             comments = emptyList(),
@@ -1577,6 +1824,11 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    override fun onCleared() {
+        _uiState.value.selectedPostId?.let { PostSocketManager.leavePost(it) }
+        super.onCleared()
     }
     
     class Factory(private val context: Context) : ViewModelProvider.Factory {

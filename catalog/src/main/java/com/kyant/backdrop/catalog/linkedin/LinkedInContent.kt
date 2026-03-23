@@ -110,6 +110,7 @@ import com.kyant.backdrop.catalog.components.LiquidBottomTabs
 import com.kyant.backdrop.catalog.components.LiquidButton
 import com.kyant.backdrop.catalog.network.models.Comment
 import com.kyant.backdrop.catalog.network.models.FullProfileResponse
+import com.kyant.backdrop.catalog.network.models.PollOption
 import com.kyant.backdrop.catalog.network.models.Post
 import com.kyant.backdrop.catalog.network.models.StoryGroup
 import com.kyant.backdrop.catalog.chat.ChatTabContent
@@ -353,12 +354,19 @@ fun LinkedInContent(
     
     // Theme preference: "glass", "light", "dark"
     val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
+    val glassBackgroundKey by SettingsPreferences.glassBackgroundPreset(context)
+        .collectAsState(initial = DefaultGlassBackgroundPresetKey)
+    val accentPaletteKey by SettingsPreferences.accentPalette(context)
+        .collectAsState(initial = DefaultAccentPaletteKey)
+    val glassMotionStyleKey by SettingsPreferences.glassMotionStyle(context)
+        .collectAsState(initial = DefaultGlassMotionStyleKey)
+    val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
     val isGlassTheme = themeMode == "glass"
     val isLightTheme = themeMode == "light" || themeMode == "glass"
     val isDarkTheme = themeMode == "dark"
     // Glass and Bright themes use black text, Dark theme uses white text
     val contentColor = if (isDarkTheme) Color.White else Color.Black
-    val accentColor = Color(0xFF0A66C2) // LinkedIn blue
+    val accentColor = glassAccentPalette(accentPaletteKey).color
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var viewingProfileUserId by remember { mutableStateOf<String?>(null) }
@@ -592,14 +600,14 @@ fun LinkedInContent(
     Box(Modifier.fillMaxSize()) {
         // Background based on theme
         if (isGlassTheme) {
-            // Glass theme: show wallpaper background
-            Image(
-                painterResource(R.drawable.wallpaper_light),
-                null,
-                Modifier
+            GlassBackgroundLayer(
+                modifier = Modifier
                     .layerBackdrop(backdrop)
                     .fillMaxSize(),
-                contentScale = ContentScale.Crop
+                backgroundKey = glassBackgroundKey,
+                accentColor = accentColor,
+                motionStyleKey = glassMotionStyleKey,
+                reduceAnimations = reduceAnimations
             )
         } else {
             // Solid color background for Bright/Dark themes
@@ -751,6 +759,9 @@ fun LinkedInContent(
                                 },
                                 onShare = { postId ->
                                     viewModel.showShareModal(postId)
+                                },
+                                onVotePoll = { postId, optionId ->
+                                    viewModel.votePoll(postId, optionId)
                                 },
                                 onProfileClick = { userId ->
                                     viewingProfileUserId = userId
@@ -948,64 +959,76 @@ fun LinkedInContent(
                                 contentColor = contentColor,
                                 accentColor = accentColor,
                                 onNavigateBack = { selectedTab = 0 },
-                                onOpenPost = { postId ->
-                                    selectedTab = 0
-                                    selectedPostForComments = postId
-                                    viewModel.loadComments(postId)
-                                    showCommentsSheet = true
+                                onOpenFeedItem = { item ->
+                                    when (item.entityType?.lowercase()) {
+                                        "reel" -> {
+                                            selectedTab = 0
+                                            reelsViewModel.loadReelById(item.id)
+                                        }
+                                        "post" -> {
+                                            selectedTab = 0
+                                            selectedPostForComments = item.id
+                                            viewModel.loadComments(item.id)
+                                            showCommentsSheet = true
+                                        }
+                                    }
                                 }
                             )
                         }
                     }
 
-                    if (showCommentsSheet && selectedPostForComments != null) {
-                        com.kyant.backdrop.catalog.linkedin.posts.CommentsBottomSheet(
-                            backdrop = backdrop,
-                            contentColor = contentColor,
-                            accentColor = accentColor,
-                            isLightTheme = isLightTheme,
-                            postId = selectedPostForComments!!,
-                            comments = uiState.comments,
-                            isLoading = uiState.isLoadingComments,
-                            isLoadingMore = uiState.isLoadingMoreComments,
-                            isSendingComment = uiState.isSubmittingComment,
-                            hasMoreComments = uiState.hasMoreComments,
-                            currentUserAvatar = uiState.currentUser?.profileImage,
-                            currentUserName = uiState.currentUser?.name ?: "You",
-                            mentionSearchResults = uiState.mentionSearchResults,
-                            isSearchingMentions = uiState.isSearchingMentions,
-                            error = uiState.commentsError,
-                            onDismiss = {
-                                showCommentsSheet = false
-                                viewModel.clearComments()
-                            },
-                            onLoadMore = { viewModel.loadMoreComments() },
-                            onSendComment = { content, parentId ->
-                                selectedPostForComments?.let { postId ->
-                                    viewModel.submitComment(postId, content, parentId)
+                    selectedPostForComments?.let { selectedPostId ->
+                        if (showCommentsSheet) {
+                            com.kyant.backdrop.catalog.linkedin.posts.CommentsBottomSheet(
+                                backdrop = backdrop,
+                                contentColor = contentColor,
+                                accentColor = accentColor,
+                                isLightTheme = isLightTheme,
+                                postId = selectedPostId,
+                                comments = uiState.comments,
+                                isLoading = uiState.isLoadingComments,
+                                isLoadingMore = uiState.isLoadingMoreComments,
+                                isSendingComment = uiState.isSubmittingComment,
+                                hasMoreComments = uiState.hasMoreComments,
+                                currentUserAvatar = uiState.currentUser?.profileImage,
+                                currentUserName = uiState.currentUser?.name ?: "You",
+                                mentionSearchResults = uiState.mentionSearchResults,
+                                isSearchingMentions = uiState.isSearchingMentions,
+                                error = uiState.commentsError,
+                                onDismiss = {
+                                    showCommentsSheet = false
+                                    selectedPostForComments = null
+                                    viewModel.clearComments()
+                                },
+                                onLoadMore = { viewModel.loadMoreComments() },
+                                onSendComment = { content, parentId ->
+                                    selectedPostForComments?.let { postId ->
+                                        viewModel.submitComment(postId, content, parentId)
+                                    }
+                                },
+                                onLikeComment = { commentId ->
+                                    viewModel.toggleCommentLike(commentId)
+                                },
+                                onDeleteComment = { commentId ->
+                                    viewModel.deleteComment(commentId)
+                                },
+                                onSearchMentions = { query ->
+                                    viewModel.searchMentions(query)
+                                },
+                                onClearMentionSearch = {
+                                    viewModel.clearMentionSearch()
+                                },
+                                onClearError = {
+                                    viewModel.clearCommentsError()
+                                },
+                                onProfileClick = { userId ->
+                                    showCommentsSheet = false
+                                    selectedPostForComments = null
+                                    viewModel.clearComments()
+                                    viewingProfileUserId = userId
                                 }
-                            },
-                            onLikeComment = { commentId ->
-                                viewModel.toggleCommentLike(commentId)
-                            },
-                            onDeleteComment = { commentId ->
-                                viewModel.deleteComment(commentId)
-                            },
-                            onSearchMentions = { query ->
-                                viewModel.searchMentions(query)
-                            },
-                            onClearMentionSearch = {
-                                viewModel.clearMentionSearch()
-                            },
-                            onClearError = {
-                                viewModel.clearCommentsError()
-                            },
-                            onProfileClick = { userId ->
-                                showCommentsSheet = false
-                                viewModel.clearComments()
-                                viewingProfileUserId = userId
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -1344,12 +1367,21 @@ fun LinkedInContent(
                                 openChatWithUserId = otherUserId
                                 showMessagesScreen = true
                             },
-                            onOpenPost = { postId ->
-                                viewingProfileUserId = null
-                                selectedTab = 0
-                                selectedPostForComments = postId
-                                viewModel.loadComments(postId)
-                                showCommentsSheet = true
+                            onOpenFeedItem = { item ->
+                                when (item.entityType?.lowercase()) {
+                                    "reel" -> {
+                                        viewingProfileUserId = null
+                                        selectedTab = 0
+                                        reelsViewModel.loadReelById(item.id)
+                                    }
+                                    "post" -> {
+                                        viewingProfileUserId = null
+                                        selectedTab = 0
+                                        selectedPostForComments = item.id
+                                        viewModel.loadComments(item.id)
+                                        showCommentsSheet = true
+                                    }
+                                }
                             }
                         )
                     }
@@ -1452,7 +1484,7 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFF0A66C2)
+                val darkAccentColor = accentColor
                 
                 Box(
                     Modifier
@@ -1493,7 +1525,7 @@ fun LinkedInContent(
             ) {
                 selectedGroupId?.let { groupId ->
                     val darkContentColor = Color.White
-                    val darkAccentColor = Color(0xFF0A66C2)
+                    val darkAccentColor = accentColor
                     
                     Box(
                         Modifier
@@ -1533,7 +1565,7 @@ fun LinkedInContent(
             ) {
                 selectedGroupId?.let { groupId ->
                     val darkContentColor = Color.White
-                    val darkAccentColor = Color(0xFF0A66C2)
+                    val darkAccentColor = accentColor
                     
                     Box(
                         Modifier
@@ -1652,7 +1684,7 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFF0A66C2)
+                val darkAccentColor = accentColor
                 
                 Box(
                     Modifier
@@ -1784,7 +1816,7 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFF0A66C2)
+                val darkAccentColor = accentColor
                 
                 Box(
                     Modifier
@@ -1831,7 +1863,7 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFF0A66C2)
+                val darkAccentColor = accentColor
                 
                 Box(
                     Modifier
@@ -1866,7 +1898,7 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFF0A66C2)
+                val darkAccentColor = accentColor
                 
                 Box(
                     Modifier
@@ -1901,7 +1933,7 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFF0A66C2)
+                val darkAccentColor = accentColor
                 
                 Box(
                     Modifier
@@ -1936,7 +1968,7 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFF0A66C2)
+                val darkAccentColor = accentColor
                 
                 Box(
                     Modifier
@@ -1971,7 +2003,7 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFF0A66C2)
+                val darkAccentColor = accentColor
                 
                 Box(
                     Modifier
@@ -2006,7 +2038,7 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFF0A66C2)
+                val darkAccentColor = accentColor
                 
                 Box(
                     Modifier
@@ -2041,7 +2073,7 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFF0A66C2)
+                val darkAccentColor = accentColor
                 
                 Box(
                     Modifier
@@ -2207,6 +2239,7 @@ private fun FeedScreen(
     onLike: (String) -> Unit = {},
     onComment: (String) -> Unit = {},
     onShare: (String) -> Unit = {},
+    onVotePoll: (String, String) -> Unit = { _, _ -> },
     onProfileClick: (String) -> Unit = {},
     onMenuAction: (String, String) -> Unit = { _, _ -> },
     // Story callbacks
@@ -2521,6 +2554,7 @@ private fun FeedScreen(
                     onLike = onLike,
                     onComment = onComment,
                     onShare = onShare,
+                    onVotePoll = onVotePoll,
                     onProfileClick = { onProfileClick(post.author.id) },
                     onMentionClick = { username -> onProfileClick(username) },
                     onMenuAction = onMenuAction
@@ -5790,6 +5824,7 @@ private fun ApiPostCard(
     onLike: (String) -> Unit,
     onComment: (String) -> Unit = {},
     onShare: (String) -> Unit = {},
+    onVotePoll: (String, String) -> Unit = { _, _ -> },
     onProfileClick: () -> Unit = {},
     onMentionClick: (String) -> Unit = {},
     onMenuAction: (String, String) -> Unit = { _, _ -> }
@@ -5802,6 +5837,7 @@ private fun ApiPostCard(
     // Mention preview state
     var showMentionPreview by remember { mutableStateOf(false) }
     var mentionUsername by remember { mutableStateOf("") }
+    val context = LocalContext.current
     
     // Red color for active likes
     val likeActiveColor = Color(0xFFE53935)
@@ -5967,7 +6003,8 @@ private fun ApiPostCard(
             }
 
             // Media: Video or Image
-            val isVideoPost = post.type == "VIDEO" || !post.videoUrl.isNullOrEmpty()
+            val normalizedPostType = post.type.uppercase()
+            val isVideoPost = normalizedPostType == "VIDEO" || !post.videoUrl.isNullOrEmpty()
             
             if (isVideoPost && !post.videoUrl.isNullOrEmpty()) {
                 // Video player for video posts - full width with original aspect ratio
@@ -5979,7 +6016,7 @@ private fun ApiPostCard(
                     contentColor = contentColor,
                     onFullScreenClick = { showFullScreenVideo = true }
                 )
-            } else if (post.mediaUrls.isNotEmpty()) {
+            } else if (post.mediaUrls.isNotEmpty() && normalizedPostType != "ARTICLE") {
                 // Image grid for image posts
                 ApiImagePostGrid(
                     images = post.mediaUrls,
@@ -5987,6 +6024,35 @@ private fun ApiPostCard(
                         selectedImageIndex = index
                         showImageViewer = true
                     }
+                )
+            }
+
+            if (!post.linkUrl.isNullOrEmpty()) {
+                ApiLinkPreview(
+                    url = post.linkUrl,
+                    title = post.linkTitle,
+                    description = post.linkDescription,
+                    domain = post.linkDomain,
+                    contentColor = contentColor,
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(post.linkUrl))
+                            )
+                        }
+                    }
+                )
+            }
+
+            if ((normalizedPostType == "POLL" || post.pollOptions.isNotEmpty()) && post.pollOptions.isNotEmpty()) {
+                ApiPollContent(
+                    options = post.pollOptions,
+                    endsAt = post.pollEndsAt,
+                    userVotedOptionId = post.userVotedOptionId,
+                    showResultsBeforeVote = post.showResultsBeforeVote,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    onVote = { optionId -> onVotePoll(post.id, optionId) }
                 )
             }
 
@@ -6131,6 +6197,161 @@ private fun ApiActionButton(
         Spacer(Modifier.width(6.dp))
         BasicText(label, style = TextStyle(contentColor.copy(alpha = 0.7f), 13.sp))
     }
+}
+
+@Composable
+private fun ApiLinkPreview(
+    url: String?,
+    title: String?,
+    description: String?,
+    domain: String?,
+    contentColor: Color,
+    onClick: () -> Unit
+) {
+    if (url.isNullOrBlank()) return
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(contentColor.copy(alpha = 0.05f))
+            .clickable(onClick = onClick)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        BasicText(
+            text = title ?: url,
+            style = TextStyle(contentColor, 14.sp, FontWeight.SemiBold),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (!description.isNullOrBlank()) {
+            BasicText(
+                text = description,
+                style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        BasicText(
+            text = domain ?: url,
+            style = TextStyle(contentColor.copy(alpha = 0.55f), 11.sp)
+        )
+    }
+}
+
+@Composable
+private fun ApiPollContent(
+    options: List<PollOption>,
+    endsAt: String?,
+    userVotedOptionId: String?,
+    showResultsBeforeVote: Boolean,
+    contentColor: Color,
+    accentColor: Color,
+    onVote: (String) -> Unit
+) {
+    val hasVoted = userVotedOptionId != null
+    val showResults = hasVoted || showResultsBeforeVote
+    val isPollEnded = isPollExpired(endsAt)
+    val totalVotes = options.sumOf { it.votes }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        options.forEach { option ->
+            val percentage = option.percentage.takeIf { showResults } ?: if (totalVotes > 0) {
+                (option.votes.toDouble() / totalVotes.toDouble()) * 100.0
+            } else {
+                0.0
+            }
+            val isSelected = option.id == userVotedOptionId
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(contentColor.copy(alpha = 0.06f))
+                    .clickable(enabled = !hasVoted && !isPollEnded) { onVote(option.id) }
+            ) {
+                if (showResults) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth((percentage / 100.0).toFloat().coerceIn(0f, 1f))
+                            .height(48.dp)
+                            .background(
+                                if (isSelected) accentColor.copy(alpha = 0.24f)
+                                else contentColor.copy(alpha = 0.08f)
+                            )
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BasicText(
+                        text = option.text,
+                        style = TextStyle(
+                            color = if (isSelected) accentColor else contentColor,
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                        )
+                    )
+                    if (showResults) {
+                        BasicText(
+                            text = "${percentage.toInt()}%",
+                            style = TextStyle(contentColor.copy(alpha = 0.65f), 12.sp, FontWeight.Medium)
+                        )
+                    }
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            BasicText(
+                text = "$totalVotes vote${if (totalVotes == 1) "" else "s"}",
+                style = TextStyle(contentColor.copy(alpha = 0.55f), 11.sp)
+            )
+            BasicText(
+                text = when {
+                    isPollEnded -> "Poll ended"
+                    !endsAt.isNullOrBlank() -> "Poll live"
+                    else -> ""
+                },
+                style = TextStyle(contentColor.copy(alpha = 0.55f), 11.sp)
+            )
+        }
+    }
+}
+
+private fun isPollExpired(endsAt: String?): Boolean {
+    if (endsAt.isNullOrBlank()) return false
+
+    val formats = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXX"
+    )
+
+    for (pattern in formats) {
+        val parser = java.text.SimpleDateFormat(pattern, java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        val parsed = runCatching { parser.parse(endsAt) }.getOrNull()
+        if (parsed != null) {
+            return parsed.time < System.currentTimeMillis()
+        }
+    }
+
+    return false
 }
 
 private fun formatTimeAgo(dateString: String): String {

@@ -1,6 +1,7 @@
 package com.kyant.backdrop.catalog.network.models
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 // ==================== Post Types ====================
 
@@ -109,7 +110,7 @@ data class FullPost(
     
     // Celebration
     val celebrationType: String? = null,
-    val celebrationMeta: String? = null,
+    val celebrationMeta: JsonElement? = null,
     val celebrationBadge: String? = null,
     
     // Visibility and engagement
@@ -193,7 +194,8 @@ data class SaveResponse(
 @Serializable
 data class PollVoteResponse(
     val success: Boolean,
-    val pollOptions: List<PollOption> = emptyList()
+    val pollOptions: List<PollOption> = emptyList(),
+    val userVotedOptionId: String? = null
 )
 
 // ==================== Likes List Response ====================

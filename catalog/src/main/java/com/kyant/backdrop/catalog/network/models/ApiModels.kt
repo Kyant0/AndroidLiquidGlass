@@ -1,6 +1,7 @@
 package com.kyant.backdrop.catalog.network.models
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class Author(
@@ -14,18 +15,51 @@ data class Author(
 @Serializable
 data class Post(
     val id: String,
+    val kind: String = "POST",
     val type: String = "TEXT",
     val authorId: String,
     val author: Author,
     val content: String? = null,
+    val contentType: String = "text/plain",
+    val mentions: List<String> = emptyList(),
     val mediaUrls: List<String> = emptyList(),
+    val mediaCount: Int = 0,
     val videoUrl: String? = null,
+    val videoThumbnail: String? = null,
+    val videoDuration: Int? = null,
+    val videoSize: Long? = null,
+    val videoFormat: String? = null,
+    val documentUrl: String? = null,
+    val documentName: String? = null,
+    val documentType: String? = null,
+    val documentSize: Long? = null,
+    val documentPages: Int? = null,
+    val documentThumbnail: String? = null,
+    val linkUrl: String? = null,
+    val linkTitle: String? = null,
+    val linkDescription: String? = null,
+    val linkImage: String? = null,
+    val linkDomain: String? = null,
+    val articleTitle: String? = null,
+    val articleCoverImage: String? = null,
+    val articleReadTime: Int? = null,
+    val articleTags: List<String> = emptyList(),
+    val pollDuration: Int? = null,
+    val pollEndsAt: String? = null,
+    val pollOptions: List<PollOption> = emptyList(),
+    val userVotedOptionId: String? = null,
+    val showResultsBeforeVote: Boolean = false,
+    val celebrationType: String? = null,
+    val celebrationMeta: JsonElement? = null,
+    val celebrationBadge: String? = null,
     val likesCount: Int = 0,
     val commentsCount: Int = 0,
     val sharesCount: Int = 0,
     val savesCount: Int = 0,
     val isLiked: Boolean = false,
     val isSaved: Boolean = false,
+    val userReactionType: String? = null,
+    val reactionSummary: List<ReactionSummary> = emptyList(),
     val visibility: String = "PUBLIC",
     val createdAt: String,
     val updatedAt: String? = null
@@ -140,8 +174,8 @@ data class CommentLikeResponse(
 // Share models
 @Serializable
 data class ShareResponse(
-    val shareUrl: String,
-    val sharesCount: Int
+    val shareUrl: String? = null,
+    val sharesCount: Int = 0
 )
 
 // Stories models
@@ -772,10 +806,22 @@ data class AchievementsResponse(
 data class FeedItem(
     val id: String,
     val contentType: String,
+    val entityType: String? = null,
+    val postType: String? = null,
     val title: String? = null,
     val content: String = "",
     val images: List<String>? = null,
     val mediaUrls: List<String>? = null,
+    val videoUrl: String? = null,
+    val videoThumbnail: String? = null,
+    val linkUrl: String? = null,
+    val linkTitle: String? = null,
+    val linkDescription: String? = null,
+    val linkDomain: String? = null,
+    val pollOptions: List<PollOption> = emptyList(),
+    val pollEndsAt: String? = null,
+    val userVotedOptionId: String? = null,
+    val showResultsBeforeVote: Boolean = false,
     val tags: List<String>? = null,
     val likesCount: Int = 0,
     val commentsCount: Int = 0,
