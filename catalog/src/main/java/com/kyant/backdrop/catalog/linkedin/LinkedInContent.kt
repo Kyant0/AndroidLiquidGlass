@@ -2346,10 +2346,10 @@ private fun FeedScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             flingBehavior = smoothFlingBehavior
         ) {
-            item { Spacer(Modifier.height(8.dp)) }
+            item { Spacer(Modifier.height(4.dp)) }
         
         // Streak reminder banner at top (urgency driver) - ONLY when at risk
         if (showStreakReminder && connectionStreak > 0) {
@@ -5903,24 +5903,48 @@ private fun ApiPostCard(
     
     // Red color for active likes
     val likeActiveColor = Color(0xFFE53935)
+    val containerShape = RoundedCornerShape(28.dp)
+    val innerSectionShape = RoundedCornerShape(22.dp)
+    val subtleTextColor = contentColor.copy(alpha = 0.62f)
+    val hasMedia = !post.videoUrl.isNullOrEmpty() || post.mediaUrls.isNotEmpty()
+    val hasLinkPreview = !post.linkUrl.isNullOrEmpty()
+    val hasPoll = post.pollOptions.isNotEmpty()
+    val showContentBlock = !post.content.isNullOrBlank()
+    val totalEngagement = post.likesCount + post.commentsCount + post.sharesCount
     
     Box(
         Modifier
             .fillMaxWidth()
+            .padding(horizontal = 4.dp)
+            .clip(containerShape)
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { RoundedRectangle(0f.dp) },
+                shape = { RoundedRectangle(28f.dp) },
                 effects = {
                     vibrancy()
-                    lens(16f.dp.toPx(), 32f.dp.toPx())
+                    blur(18f.dp.toPx())
+                    lens(8f.dp.toPx(), 16f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.16f),
+                                Color.White.copy(alpha = 0.08f),
+                                accentColor.copy(alpha = 0.05f)
+                            )
+                        )
+                    )
                 }
             )
-            .padding(16.dp)
+            .border(1.dp, Color.White.copy(alpha = 0.16f), containerShape)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
             // Author info with menu
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 18.dp, top = 18.dp, end = 12.dp, bottom = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Profile image or initials fallback
@@ -5936,67 +5960,97 @@ private fun ApiPostCard(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .clickable { onProfileClick() },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         Modifier
-                            .size(48.dp)
+                            .size(52.dp)
                             .clip(CircleShape)
-                            .background(accentColor.copy(alpha = 0.8f)),
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        accentColor.copy(alpha = 0.95f),
+                                        accentColor.copy(alpha = 0.55f)
+                                    )
+                                )
+                            )
+                            .padding(2.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (!profileImageUrl.isNullOrEmpty()) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(profileImageUrl)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = "Profile picture of $authorName",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            BasicText(
-                                initials,
-                                style = TextStyle(Color.White, 16.sp, FontWeight.Bold)
-                            )
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (!profileImageUrl.isNullOrEmpty()) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(profileImageUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Profile picture of $authorName",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                BasicText(
+                                    initials,
+                                    style = TextStyle(Color.White, 16.sp, FontWeight.Bold)
+                                )
+                            }
                         }
                     }
                     Spacer(Modifier.width(12.dp))
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         BasicText(
                             post.author.name ?: post.author.username ?: "Unknown",
-                            style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold)
+                            style = TextStyle(contentColor, 16.sp, FontWeight.SemiBold)
                         )
                         post.author.headline?.let { headline ->
                             BasicText(
                                 headline,
-                                style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp),
+                                style = TextStyle(subtleTextColor, 12.sp),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        BasicText(
-                            formatTimeAgo(post.createdAt),
-                            style = TextStyle(contentColor.copy(alpha = 0.5f), 11.sp)
-                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ApiMetricChip(
+                                label = formatTimeAgo(post.createdAt),
+                                contentColor = subtleTextColor,
+                                containerColor = Color.White.copy(alpha = 0.08f)
+                            )
+                            if (hasMedia) {
+                                ApiMetricChip(
+                                    label = if (!post.videoUrl.isNullOrEmpty()) "Video" else "Photo set",
+                                    contentColor = accentColor,
+                                    containerColor = accentColor.copy(alpha = 0.12f),
+                                    borderColor = accentColor.copy(alpha = 0.18f)
+                                )
+                            }
+                        }
                     }
                 }
                 
                 // Menu button (three dots) with SVG icon
                 Box(
                     Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
                         .clickable { showMenu = true }
-                        .padding(4.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     MenuDotsIcon(
                         color = contentColor,
-                        size = 20.dp
+                        size = 18.dp
                     )
                 }
             }
@@ -6051,17 +6105,22 @@ private fun ApiPostCard(
             }
 
             // Post content with mention support
-            post.content?.let { content ->
-                FormattedContent(
-                    content = content,
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    onMentionClick = { username -> onMentionClick(username) },
-                    onMentionLongPress = { username ->
-                        mentionUsername = username
-                        showMentionPreview = true
-                    }
-                )
+            if (showContentBlock) {
+                Column(
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    FormattedContent(
+                        content = post.content.orEmpty(),
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        onMentionClick = { username -> onMentionClick(username) },
+                        onMentionLongPress = { username ->
+                            mentionUsername = username
+                            showMentionPreview = true
+                        }
+                    )
+                }
             }
 
             // Media: Video or Image
@@ -6069,123 +6128,151 @@ private fun ApiPostCard(
             val isVideoPost = normalizedPostType == "VIDEO" || !post.videoUrl.isNullOrEmpty()
             
             if (isVideoPost && !post.videoUrl.isNullOrEmpty()) {
-                // Video player for video posts - full width with original aspect ratio
-                VideoPlayer(
-                    videoUrl = post.videoUrl,
-                    modifier = Modifier.fillMaxWidth(),
-                    autoPlay = false,
-                    showControls = true,
-                    contentColor = contentColor,
-                    onFullScreenClick = { showFullScreenVideo = true }
-                )
+                Box(
+                    Modifier
+                        .padding(horizontal = 10.dp)
+                        .clip(innerSectionShape)
+                        .background(Color.Black.copy(alpha = 0.08f))
+                ) {
+                    VideoPlayer(
+                        videoUrl = post.videoUrl,
+                        modifier = Modifier.fillMaxWidth(),
+                        autoPlay = false,
+                        showControls = true,
+                        contentColor = contentColor,
+                        onFullScreenClick = { showFullScreenVideo = true }
+                    )
+                }
             } else if (post.mediaUrls.isNotEmpty() && normalizedPostType != "ARTICLE") {
-                // Image grid for image posts
-                ApiImagePostGrid(
-                    images = post.mediaUrls,
-                    onImageClick = { index ->
-                        selectedImageIndex = index
-                        showImageViewer = true
-                    }
-                )
+                Box(
+                    Modifier
+                        .padding(horizontal = 10.dp)
+                        .clip(innerSectionShape)
+                        .background(Color.Black.copy(alpha = 0.08f))
+                ) {
+                    ApiImagePostGrid(
+                        images = post.mediaUrls,
+                        onImageClick = { index ->
+                            selectedImageIndex = index
+                            showImageViewer = true
+                        }
+                    )
+                }
             }
 
             if (!post.linkUrl.isNullOrEmpty()) {
-                ApiLinkPreview(
-                    url = post.linkUrl,
-                    title = post.linkTitle,
-                    description = post.linkDescription,
-                    domain = post.linkDomain,
-                    contentColor = contentColor,
-                    onClick = {
-                        runCatching {
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse(post.linkUrl))
-                            )
+                Box(Modifier.padding(horizontal = 12.dp, vertical = if (hasMedia) 14.dp else 0.dp)) {
+                    ApiLinkPreview(
+                        url = post.linkUrl,
+                        title = post.linkTitle,
+                        description = post.linkDescription,
+                        domain = post.linkDomain,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(post.linkUrl))
+                                )
+                            }
                         }
-                    }
-                )
+                    )
+                }
+            } else if (hasMedia) {
+                Spacer(Modifier.height(14.dp))
             }
 
             if ((normalizedPostType == "POLL" || post.pollOptions.isNotEmpty()) && post.pollOptions.isNotEmpty()) {
-                ApiPollContent(
-                    options = post.pollOptions,
-                    endsAt = post.pollEndsAt,
-                    userVotedOptionId = post.userVotedOptionId,
-                    showResultsBeforeVote = post.showResultsBeforeVote,
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    onVote = { optionId -> onVotePoll(post.id, optionId) }
-                )
-            }
-
-            // Engagement stats with SVG icon
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    LikeIcon(
-                        color = if (post.isLiked) likeActiveColor else contentColor.copy(alpha = 0.6f),
-                        size = 14.dp,
-                        filled = post.isLiked
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    BasicText(
-                        "${post.likesCount}",
-                        style = TextStyle(contentColor.copy(alpha = 0.6f), 12.sp)
+                Box(Modifier.padding(horizontal = 12.dp, vertical = if (!hasLinkPreview) 0.dp else 2.dp)) {
+                    ApiPollContent(
+                        options = post.pollOptions,
+                        endsAt = post.pollEndsAt,
+                        userVotedOptionId = post.userVotedOptionId,
+                        showResultsBeforeVote = post.showResultsBeforeVote,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        onVote = { optionId -> onVotePoll(post.id, optionId) }
                     )
                 }
-                Row {
-                    BasicText(
-                        "${post.commentsCount} comments",
-                        style = TextStyle(contentColor.copy(alpha = 0.6f), 12.sp)
-                    )
-                    if (post.sharesCount > 0) {
-                        BasicText(
-                            " • ${post.sharesCount} shares",
-                            style = TextStyle(contentColor.copy(alpha = 0.6f), 12.sp)
+            }
+
+            Column(
+                modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (totalEngagement > 0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ApiMetricChip(
+                            icon = {
+                                LikeIcon(
+                                    color = if (post.isLiked) likeActiveColor else contentColor.copy(alpha = 0.72f),
+                                    size = 13.dp,
+                                    filled = post.isLiked
+                                )
+                            },
+                            label = "${post.likesCount} like${if (post.likesCount == 1) "" else "s"}",
+                            contentColor = contentColor
                         )
+                        ApiMetricChip(
+                            label = "${post.commentsCount} comment${if (post.commentsCount == 1) "" else "s"}",
+                            contentColor = contentColor
+                        )
+                        if (post.sharesCount > 0) {
+                            ApiMetricChip(
+                                label = "${post.sharesCount} share${if (post.sharesCount == 1) "" else "s"}",
+                                contentColor = contentColor
+                            )
+                        }
                     }
+                } else {
+                    BasicText(
+                        "Be the first to react",
+                        style = TextStyle(subtleTextColor, 12.sp, FontWeight.Medium)
+                    )
                 }
-            }
 
-            // Divider
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(contentColor.copy(alpha = 0.1f))
-            )
-
-            // Action buttons with SVG icons
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                ApiActionButton(
-                    icon = { 
-                        LikeIcon(
-                            color = if (post.isLiked) likeActiveColor else contentColor.copy(alpha = 0.7f),
-                            size = 18.dp,
-                            filled = post.isLiked
-                        )
-                    },
-                    label = "Like",
-                    contentColor = if (post.isLiked) likeActiveColor else contentColor,
-                    onClick = { onLike(post.id) }
-                )
-                ApiActionButton(
-                    icon = { CommentIcon(contentColor.copy(alpha = 0.7f), size = 18.dp) },
-                    label = "Comment",
-                    contentColor = contentColor,
-                    onClick = { onComment(post.id) }
-                )
-                ApiActionButton(
-                    icon = { ShareIcon(contentColor.copy(alpha = 0.7f), size = 18.dp) },
-                    label = "Share",
-                    contentColor = contentColor,
-                    onClick = { onShare(post.id) }
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ApiActionButton(
+                        modifier = Modifier.weight(1f),
+                        icon = {
+                            LikeIcon(
+                                color = if (post.isLiked) likeActiveColor else contentColor.copy(alpha = 0.7f),
+                                size = 18.dp,
+                                filled = post.isLiked
+                            )
+                        },
+                        label = "Like",
+                        contentColor = if (post.isLiked) likeActiveColor else contentColor,
+                        backgroundColor = if (post.isLiked) likeActiveColor.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.08f),
+                        borderColor = if (post.isLiked) likeActiveColor.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.12f),
+                        onClick = { onLike(post.id) }
+                    )
+                    ApiActionButton(
+                        modifier = Modifier.weight(1f),
+                        icon = { CommentIcon(contentColor.copy(alpha = 0.72f), size = 18.dp) },
+                        label = "Comment",
+                        contentColor = contentColor,
+                        backgroundColor = Color.White.copy(alpha = 0.08f),
+                        borderColor = Color.White.copy(alpha = 0.12f),
+                        onClick = { onComment(post.id) }
+                    )
+                    ApiActionButton(
+                        modifier = Modifier.weight(1f),
+                        icon = { ShareIcon(contentColor.copy(alpha = 0.72f), size = 18.dp) },
+                        label = "Share",
+                        contentColor = contentColor,
+                        backgroundColor = Color.White.copy(alpha = 0.08f),
+                        borderColor = Color.White.copy(alpha = 0.12f),
+                        onClick = { onShare(post.id) }
+                    )
+                }
             }
         }
     }
@@ -6243,21 +6330,52 @@ private fun ApiPostCard(
 
 @Composable
 private fun ApiActionButton(
+    modifier: Modifier = Modifier,
     icon: @Composable () -> Unit,
     label: String,
     contentColor: Color,
+    backgroundColor: Color,
+    borderColor: Color,
     onClick: () -> Unit
 ) {
     Row(
-        Modifier
-            .clip(RoundedCornerShape(8.dp))
+        modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(backgroundColor)
+            .border(1.dp, borderColor, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         icon()
         Spacer(Modifier.width(6.dp))
-        BasicText(label, style = TextStyle(contentColor.copy(alpha = 0.7f), 13.sp))
+        BasicText(label, style = TextStyle(contentColor, 13.sp, FontWeight.SemiBold))
+    }
+}
+
+@Composable
+private fun ApiMetricChip(
+    icon: (@Composable () -> Unit)? = null,
+    label: String,
+    contentColor: Color,
+    containerColor: Color = Color.White.copy(alpha = 0.08f),
+    borderColor: Color = Color.White.copy(alpha = 0.12f)
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(containerColor)
+            .border(1.dp, borderColor, RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        icon?.invoke()
+        BasicText(
+            label,
+            style = TextStyle(contentColor.copy(alpha = 0.78f), 11.sp, FontWeight.Medium)
+        )
     }
 }
 
@@ -6268,6 +6386,7 @@ private fun ApiLinkPreview(
     description: String?,
     domain: String?,
     contentColor: Color,
+    accentColor: Color,
     onClick: () -> Unit
 ) {
     if (url.isNullOrBlank()) return
@@ -6275,15 +6394,27 @@ private fun ApiLinkPreview(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(contentColor.copy(alpha = 0.05f))
+            .clip(RoundedCornerShape(22.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.08f),
+                        accentColor.copy(alpha = 0.08f)
+                    )
+                )
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(22.dp))
             .clickable(onClick = onClick)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         BasicText(
+            text = domain ?: "Open link",
+            style = TextStyle(accentColor.copy(alpha = 0.9f), 10.sp, FontWeight.SemiBold)
+        )
+        BasicText(
             text = title ?: url,
-            style = TextStyle(contentColor, 14.sp, FontWeight.SemiBold),
+            style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
@@ -6296,8 +6427,8 @@ private fun ApiLinkPreview(
             )
         }
         BasicText(
-            text = domain ?: url,
-            style = TextStyle(contentColor.copy(alpha = 0.55f), 11.sp)
+            text = "Tap to open",
+            style = TextStyle(contentColor.copy(alpha = 0.52f), 11.sp)
         )
     }
 }
@@ -6318,7 +6449,12 @@ private fun ApiPollContent(
     val totalVotes = options.sumOf { it.votes }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(22.dp))
+            .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         options.forEach { option ->
@@ -6333,7 +6469,7 @@ private fun ApiPollContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(contentColor.copy(alpha = 0.06f))
+                    .background(Color.White.copy(alpha = 0.08f))
                     .clickable(enabled = !hasVoted && !isPollEnded) { onVote(option.id) }
             ) {
                 if (showResults) {
@@ -6342,8 +6478,8 @@ private fun ApiPollContent(
                             .fillMaxWidth((percentage / 100.0).toFloat().coerceIn(0f, 1f))
                             .height(48.dp)
                             .background(
-                                if (isSelected) accentColor.copy(alpha = 0.24f)
-                                else contentColor.copy(alpha = 0.08f)
+                                if (isSelected) accentColor.copy(alpha = 0.22f)
+                                else Color.White.copy(alpha = 0.12f)
                             )
                     )
                 }
@@ -6433,11 +6569,15 @@ private fun ApiImagePostGrid(
     images: List<String>,
     onImageClick: (Int) -> Unit
 ) {
-    val spacing = 2.dp
+    val spacing = 3.dp
     val displayImages = images.take(9)
     val extraCount = (images.size - 9).coerceAtLeast(0)
     
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+    ) {
         when (images.size) {
             1 -> {
                 // Single image - full width with actual aspect ratio

@@ -45,6 +45,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.catalog.data.SettingsPreferences
 import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.models.*
 import com.kyant.backdrop.drawBackdrop
@@ -60,6 +61,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 // ==================== RETENTION VIEWMODEL ====================
+
+private const val STAY_ACTIVE_BANNER_DISMISS_WINDOW_MILLIS = 7L * 24L * 60L * 60L * 1000L
 
 // Mock data for when backend is unavailable
 private val mockWeeklyGoals = WeeklyGoalsData(
@@ -2111,136 +2114,128 @@ fun StayActiveBanner(
     onConnect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var dismissed by remember { mutableStateOf(false) }
-    
-    AnimatedVisibility(
-        visible = !dismissed,
-        enter = fadeIn() + expandVertically(),
-        exit = fadeOut() + shrinkVertically()
-    ) {
-        Box(
-            modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(16f.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(16f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    Color(0xFFFF6B35).copy(alpha = 0.15f),
-                                    Color(0xFFFF8C00).copy(alpha = 0.1f)
-                                )
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val dismissedAt by SettingsPreferences.stayActiveBannerDismissedAt(context).collectAsState(initial = 0L)
+    val isVisible = dismissedAt == 0L ||
+        System.currentTimeMillis() - dismissedAt >= STAY_ACTIVE_BANNER_DISMISS_WINDOW_MILLIS
+
+    if (!isVisible) return
+
+    Box(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(16f.dp) },
+                effects = {
+                    vibrancy()
+                    blur(16f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFFFF6B35).copy(alpha = 0.15f),
+                                Color(0xFFFF8C00).copy(alpha = 0.1f)
                             )
                         )
-                    }
-                )
-                .padding(14.dp)
+                    )
+                }
+            )
+            .padding(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    // Animated fire emoji
-                    val infiniteTransition = rememberInfiniteTransition(label = "fire")
-                    val scale by infiniteTransition.animateFloat(
-                        initialValue = 1f,
-                        targetValue = 1.15f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(600, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "fire_pulse"
-                    )
-                    
+                BasicText(
+                    "🔥",
+                    style = TextStyle(fontSize = 20.sp)
+                )
+
+                Column {
                     BasicText(
-                        "🔥",
-                        style = TextStyle(fontSize = (20 * scale).sp)
-                    )
-                    
-                    Column {
-                        BasicText(
-                            "Stay active – connect with someone today",
-                            style = TextStyle(
-                                color = contentColor,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
+                        "Stay active – connect with someone today",
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
                         )
-                        
-                        if (liveActivity.activeNow > 0) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Green pulse dot
-                                Box(
-                                    Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF22C55E))
+                    )
+
+                    if (liveActivity.activeNow > 0) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF22C55E))
+                            )
+                            BasicText(
+                                "${liveActivity.activeNow} people active now",
+                                style = TextStyle(
+                                    color = contentColor.copy(alpha = 0.6f),
+                                    fontSize = 11.sp
                                 )
-                                BasicText(
-                                    "${liveActivity.activeNow} people active now",
-                                    style = TextStyle(
-                                        color = contentColor.copy(alpha = 0.6f),
-                                        fontSize = 11.sp
-                                    )
-                                )
-                            }
+                            )
                         }
                     }
                 }
-                
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(accentColor)
+                        .clickable { onConnect() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    // Connect button
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(accentColor)
-                            .clickable { onConnect() }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        BasicText(
-                            "Connect",
-                            style = TextStyle(
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                    BasicText(
+                        "Connect",
+                        style = TextStyle(
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
-                    }
-                    
-                    // Dismiss button
-                    Box(
-                        Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { dismissed = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        BasicText(
-                            "×",
-                            style = TextStyle(
-                                color = contentColor.copy(alpha = 0.5f),
-                                fontSize = 16.sp
-                            )
+                    )
+                }
+
+                Box(
+                    Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable {
+                            scope.launch {
+                                SettingsPreferences.setStayActiveBannerDismissedAt(
+                                    context,
+                                    System.currentTimeMillis()
+                                )
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    BasicText(
+                        "×",
+                        style = TextStyle(
+                            color = contentColor.copy(alpha = 0.5f),
+                            fontSize = 16.sp
                         )
-                    }
+                    )
                 }
             }
         }

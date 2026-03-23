@@ -42,6 +42,7 @@ object SettingsPreferences {
     private val DYNAMIC_COLORS = booleanPreferencesKey("dynamic_colors")
     private val FONT_SIZE = stringPreferencesKey("font_size") // "small", "medium", "large"
     private val REDUCE_ANIMATIONS = booleanPreferencesKey("reduce_animations")
+    private val STAY_ACTIVE_BANNER_DISMISSED_AT = longPreferencesKey("stay_active_banner_dismissed_at")
     
     // ==================== NOTIFICATION GETTERS ====================
     
@@ -120,6 +121,9 @@ object SettingsPreferences {
     
     fun reduceAnimations(context: Context): Flow<Boolean> =
         context.settingsDataStore.data.map { it[REDUCE_ANIMATIONS] ?: false }
+
+    fun stayActiveBannerDismissedAt(context: Context): Flow<Long> =
+        context.settingsDataStore.data.map { it[STAY_ACTIVE_BANNER_DISMISSED_AT] ?: 0L }
     
     // ==================== NOTIFICATION SETTERS ====================
     
@@ -221,6 +225,10 @@ object SettingsPreferences {
     
     suspend fun setReduceAnimations(context: Context, value: Boolean) {
         context.settingsDataStore.edit { it[REDUCE_ANIMATIONS] = value }
+    }
+
+    suspend fun setStayActiveBannerDismissedAt(context: Context, value: Long) {
+        context.settingsDataStore.edit { it[STAY_ACTIVE_BANNER_DISMISSED_AT] = value }
     }
     
     // ==================== CLEAR ALL ====================

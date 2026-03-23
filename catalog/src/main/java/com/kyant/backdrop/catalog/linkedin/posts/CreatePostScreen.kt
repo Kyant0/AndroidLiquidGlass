@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -14,6 +16,34 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
+import androidx.compose.material.icons.automirrored.outlined.Subject
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
+import androidx.compose.material.icons.outlined.AlternateEmail
+import androidx.compose.material.icons.outlined.Cake
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.FormatBold
+import androidx.compose.material.icons.outlined.FormatItalic
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Poll
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.SmartDisplay
+import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.outlined.Verified
+import androidx.compose.material.icons.outlined.VideoLibrary
+import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material.icons.outlined.Work
+import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,11 +51,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -40,33 +69,73 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.network.models.*
 import com.kyant.shapes.RoundedRectangle
 
 // ==================== UI Styling Constants ====================
-private val NeumorphicBackground = Color(0xFFecf0f3)
 private val PostButtonGradient = Brush.linearGradient(
     colors = listOf(Color(0xFF4B70E2), Color(0xFF3a5bc7))
 )
+
+private fun postTypeSubtitle(type: PostType): String = when (type) {
+    PostType.TEXT -> "Share a thought, update, or quick insight."
+    PostType.IMAGE -> "Tell the story with a gallery and a strong caption."
+    PostType.VIDEO -> "Drop a clip that gets people to stop scrolling."
+    PostType.LINK -> "Recommend something worth opening."
+    PostType.POLL -> "Ask a sharp question and collect answers."
+    PostType.ARTICLE -> "Publish a longer take with depth and structure."
+    PostType.CELEBRATION -> "Mark a win and bring people into the moment."
+    else -> "Share something worth opening."
+}
+
+private fun postTypeSectionTitle(type: PostType): String = when (type) {
+    PostType.IMAGE -> "Visuals"
+    PostType.VIDEO -> "Video"
+    PostType.LINK -> "Link Details"
+    PostType.POLL -> "Poll Setup"
+    PostType.ARTICLE -> "Article Details"
+    PostType.CELEBRATION -> "Celebration"
+    else -> "Content"
+}
 
 // ==================== Post Type Icons (using drawable resources) ====================
 private data class PostTypeConfig(
     val type: PostType,
     val label: String,
-    val iconRes: Int,
-    val emoji: String // Fallback emoji
+    val icon: ImageVector
 )
 
 private val postTypeConfigs = listOf(
-    PostTypeConfig(PostType.TEXT, "Text", R.drawable.ic_file_text, "📝"),
-    PostTypeConfig(PostType.IMAGE, "Image", R.drawable.ic_image, "🖼️"),
-    PostTypeConfig(PostType.VIDEO, "Video", R.drawable.ic_video, "🎥"),
-    PostTypeConfig(PostType.LINK, "Link", R.drawable.ic_link, "🔗"),
-    PostTypeConfig(PostType.POLL, "Poll", R.drawable.ic_poll, "📊"),
-    PostTypeConfig(PostType.ARTICLE, "Article", R.drawable.ic_article, "✨"),
-    PostTypeConfig(PostType.CELEBRATION, "Celebration", R.drawable.ic_celebration, "🏆")
+    PostTypeConfig(PostType.TEXT, "Text", Icons.AutoMirrored.Outlined.Subject),
+    PostTypeConfig(PostType.IMAGE, "Image", Icons.Outlined.Image),
+    PostTypeConfig(PostType.VIDEO, "Video", Icons.Outlined.Videocam),
+    PostTypeConfig(PostType.LINK, "Link", Icons.Outlined.Link),
+    PostTypeConfig(PostType.POLL, "Poll", Icons.Outlined.Poll),
+    PostTypeConfig(PostType.ARTICLE, "Article", Icons.Outlined.Description),
+    PostTypeConfig(PostType.CELEBRATION, "Celebrate", Icons.Outlined.EmojiEvents)
 )
+
+private data class VisibilityOption(
+    val value: String,
+    val label: String,
+    val detail: String,
+    val icon: ImageVector
+)
+
+private val visibilityOptions = listOf(
+    VisibilityOption("PUBLIC", "Anyone", "Visible to everyone", Icons.Outlined.Public),
+    VisibilityOption("CONNECTIONS", "Connections", "Only your network", Icons.Outlined.Groups),
+    VisibilityOption("PRIVATE", "Only me", "Keep this private", Icons.Outlined.Lock)
+)
+
+private fun celebrationTypeIcon(type: CelebrationType): ImageVector = when (type) {
+    CelebrationType.NEW_JOB -> Icons.Outlined.Work
+    CelebrationType.PROMOTION -> Icons.AutoMirrored.Outlined.TrendingUp
+    CelebrationType.GRADUATION -> Icons.Outlined.School
+    CelebrationType.CERTIFICATION -> Icons.Outlined.Verified
+    CelebrationType.WORK_ANNIVERSARY -> Icons.Outlined.StarOutline
+    CelebrationType.BIRTHDAY -> Icons.Outlined.Cake
+}
 
 // ==================== Color Presets ====================
 private val colorPresets = listOf(
@@ -298,62 +367,54 @@ fun CreatePostScreen(
         }
     }
     
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .imePadding()
-            .padding(horizontal = 8.dp)
-            .padding(top = 8.dp, bottom = 80.dp)
     ) {
-        // Main card container - Full page
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(28f.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(20f.dp.toPx())
-                        lens(16f.dp.toPx(), 32f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.22f),
-                                    Color.White.copy(alpha = 0.12f)
-                                )
-                            )
-                        )
-                    }
-                )
-                .padding(16.dp)
+                .size(220.dp)
+                .offset(x = (-48).dp, y = (-32).dp)
+                .clip(CircleShape)
+                .background(accentColor.copy(alpha = 0.12f))
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Header with Post button
-                CreatePostHeader(
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    isCreating = isCreating,
-                    canPost = canPost,
-                    onPost = handleCreatePost
-                )
-                
-                // Post type tabs
-                PostTypeTabs(
-                    selectedType = selectedPostType,
-                    onTypeSelected = { selectedPostType = it },
-                    contentColor = contentColor,
-                    accentColor = accentColor
-                )
-                
-                // User info with visibility selector
+        }
+
+        Box(
+            modifier = Modifier
+                .size(180.dp)
+                .align(Alignment.TopEnd)
+                .offset(x = 56.dp, y = 24.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.08f))
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .padding(bottom = 92.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            CreatePostHeader(
+                selectedType = selectedPostType,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                isCreating = isCreating,
+                canPost = canPost,
+                onPost = handleCreatePost
+            )
+
+            PostTypeTabs(
+                selectedType = selectedPostType,
+                onTypeSelected = { selectedPostType = it },
+                contentColor = contentColor,
+                accentColor = accentColor
+            )
+
+            CreatePostSection(accentColor = accentColor) {
                 UserInfoRow(
                     userName = userName,
                     userAvatar = userAvatar,
@@ -364,8 +425,7 @@ fun CreatePostScreen(
                     contentColor = contentColor,
                     accentColor = accentColor
                 )
-                
-                // Rich text toolbar
+
                 RichTextToolbar(
                     textFieldValue = textFieldValue,
                     onTextFieldValueChange = { textFieldValue = it },
@@ -374,8 +434,7 @@ fun CreatePostScreen(
                     contentColor = contentColor,
                     accentColor = accentColor
                 )
-                
-                // Content text area with mention dropdown
+
                 ContentTextArea(
                     textFieldValue = textFieldValue,
                     onTextFieldValueChange = { textFieldValue = it },
@@ -385,7 +444,6 @@ fun CreatePostScreen(
                     isSearchingMentions = isSearchingMentions,
                     showMentionDropdown = showMentionDropdown,
                     onMentionSelected = { user ->
-                        // Replace @query with @username
                         val text = textFieldValue.text
                         val username = user.username ?: user.name ?: "user"
                         val beforeMention = text.substring(0, mentionStartIndex)
@@ -405,25 +463,30 @@ fun CreatePostScreen(
                     },
                     backdrop = backdrop
                 )
-                
-                // Color picker
-                AnimatedVisibility(visible = showColorPicker) {
+            }
+
+            AnimatedVisibility(visible = showColorPicker) {
+                CreatePostSection(accentColor = accentColor) {
+                    SectionCaption(
+                        title = "Text Color",
+                        subtitle = "Pick a highlight color for the selected text."
+                    )
                     ColorPickerRow(
                         onColorSelected = { hex ->
                             val selection = textFieldValue.selection
                             val text = textFieldValue.text
                             if (selection.length > 0) {
                                 val selectedText = text.substring(selection.start, selection.end)
-                                val newText = text.substring(0, selection.start) + 
-                                    "[color:$hex]$selectedText[/color]" + 
+                                val newText = text.substring(0, selection.start) +
+                                    "[color:$hex]$selectedText[/color]" +
                                     text.substring(selection.end)
                                 textFieldValue = TextFieldValue(
                                     text = newText,
                                     selection = TextRange(selection.start + hex.length + 8 + selectedText.length)
                                 )
                             } else {
-                                val newText = text.substring(0, selection.start) + 
-                                    "[color:$hex][/color]" + 
+                                val newText = text.substring(0, selection.start) +
+                                    "[color:$hex][/color]" +
                                     text.substring(selection.start)
                                 textFieldValue = TextFieldValue(
                                     text = newText,
@@ -435,10 +498,15 @@ fun CreatePostScreen(
                         contentColor = contentColor
                     )
                 }
-                
-                // Type-specific content
-                when (selectedPostType) {
-                    PostType.IMAGE -> ImagePicker(
+            }
+
+            when (selectedPostType) {
+                PostType.IMAGE -> CreatePostSection(accentColor = accentColor) {
+                    SectionCaption(
+                        title = postTypeSectionTitle(selectedPostType),
+                        subtitle = "Add up to 10 images and arrange the story visually."
+                    )
+                    ImagePicker(
                         imageUris = imageUris,
                         onPickImages = { imagePicker.launch("image/*") },
                         onRemoveImage = { index ->
@@ -448,7 +516,13 @@ fun CreatePostScreen(
                         contentColor = contentColor,
                         accentColor = accentColor
                     )
-                    PostType.VIDEO -> VideoPicker(
+                }
+                PostType.VIDEO -> CreatePostSection(accentColor = accentColor) {
+                    SectionCaption(
+                        title = postTypeSectionTitle(selectedPostType),
+                        subtitle = "Attach one strong clip and give it context."
+                    )
+                    VideoPicker(
                         videoUri = videoUri,
                         onPickVideo = { videoPicker.launch("video/*") },
                         onRemoveVideo = {
@@ -458,12 +532,24 @@ fun CreatePostScreen(
                         contentColor = contentColor,
                         accentColor = accentColor
                     )
-                    PostType.LINK -> LinkInput(
+                }
+                PostType.LINK -> CreatePostSection(accentColor = accentColor) {
+                    SectionCaption(
+                        title = postTypeSectionTitle(selectedPostType),
+                        subtitle = "Paste the URL and add a little framing."
+                    )
+                    LinkInput(
                         linkUrl = linkUrl,
                         onLinkUrlChange = { linkUrl = it },
                         contentColor = contentColor
                     )
-                    PostType.POLL -> PollEditor(
+                }
+                PostType.POLL -> CreatePostSection(accentColor = accentColor) {
+                    SectionCaption(
+                        title = postTypeSectionTitle(selectedPostType),
+                        subtitle = "Write a sharp question and keep the choices simple."
+                    )
+                    PollEditor(
                         options = pollOptions,
                         onOptionsChange = { pollOptions = it },
                         durationHours = pollDurationHours,
@@ -473,7 +559,13 @@ fun CreatePostScreen(
                         contentColor = contentColor,
                         accentColor = accentColor
                     )
-                    PostType.ARTICLE -> ArticleEditor(
+                }
+                PostType.ARTICLE -> CreatePostSection(accentColor = accentColor) {
+                    SectionCaption(
+                        title = postTypeSectionTitle(selectedPostType),
+                        subtitle = "Shape the title, cover, and tags before you publish."
+                    )
+                    ArticleEditor(
                         title = articleTitle,
                         onTitleChange = { articleTitle = it },
                         coverUri = articleCoverUri,
@@ -495,39 +587,50 @@ fun CreatePostScreen(
                         contentColor = contentColor,
                         accentColor = accentColor
                     )
-                    PostType.CELEBRATION -> CelebrationPicker(
+                }
+                PostType.CELEBRATION -> CreatePostSection(accentColor = accentColor) {
+                    SectionCaption(
+                        title = postTypeSectionTitle(selectedPostType),
+                        subtitle = "Pick the win you want to highlight."
+                    )
+                    CelebrationPicker(
                         selectedType = selectedCelebrationType,
                         onTypeSelected = { selectedCelebrationType = it },
                         contentColor = contentColor,
                         accentColor = accentColor
                     )
-                    else -> {} // TEXT type has no additional UI
                 }
-                
-                // Error display
-                AnimatedVisibility(visible = error != null) {
-                    Row(
+                else -> Unit
+            }
+
+            AnimatedVisibility(visible = error != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xFFE53935).copy(alpha = 0.12f))
+                        .border(1.dp, Color(0xFFE53935).copy(alpha = 0.18f), RoundedCornerShape(18.dp))
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BasicText(
+                        text = error ?: "",
+                        style = TextStyle(Color(0xFFE53935), 14.sp),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFE53935).copy(alpha = 0.1f))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onClearError() },
+                        contentAlignment = Alignment.Center
                     ) {
-                        BasicText(
-                            text = error ?: "",
-                            style = TextStyle(Color(0xFFE53935), 14.sp),
-                            modifier = Modifier.weight(1f)
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = "Dismiss error",
+                            tint = Color(0xFFE53935),
+                            modifier = Modifier.size(16.dp)
                         )
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .clickable { onClearError() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            BasicText("×", style = TextStyle(Color(0xFFE53935), 18.sp))
-                        }
                     }
                 }
             }
@@ -539,48 +642,150 @@ fun CreatePostScreen(
 
 @Composable
 private fun CreatePostHeader(
+    selectedType: PostType,
     contentColor: Color,
     accentColor: Color,
     isCreating: Boolean,
     canPost: Boolean,
     onPost: () -> Unit
 ) {
-    Row(
+    val selectedConfig = postTypeConfigs.first { it.type == selectedType }
+
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        BasicText(
-            text = "Create Post",
-            style = TextStyle(contentColor, 24.sp, FontWeight.Bold)
-        )
-        
-        // Post button
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(
-                    if (canPost && !isCreating) PostButtonGradient
-                    else Brush.linearGradient(
-                        colors = listOf(Color.Gray.copy(alpha = 0.5f), Color.Gray.copy(alpha = 0.5f))
-                    )
-                )
-                .clickable(enabled = canPost && !isCreating, onClick = onPost)
-                .padding(horizontal = 24.dp, vertical = 10.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
         ) {
-            if (isCreating) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
-                )
-            } else {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 BasicText(
-                    text = "Post",
-                    style = TextStyle(Color.White, 14.sp, FontWeight.SemiBold)
+                    text = "Create something worth opening",
+                    style = TextStyle(contentColor, 30.sp, FontWeight.Bold, lineHeight = 34.sp)
+                )
+                BasicText(
+                    text = postTypeSubtitle(selectedType),
+                    style = TextStyle(contentColor.copy(alpha = 0.7f), 14.sp, lineHeight = 21.sp)
                 )
             }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(
+                        if (canPost && !isCreating) PostButtonGradient
+                        else Brush.linearGradient(
+                            colors = listOf(
+                                Color.Gray.copy(alpha = 0.38f),
+                                Color.Gray.copy(alpha = 0.38f)
+                            )
+                        )
+                    )
+                    .clickable(enabled = canPost && !isCreating, onClick = onPost)
+                    .padding(horizontal = 22.dp, vertical = 11.dp)
+            ) {
+                if (isCreating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    BasicText(
+                        text = "Post",
+                        style = TextStyle(Color.White, 14.sp, FontWeight.SemiBold)
+                    )
+                }
+            }
         }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(accentColor.copy(alpha = 0.12f))
+                    .border(1.dp, accentColor.copy(alpha = 0.18f), RoundedCornerShape(18.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = selectedConfig.icon,
+                    contentDescription = selectedConfig.label,
+                    tint = accentColor,
+                    modifier = Modifier.size(16.dp)
+                )
+                BasicText(
+                    text = selectedConfig.label,
+                    style = TextStyle(accentColor, 12.sp, FontWeight.SemiBold)
+                )
+            }
+
+            BasicText(
+                text = "Draft mode",
+                style = TextStyle(contentColor.copy(alpha = 0.56f), 12.sp)
+            )
+        }
+
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = Color.White.copy(alpha = 0.1f)
+        )
+    }
+}
+
+@Composable
+private fun CreatePostSection(
+    accentColor: Color,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color.Transparent,
+                            accentColor.copy(alpha = 0.34f),
+                            Color.White.copy(alpha = 0.14f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp), content = content)
+    }
+}
+
+@Composable
+private fun SectionCaption(
+    title: String,
+    subtitle: String
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        BasicText(
+            text = title,
+            style = TextStyle(Color.White.copy(alpha = 0.92f), 15.sp, FontWeight.SemiBold)
+        )
+        BasicText(
+            text = subtitle,
+            style = TextStyle(Color.White.copy(alpha = 0.58f), 12.sp, lineHeight = 18.sp)
+        )
     }
 }
 
@@ -595,37 +800,52 @@ private fun PostTypeTabs(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         postTypeConfigs.forEach { config ->
             val isSelected = config.type == selectedType
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(18.dp))
                     .background(
-                        if (isSelected) accentColor.copy(alpha = 0.2f)
-                        else contentColor.copy(alpha = 0.05f)
+                        if (isSelected) {
+                            Brush.horizontalGradient(
+                                listOf(
+                                    accentColor.copy(alpha = 0.18f),
+                                    accentColor.copy(alpha = 0.1f)
+                                )
+                            )
+                        } else {
+                            Brush.horizontalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.08f),
+                                    Color.White.copy(alpha = 0.03f)
+                                )
+                            )
+                        }
+                    )
+                    .border(
+                        1.dp,
+                        if (isSelected) accentColor.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f),
+                        RoundedCornerShape(18.dp)
                     )
                     .clickable { onTypeSelected(config.type) }
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .padding(horizontal = 14.dp, vertical = 11.dp)
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Use icon drawable
-                    androidx.compose.foundation.Image(
-                        painter = painterResource(config.iconRes),
+                    Icon(
+                        imageVector = config.icon,
                         contentDescription = config.label,
-                        modifier = Modifier.size(16.dp),
-                        colorFilter = ColorFilter.tint(
-                            if (isSelected) accentColor else contentColor.copy(alpha = 0.7f)
-                        )
+                        modifier = Modifier.size(18.dp),
+                        tint = if (isSelected) accentColor else contentColor.copy(alpha = 0.72f)
                     )
                     BasicText(
                         text = config.label,
                         style = TextStyle(
-                            color = if (isSelected) accentColor else contentColor.copy(alpha = 0.7f),
+                            color = if (isSelected) accentColor else contentColor.copy(alpha = 0.72f),
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                         )
@@ -648,34 +868,50 @@ private fun UserInfoRow(
     accentColor: Color
 ) {
     val context = LocalContext.current
+    val selectedVisibility = visibilityOptions.firstOrNull { it.value == visibility } ?: visibilityOptions.first()
     
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(48.dp)
                 .clip(CircleShape)
-                .background(accentColor.copy(alpha = 0.2f)),
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            accentColor.copy(alpha = 0.28f),
+                            Color.White.copy(alpha = 0.08f)
+                        )
+                    )
+                )
+                .padding(2.dp),
             contentAlignment = Alignment.Center
         ) {
-            if (!userAvatar.isNullOrEmpty()) {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(userAvatar)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "Avatar",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                BasicText(
-                    text = userName.firstOrNull()?.uppercase() ?: "U",
-                    style = TextStyle(contentColor, 16.sp, FontWeight.Bold)
-                )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!userAvatar.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(userAvatar)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Avatar",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    BasicText(
+                        text = userName.firstOrNull()?.uppercase() ?: "U",
+                        style = TextStyle(contentColor, 18.sp, FontWeight.Bold)
+                    )
+                }
             }
         }
         
@@ -684,28 +920,38 @@ private fun UserInfoRow(
         Column(modifier = Modifier.weight(1f)) {
             BasicText(
                 text = userName,
-                style = TextStyle(contentColor, 14.sp, FontWeight.SemiBold)
+                style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold)
             )
-            
-            // Visibility selector
+            BasicText(
+                text = "Posting as you",
+                style = TextStyle(contentColor.copy(alpha = 0.56f), 12.sp)
+            )
+
             Box {
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(contentColor.copy(alpha = 0.06f))
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
                         .clickable { onVisibilityDropdownToggle(true) }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val (icon, label) = when (visibility) {
-                        "PUBLIC" -> "🌐" to "Anyone"
-                        "CONNECTIONS" -> "👥" to "Connections"
-                        "PRIVATE" -> "🔒" to "Only me"
-                        else -> "🌐" to "Anyone"
-                    }
+                    Icon(
+                        imageVector = selectedVisibility.icon,
+                        contentDescription = selectedVisibility.label,
+                        tint = contentColor.copy(alpha = 0.72f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     BasicText(
-                        text = "$icon $label ▼",
-                        style = TextStyle(contentColor.copy(alpha = 0.7f), 11.sp)
+                        text = selectedVisibility.label,
+                        style = TextStyle(contentColor.copy(alpha = 0.72f), 11.sp, FontWeight.Medium)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    BasicText(
+                        text = "v",
+                        style = TextStyle(contentColor.copy(alpha = 0.52f), 10.sp, FontWeight.SemiBold)
                     )
                 }
                 
@@ -713,27 +959,30 @@ private fun UserInfoRow(
                     expanded = showVisibilityDropdown,
                     onDismissRequest = { onVisibilityDropdownToggle(false) }
                 ) {
-                    DropdownMenuItem(
-                        text = { BasicText("🌐 Anyone", style = TextStyle(contentColor, 14.sp)) },
-                        onClick = {
-                            onVisibilityChange("PUBLIC")
-                            onVisibilityDropdownToggle(false)
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { BasicText("👥 Connections only", style = TextStyle(contentColor, 14.sp)) },
-                        onClick = {
-                            onVisibilityChange("CONNECTIONS")
-                            onVisibilityDropdownToggle(false)
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { BasicText("🔒 Only me", style = TextStyle(contentColor, 14.sp)) },
-                        onClick = {
-                            onVisibilityChange("PRIVATE")
-                            onVisibilityDropdownToggle(false)
-                        }
-                    )
+                    visibilityOptions.forEach { option ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    BasicText(option.label, style = TextStyle(contentColor, 14.sp))
+                                    BasicText(
+                                        option.detail,
+                                        style = TextStyle(contentColor.copy(alpha = 0.55f), 11.sp)
+                                    )
+                                }
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = option.icon,
+                                    contentDescription = option.label,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                onVisibilityChange(option.value)
+                                onVisibilityDropdownToggle(false)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -752,35 +1001,32 @@ private fun RichTextToolbar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(contentColor.copy(alpha = 0.06f))
-            .padding(8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Bold
         ToolbarButton(
-            icon = "B",
+            icon = Icons.Outlined.FormatBold,
             label = "Bold",
-            contentColor = contentColor
+            contentColor = contentColor,
+            accentColor = accentColor
         ) {
             wrapSelection(textFieldValue, onTextFieldValueChange, "**", "**")
         }
         
-        // Italic
         ToolbarButton(
-            icon = "I",
+            icon = Icons.Outlined.FormatItalic,
             label = "Italic",
             contentColor = contentColor,
-            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+            accentColor = accentColor
         ) {
             wrapSelection(textFieldValue, onTextFieldValueChange, "*", "*")
         }
         
-        // List
         ToolbarButton(
-            icon = "•",
+            icon = Icons.AutoMirrored.Outlined.FormatListBulleted,
             label = "List",
-            contentColor = contentColor
+            contentColor = contentColor,
+            accentColor = accentColor
         ) {
             val text = textFieldValue.text
             val cursor = textFieldValue.selection.start
@@ -792,20 +1038,20 @@ private fun RichTextToolbar(
             ))
         }
         
-        // Code
         ToolbarButton(
-            icon = "</>",
+            icon = Icons.Outlined.Code,
             label = "Code",
-            contentColor = contentColor
+            contentColor = contentColor,
+            accentColor = accentColor
         ) {
             wrapSelection(textFieldValue, onTextFieldValueChange, "`", "`")
         }
         
-        // @Mention
         ToolbarButton(
-            icon = "@",
+            icon = Icons.Outlined.AlternateEmail,
             label = "Mention",
-            contentColor = contentColor
+            contentColor = contentColor,
+            accentColor = accentColor
         ) {
             val text = textFieldValue.text
             val cursor = textFieldValue.selection.start
@@ -816,11 +1062,11 @@ private fun RichTextToolbar(
             ))
         }
         
-        // Color
         ToolbarButton(
-            icon = "🎨",
+            icon = Icons.Outlined.Palette,
             label = "Color",
             contentColor = contentColor,
+            accentColor = accentColor,
             isActive = showColorPicker
         ) {
             onColorPickerToggle(!showColorPicker)
@@ -830,29 +1076,34 @@ private fun RichTextToolbar(
 
 @Composable
 private fun ToolbarButton(
-    icon: String,
+    icon: ImageVector,
     label: String,
     contentColor: Color,
-    fontStyle: androidx.compose.ui.text.font.FontStyle = androidx.compose.ui.text.font.FontStyle.Normal,
+    accentColor: Color,
     isActive: Boolean = false,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
-            .size(36.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (isActive) contentColor.copy(alpha = 0.1f) else Color.Transparent)
+            .size(40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (isActive) accentColor.copy(alpha = 0.18f)
+                else Color.White.copy(alpha = 0.08f)
+            )
+            .border(
+                1.dp,
+                if (isActive) accentColor.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.1f),
+                RoundedCornerShape(12.dp)
+            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        BasicText(
-            text = icon,
-            style = TextStyle(
-                color = contentColor,
-                fontSize = 14.sp,
-                fontWeight = if (icon == "B") FontWeight.Bold else FontWeight.Normal,
-                fontStyle = fontStyle
-            )
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (isActive) accentColor else contentColor,
+            modifier = Modifier.size(18.dp)
         )
     }
 }
@@ -1096,12 +1347,14 @@ private fun ContentTextArea(
                                     modifier = Modifier
                                         .size(28.dp)
                                         .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.15f)),
+                                .background(Color.White.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    BasicText(
-                                        text = "+",
-                                        style = TextStyle(contentColor.copy(alpha = 0.7f), 16.sp, FontWeight.Bold)
+                                    Icon(
+                                        imageVector = Icons.Outlined.Add,
+                                        contentDescription = "Add mention",
+                                        tint = contentColor.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
@@ -1117,10 +1370,18 @@ private fun ContentTextArea(
             onValueChange = onTextFieldValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 180.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(contentColor.copy(alpha = 0.04f))
-                .padding(16.dp),
+                .heightIn(min = 220.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.12f),
+                            Color.White.copy(alpha = 0.04f)
+                        )
+                    )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(22.dp))
+                .padding(18.dp),
             textStyle = TextStyle(contentColor, 16.sp, lineHeight = 24.sp),
             cursorBrush = SolidColor(contentColor),
             decorationBox = { innerTextField ->
@@ -1168,18 +1429,37 @@ private fun ImagePicker(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(120.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(contentColor.copy(alpha = 0.06f))
+                    .height(128.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                accentColor.copy(alpha = 0.12f),
+                                Color.White.copy(alpha = 0.04f)
+                            )
+                        )
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
                     .clickable(onClick = onPickImages),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    BasicText("📷", style = TextStyle(fontSize = 32.sp))
-                    Spacer(modifier = Modifier.height(8.dp))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.AddPhotoAlternate,
+                        contentDescription = "Add images",
+                        tint = accentColor,
+                        modifier = Modifier.size(30.dp)
+                    )
                     BasicText(
                         text = "Add images (max 10)",
-                        style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp)
+                        style = TextStyle(contentColor.copy(alpha = 0.76f), 14.sp, FontWeight.Medium)
+                    )
+                    BasicText(
+                        text = "Bring the visual story in here",
+                        style = TextStyle(contentColor.copy(alpha = 0.48f), 12.sp)
                     )
                 }
             }
@@ -1206,13 +1486,18 @@ private fun ImagePicker(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(4.dp)
-                                .size(20.dp)
+                                .size(24.dp)
                                 .clip(CircleShape)
                                 .background(Color.Black.copy(alpha = 0.6f))
                                 .clickable { onRemoveImage(index) },
                             contentAlignment = Alignment.Center
                         ) {
-                            BasicText("×", style = TextStyle(Color.White, 14.sp))
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = "Remove image",
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
                         }
                     }
                 }
@@ -1221,12 +1506,18 @@ private fun ImagePicker(
                     Box(
                         modifier = Modifier
                             .size(80.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(contentColor.copy(alpha = 0.06f))
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color.White.copy(alpha = 0.06f))
+                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
                             .clickable(onClick = onPickImages),
                         contentAlignment = Alignment.Center
                     ) {
-                        BasicText("+", style = TextStyle(contentColor, 24.sp))
+                        Icon(
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = "Add more images",
+                            tint = contentColor,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                 }
             }
@@ -1246,18 +1537,37 @@ private fun VideoPicker(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(120.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(contentColor.copy(alpha = 0.06f))
+                .height(128.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            accentColor.copy(alpha = 0.12f),
+                            Color.White.copy(alpha = 0.04f)
+                        )
+                    )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
                 .clickable(onClick = onPickVideo),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                BasicText("🎥", style = TextStyle(fontSize = 32.sp))
-                Spacer(modifier = Modifier.height(8.dp))
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.VideoLibrary,
+                    contentDescription = "Add video",
+                    tint = accentColor,
+                    modifier = Modifier.size(30.dp)
+                )
                 BasicText(
                     text = "Add video (max 500MB)",
-                    style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp)
+                    style = TextStyle(contentColor.copy(alpha = 0.76f), 14.sp, FontWeight.Medium)
+                )
+                BasicText(
+                    text = "One strong clip works best here",
+                    style = TextStyle(contentColor.copy(alpha = 0.48f), 12.sp)
                 )
             }
         }
@@ -1274,7 +1584,12 @@ private fun VideoPicker(
                 modifier = Modifier.fillMaxSize(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BasicText("🎬", style = TextStyle(fontSize = 24.sp))
+                Icon(
+                    imageVector = Icons.Outlined.SmartDisplay,
+                    contentDescription = "Video attached",
+                    tint = accentColor,
+                    modifier = Modifier.size(22.dp)
+                )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     BasicText(
@@ -1296,7 +1611,12 @@ private fun VideoPicker(
                         .clickable(onClick = onRemoveVideo),
                     contentAlignment = Alignment.Center
                 ) {
-                    BasicText("×", style = TextStyle(Color.Red, 18.sp))
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = "Remove video",
+                        tint = Color.Red,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
         }
@@ -1402,7 +1722,12 @@ private fun PollEditor(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        BasicText("×", style = TextStyle(Color.Red, 16.sp))
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = "Remove option",
+                            tint = Color.Red,
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
                 }
             }
@@ -1584,7 +1909,12 @@ private fun ArticleEditor(
                             .clickable(onClick = onRemoveCover),
                         contentAlignment = Alignment.Center
                     ) {
-                        BasicText("×", style = TextStyle(Color.White, 16.sp))
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = "Remove cover",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }
@@ -1635,7 +1965,12 @@ private fun ArticleEditor(
                             .clickable(onClick = onAddTag)
                             .padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
-                        BasicText("+", style = TextStyle(Color.White, 14.sp))
+                        Icon(
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = "Add tag",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
                 }
             }
@@ -1668,7 +2003,12 @@ private fun ArticleEditor(
                                     .clickable { onRemoveTag(tag) },
                                 contentAlignment = Alignment.Center
                             ) {
-                                BasicText("×", style = TextStyle(accentColor, 12.sp))
+                                Icon(
+                                    imageVector = Icons.Outlined.Close,
+                                    contentDescription = "Remove tag",
+                                    tint = accentColor,
+                                    modifier = Modifier.size(10.dp)
+                                )
                             }
                         }
                     }
@@ -1703,21 +2043,30 @@ private fun CelebrationPicker(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(18.dp))
                                 .background(
                                     if (isSelected) accentColor.copy(alpha = 0.2f)
                                     else contentColor.copy(alpha = 0.06f)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (isSelected) accentColor.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.08f),
+                                    RoundedCornerShape(18.dp)
                                 )
                                 .clickable { onTypeSelected(type) }
                                 .padding(16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                BasicText(
-                                    text = type.emoji,
-                                    style = TextStyle(fontSize = 28.sp)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = celebrationTypeIcon(type),
+                                    contentDescription = type.label,
+                                    tint = if (isSelected) accentColor else contentColor.copy(alpha = 0.72f),
+                                    modifier = Modifier.size(24.dp)
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
                                 BasicText(
                                     text = type.label,
                                     style = TextStyle(
