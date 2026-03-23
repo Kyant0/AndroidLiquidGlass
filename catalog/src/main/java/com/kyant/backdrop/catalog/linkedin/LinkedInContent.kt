@@ -1076,11 +1076,9 @@ fun LinkedInContent(
                         .fillMaxWidth()
                 ) {
                 LiquidBottomTab(onClick = { selectedTab = 0 }) {
-                    Image(
-                        painterResource(R.drawable.ic_home),
-                        contentDescription = "Home",
-                        modifier = Modifier.size(24.dp),
-                        colorFilter = ColorFilter.tint(contentColor)
+                    FooterHomeIcon(
+                        color = contentColor,
+                        size = 22.dp
                     )
                     BasicText("Home", style = TextStyle(contentColor, 10.sp))
                 }
@@ -1093,11 +1091,9 @@ fun LinkedInContent(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Image(
-                                painterResource(R.drawable.ic_find_people),
-                                contentDescription = "Find People",
-                                modifier = Modifier.size(24.dp),
-                                colorFilter = ColorFilter.tint(contentColor)
+                            FooterFindIcon(
+                                color = contentColor,
+                                size = 22.dp
                             )
                             BasicText("Find", style = TextStyle(contentColor, 10.sp))
                         }
@@ -1126,20 +1122,16 @@ fun LinkedInContent(
                     }
                 }
                 LiquidBottomTab(onClick = { selectedTab = 2 }) {
-                    Image(
-                        painterResource(R.drawable.ic_post),
-                        contentDescription = "Post",
-                        modifier = Modifier.size(24.dp),
-                        colorFilter = ColorFilter.tint(contentColor)
+                    FooterCreateIcon(
+                        color = contentColor,
+                        size = 22.dp
                     )
                     BasicText("Post", style = TextStyle(contentColor, 10.sp))
                 }
                 LiquidBottomTab(onClick = { selectedTab = 3 }) {
-                    Image(
-                        painterResource(R.drawable.ic_more),
-                        contentDescription = "More",
-                        modifier = Modifier.size(24.dp),
-                        colorFilter = ColorFilter.tint(contentColor)
+                    FooterMoreIcon(
+                        color = contentColor,
+                        size = 22.dp
                     )
                     BasicText("More", style = TextStyle(contentColor, 10.sp))
                 }
@@ -1149,11 +1141,9 @@ fun LinkedInContent(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Image(
-                                painterResource(R.drawable.ic_profile),
-                                contentDescription = "Profile",
-                                modifier = Modifier.size(24.dp),
-                                colorFilter = ColorFilter.tint(contentColor)
+                            FooterProfileIcon(
+                                color = contentColor,
+                                size = 22.dp
                             )
                             BasicText("Profile", style = TextStyle(contentColor, 10.sp))
                         }
@@ -2193,11 +2183,9 @@ private fun LinkedInTopBar(
                     .clickable { },
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painterResource(R.drawable.ic_notifications),
-                    contentDescription = "Notifications",
-                    modifier = Modifier.size(24.dp),
-                    colorFilter = ColorFilter.tint(contentColor)
+                NotificationBellIcon(
+                    color = contentColor,
+                    size = 22.dp
                 )
             }
             
@@ -2210,11 +2198,9 @@ private fun LinkedInTopBar(
                     .clickable { onMessagesClick() },
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painterResource(R.drawable.ic_message),
-                    contentDescription = "Messages",
-                    modifier = Modifier.size(24.dp),
-                    colorFilter = ColorFilter.tint(contentColor)
+                HeaderMessageIcon(
+                    color = contentColor,
+                    size = 22.dp
                 )
                 // Unread indicator dot
                 if (hasUnreadMessages) {

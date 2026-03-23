@@ -167,6 +167,318 @@ fun CommentIcon(
     }
 }
 
+// Header notification bell icon
+@Composable
+fun NotificationBellIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 13f
+
+        val bellPath = Path().apply {
+            moveTo(s * 0.3f, s * 0.7f)
+            cubicTo(
+                s * 0.3f, s * 0.5f,
+                s * 0.34f, s * 0.36f,
+                s * 0.43f, s * 0.28f
+            )
+            cubicTo(
+                s * 0.46f, s * 0.22f,
+                s * 0.54f, s * 0.22f,
+                s * 0.57f, s * 0.28f
+            )
+            cubicTo(
+                s * 0.66f, s * 0.36f,
+                s * 0.7f, s * 0.5f,
+                s * 0.7f, s * 0.7f
+            )
+            lineTo(s * 0.78f, s * 0.7f)
+            quadraticTo(s * 0.83f, s * 0.7f, s * 0.83f, s * 0.76f)
+            quadraticTo(s * 0.83f, s * 0.82f, s * 0.78f, s * 0.82f)
+            lineTo(s * 0.22f, s * 0.82f)
+            quadraticTo(s * 0.17f, s * 0.82f, s * 0.17f, s * 0.76f)
+            quadraticTo(s * 0.17f, s * 0.7f, s * 0.22f, s * 0.7f)
+            close()
+        }
+
+        drawPath(
+            path = bellPath,
+            color = color,
+            style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        drawLine(
+            color = color,
+            start = Offset(s * 0.5f, s * 0.14f),
+            end = Offset(s * 0.5f, s * 0.22f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+
+        drawCircle(
+            color = color,
+            radius = s * 0.04f,
+            center = Offset(s * 0.5f, s * 0.68f)
+        )
+
+        drawLine(
+            color = color,
+            start = Offset(s * 0.4f, s * 0.89f),
+            end = Offset(s * 0.6f, s * 0.89f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+// Header messages icon with layered chat bubbles
+@Composable
+fun HeaderMessageIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 13f
+
+        val backBubble = Path().apply {
+            moveTo(s * 0.42f, s * 0.2f)
+            lineTo(s * 0.72f, s * 0.2f)
+            quadraticTo(s * 0.82f, s * 0.2f, s * 0.82f, s * 0.3f)
+            lineTo(s * 0.82f, s * 0.44f)
+            quadraticTo(s * 0.82f, s * 0.54f, s * 0.72f, s * 0.54f)
+            lineTo(s * 0.62f, s * 0.54f)
+        }
+
+        drawPath(
+            path = backBubble,
+            color = color.copy(alpha = 0.55f),
+            style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        val frontBubble = Path().apply {
+            moveTo(s * 0.16f, s * 0.3f)
+            lineTo(s * 0.66f, s * 0.3f)
+            quadraticTo(s * 0.78f, s * 0.3f, s * 0.78f, s * 0.42f)
+            lineTo(s * 0.78f, s * 0.58f)
+            quadraticTo(s * 0.78f, s * 0.7f, s * 0.66f, s * 0.7f)
+            lineTo(s * 0.36f, s * 0.7f)
+            lineTo(s * 0.24f, s * 0.82f)
+            lineTo(s * 0.27f, s * 0.68f)
+            lineTo(s * 0.16f, s * 0.68f)
+            quadraticTo(s * 0.06f, s * 0.68f, s * 0.06f, s * 0.58f)
+            lineTo(s * 0.06f, s * 0.42f)
+            quadraticTo(s * 0.06f, s * 0.3f, s * 0.16f, s * 0.3f)
+            close()
+        }
+
+        drawPath(
+            path = frontBubble,
+            color = color,
+            style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        drawLine(
+            color = color,
+            start = Offset(s * 0.23f, s * 0.44f),
+            end = Offset(s * 0.6f, s * 0.44f),
+            strokeWidth = strokeWidth * 0.9f,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = color.copy(alpha = 0.8f),
+            start = Offset(s * 0.23f, s * 0.56f),
+            end = Offset(s * 0.49f, s * 0.56f),
+            strokeWidth = strokeWidth * 0.9f,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+// Footer home icon
+@Composable
+fun FooterHomeIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 13f
+
+        val roofPath = Path().apply {
+            moveTo(s * 0.18f, s * 0.48f)
+            lineTo(s * 0.5f, s * 0.18f)
+            lineTo(s * 0.82f, s * 0.48f)
+        }
+        drawPath(
+            path = roofPath,
+            color = color,
+            style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(s * 0.24f, s * 0.46f),
+            size = Size(s * 0.52f, s * 0.32f),
+            cornerRadius = CornerRadius(s * 0.08f),
+            style = Stroke(strokeWidth)
+        )
+
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(s * 0.44f, s * 0.58f),
+            size = Size(s * 0.12f, s * 0.2f),
+            cornerRadius = CornerRadius(s * 0.04f),
+            style = Stroke(strokeWidth)
+        )
+    }
+}
+
+// Footer find / discover icon
+@Composable
+fun FooterFindIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 13f
+        val center = Offset(s * 0.5f, s * 0.5f)
+
+        drawCircle(
+            color = color,
+            radius = s * 0.28f,
+            center = center,
+            style = Stroke(strokeWidth)
+        )
+
+        val needlePath = Path().apply {
+            moveTo(s * 0.58f, s * 0.26f)
+            lineTo(s * 0.66f, s * 0.62f)
+            lineTo(s * 0.44f, s * 0.54f)
+            close()
+        }
+        drawPath(
+            path = needlePath,
+            color = color,
+            style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        drawCircle(
+            color = color,
+            radius = s * 0.04f,
+            center = center
+        )
+    }
+}
+
+// Footer create / post icon
+@Composable
+fun FooterCreateIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 13f
+
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(s * 0.18f, s * 0.18f),
+            size = Size(s * 0.64f, s * 0.64f),
+            cornerRadius = CornerRadius(s * 0.18f),
+            style = Stroke(strokeWidth)
+        )
+
+        drawLine(
+            color = color,
+            start = Offset(s * 0.5f, s * 0.32f),
+            end = Offset(s * 0.5f, s * 0.68f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = color,
+            start = Offset(s * 0.32f, s * 0.5f),
+            end = Offset(s * 0.68f, s * 0.5f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+// Footer more icon
+@Composable
+fun FooterMoreIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 13f
+        val cellSize = s * 0.2f
+        val radius = CornerRadius(s * 0.06f)
+        val positions = listOf(
+            Offset(s * 0.18f, s * 0.18f),
+            Offset(s * 0.62f, s * 0.18f),
+            Offset(s * 0.18f, s * 0.62f),
+            Offset(s * 0.62f, s * 0.62f)
+        )
+
+        positions.forEach { topLeft ->
+            drawRoundRect(
+                color = color,
+                topLeft = topLeft,
+                size = Size(cellSize, cellSize),
+                cornerRadius = radius,
+                style = Stroke(strokeWidth)
+            )
+        }
+    }
+}
+
+// Footer profile icon
+@Composable
+fun FooterProfileIcon(
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val s = size.toPx()
+        val strokeWidth = s / 13f
+
+        drawCircle(
+            color = color,
+            radius = s * 0.14f,
+            center = Offset(s * 0.5f, s * 0.34f),
+            style = Stroke(strokeWidth)
+        )
+
+        val bodyPath = Path().apply {
+            moveTo(s * 0.24f, s * 0.78f)
+            cubicTo(
+                s * 0.26f, s * 0.58f,
+                s * 0.74f, s * 0.58f,
+                s * 0.76f, s * 0.78f
+            )
+        }
+        drawPath(
+            path = bodyPath,
+            color = color,
+            style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+    }
+}
+
 // Share/Send icon (arrow pointing up-right from box)
 @Composable
 fun ShareIcon(
