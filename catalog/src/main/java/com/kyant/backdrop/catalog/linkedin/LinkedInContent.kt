@@ -416,6 +416,7 @@ fun LinkedInContent(
     // Settings & More screen navigation state
     var showProfileScreen by remember { mutableStateOf(false) }
     var showSavedPostsScreen by remember { mutableStateOf(false) }
+    var showNotificationsInbox by remember { mutableStateOf(false) }
     var showNotificationSettingsScreen by remember { mutableStateOf(false) }
     var showPrivacySettingsScreen by remember { mutableStateOf(false) }
     var showAppearanceSettingsScreen by remember { mutableStateOf(false) }
@@ -423,7 +424,9 @@ fun LinkedInContent(
     var showInviteFriendsScreen by remember { mutableStateOf(false) }
     var showAboutScreen by remember { mutableStateOf(false) }
     var showContactScreen by remember { mutableStateOf(false) }
+    var showGrowthHubScreen by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var notificationUnreadCount by remember { mutableIntStateOf(0) }
     
     val hasOverlayBackNavigation = viewingProfileUserId != null ||
             showMessagesScreen ||
@@ -439,13 +442,15 @@ fun LinkedInContent(
             showConnectionCelebration ||
             showProfileScreen ||
             showSavedPostsScreen ||
+            showNotificationsInbox ||
             showNotificationSettingsScreen ||
             showPrivacySettingsScreen ||
             showAppearanceSettingsScreen ||
             showHelpScreen ||
             showInviteFriendsScreen ||
             showAboutScreen ||
-            showContactScreen
+            showContactScreen ||
+            showGrowthHubScreen
 
     // Handle system back button for all overlay screens
     // Priority: innermost overlays first, then outer overlays
@@ -478,6 +483,7 @@ fun LinkedInContent(
             // Settings screens
             showProfileScreen -> showProfileScreen = false
             showSavedPostsScreen -> showSavedPostsScreen = false
+            showNotificationsInbox -> showNotificationsInbox = false
             showNotificationSettingsScreen -> showNotificationSettingsScreen = false
             showPrivacySettingsScreen -> showPrivacySettingsScreen = false
             showAppearanceSettingsScreen -> showAppearanceSettingsScreen = false
@@ -485,12 +491,21 @@ fun LinkedInContent(
             showInviteFriendsScreen -> showInviteFriendsScreen = false
             showAboutScreen -> showAboutScreen = false
             showContactScreen -> showContactScreen = false
+            showGrowthHubScreen -> showGrowthHubScreen = false
         }
     }
 
     // Android back gesture: from non-Home bottom tabs, go back to Home first.
     BackHandler(enabled = !hasOverlayBackNavigation && selectedTab != 0) {
         selectedTab = 0
+    }
+
+    LaunchedEffect(uiState.isLoggedIn, uiState.currentUserId) {
+        notificationUnreadCount = if (uiState.isLoggedIn) {
+            ApiClient.getNotificationUnreadCount(context).getOrDefault(0)
+        } else {
+            0
+        }
     }
     
     // Handle deep links from push notifications
@@ -711,7 +726,12 @@ fun LinkedInContent(
                         contentColor = contentColor,
                         accentColor = accentColor,
                         userInitials = uiState.currentUser?.name?.firstOrNull()?.toString() ?: "U",
+                        hasUnreadNotifications = notificationUnreadCount > 0,
+                        unreadNotificationCount = notificationUnreadCount,
                         hasUnreadMessages = chatState.unreadCount > 0,
+                        onNotificationsClick = {
+                            showNotificationsInbox = true
+                        },
                         onMessagesClick = {
                             openChatWithUserId = null
                             showMessagesScreen = true
@@ -981,6 +1001,7 @@ fun LinkedInContent(
                             onNavigateToTopNetworkers = { showTopNetworkersScreen = true },
                             onNavigateToOnboarding = { showOnboardingScreen = true },
                             onNavigateToSavedPosts = { showSavedPostsScreen = true },
+                            onNavigateToGrowthHub = { showGrowthHubScreen = true },
                             onNavigateToNotificationSettings = { showNotificationSettingsScreen = true },
                             onNavigateToPrivacySettings = { showPrivacySettingsScreen = true },
                             onNavigateToAppearanceSettings = { showAppearanceSettingsScreen = true },
@@ -1886,7 +1907,96 @@ fun LinkedInContent(
                     )
                 }
             }
-            
+
+            // Notifications Inbox Overlay
+            AnimatedVisibility(
+                visible = showNotificationsInbox,
+                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                ) {
+                    NotificationsInboxScreen(
+                        backdrop = backdrop,
+                        contentColor = Color.Black,
+                        accentColor = accentColor,
+                        onNavigateBack = { showNotificationsInbox = false },
+                        onUnreadCountChanged = { notificationUnreadCount = it },
+                        onOpenProfile = { userId ->
+                            showNotificationsInbox = false
+                            viewingProfileUserId = userId
+                        },
+                        onOpenPost = { postId ->
+                            showNotificationsInbox = false
+                            selectedTab = 0
+                            selectedPostForComments = postId
+                            viewModel.loadComments(postId)
+                            showCommentsSheet = true
+                        },
+                        onOpenReel = { reelId ->
+                            showNotificationsInbox = false
+                            selectedTab = 0
+                            reelsViewModel.loadReelById(reelId)
+                        },
+                        onOpenConversation = { conversationId ->
+                            showNotificationsInbox = false
+                            openChatWithUserId = null
+                            deepLinkConversationId = conversationId
+                            showMessagesScreen = true
+                        },
+                        onOpenNetwork = {
+                            showNotificationsInbox = false
+                            selectedTab = 1
+                        }
+                    )
+                }
+            }
+
+            // Growth Hub Overlay
+            AnimatedVisibility(
+                visible = showGrowthHubScreen,
+                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                ) {
+                    GrowthHubScreen(
+                        backdrop = backdrop,
+                        contentColor = Color.Black,
+                        accentColor = accentColor,
+                        onNavigateBack = { showGrowthHubScreen = false },
+                        onOpenHookAction = { hook ->
+                            showGrowthHubScreen = false
+                            when {
+                                hook.action.label.contains("create post", ignoreCase = true) -> {
+                                    selectedTab = 2
+                                }
+                                hook.action.href.equals("/find-people", ignoreCase = true) -> {
+                                    selectedTab = 1
+                                }
+                                hook.action.href.equals("/onboarding", ignoreCase = true) ||
+                                    hook.action.href.equals("/profile/edit", ignoreCase = true) -> {
+                                    showOnboardingScreen = true
+                                }
+                                else -> {
+                                    selectedTab = 0
+                                }
+                            }
+                        },
+                        onOpenProfile = { userId ->
+                            showGrowthHubScreen = false
+                            viewingProfileUserId = userId
+                        }
+                    )
+                }
+            }
+
             // Notification Settings Screen Overlay
             AnimatedVisibility(
                 visible = showNotificationSettingsScreen,
@@ -2164,7 +2274,10 @@ private fun LinkedInTopBar(
     contentColor: Color,
     accentColor: Color,
     userInitials: String = "U",
+    hasUnreadNotifications: Boolean = false,
+    unreadNotificationCount: Int = 0,
     hasUnreadMessages: Boolean = false,
+    onNotificationsClick: () -> Unit = {},
     onMessagesClick: () -> Unit = {}
 ) {
     Row(
@@ -2196,13 +2309,32 @@ private fun LinkedInTopBar(
             Box(
                 Modifier
                     .size(40.dp)
-                    .clickable { },
+                    .clickable { onNotificationsClick() },
                 contentAlignment = Alignment.Center
             ) {
                 NotificationBellIcon(
                     color = contentColor,
                     size = 22.dp
                 )
+                if (hasUnreadNotifications) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 4.dp, y = 4.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color(0xFFFF3B30))
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    ) {
+                        BasicText(
+                            if (unreadNotificationCount > 9) "9+" else unreadNotificationCount.toString(),
+                            style = TextStyle(
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                }
             }
             
             Spacer(Modifier.width(8.dp))
@@ -3561,6 +3693,7 @@ private fun MoreScreen(
     onNavigateToTopNetworkers: () -> Unit = {},
     onNavigateToOnboarding: () -> Unit = {},
     onNavigateToSavedPosts: () -> Unit = {},
+    onNavigateToGrowthHub: () -> Unit = {},
     onNavigateToNotificationSettings: () -> Unit = {},
     onNavigateToPrivacySettings: () -> Unit = {},
     onNavigateToAppearanceSettings: () -> Unit = {},
@@ -3666,6 +3799,12 @@ private fun MoreScreen(
         MoreSettingsSection(
             title = "For professionals",
             items = listOf(
+                MoreSettingsItem(
+                    title = "Growth hub",
+                    subtitle = "Jobs, learning, AI coach, rewards",
+                    icon = Icons.Outlined.School,
+                    onClick = onNavigateToGrowthHub
+                ),
                 MoreSettingsItem(
                     title = "Groups",
                     subtitle = "Connect with communities",

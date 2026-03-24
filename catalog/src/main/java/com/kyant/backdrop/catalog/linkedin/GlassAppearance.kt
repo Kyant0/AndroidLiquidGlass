@@ -156,6 +156,81 @@ val GlassBackgroundPresets = listOf(
             Color(0xFF59A8FF),
             Color(0xFFCDB8FF)
         )
+    ),
+    GlassBackgroundPreset(
+        key = "sunburst",
+        name = "Pure Yellow",
+        description = "A bold yellow wash with warm amber glow.",
+        baseColors = listOf(
+            Color(0xFFFFE100),
+            Color(0xFFFFE100),
+            Color(0xFFFFC400)
+        ),
+        orbColors = listOf(
+            Color(0xFFFFF176),
+            Color(0xFFFFB300),
+            Color(0xFFFF8F00)
+        )
+    ),
+    GlassBackgroundPreset(
+        key = "evergreen",
+        name = "Pure Green",
+        description = "Fresh emerald color with clean glass depth.",
+        baseColors = listOf(
+            Color(0xFF22C55E),
+            Color(0xFF22C55E),
+            Color(0xFF16A34A)
+        ),
+        orbColors = listOf(
+            Color(0xFF86EFAC),
+            Color(0xFF16A34A),
+            Color(0xFF14532D)
+        )
+    ),
+    GlassBackgroundPreset(
+        key = "obsidian",
+        name = "Black Glass",
+        description = "A deep black backdrop with subtle cool shine.",
+        baseColors = listOf(
+            Color(0xFF08090D),
+            Color(0xFF08090D),
+            Color(0xFF111827)
+        ),
+        orbColors = listOf(
+            Color(0xFF334155),
+            Color(0xFF0F172A),
+            Color(0xFF38BDF8)
+        )
+    ),
+    GlassBackgroundPreset(
+        key = "cobalt",
+        name = "Pure Blue",
+        description = "Strong blue color with bright electric bloom.",
+        baseColors = listOf(
+            Color(0xFF2563EB),
+            Color(0xFF2563EB),
+            Color(0xFF1D4ED8)
+        ),
+        orbColors = listOf(
+            Color(0xFF93C5FD),
+            Color(0xFF1D4ED8),
+            Color(0xFF0F172A)
+        )
+    ),
+    GlassBackgroundPreset(
+        key = "ember",
+        name = "Pure Red",
+        description = "Confident red tones with a soft ruby glow.",
+        baseColors = listOf(
+            Color(0xFFEF4444),
+            Color(0xFFEF4444),
+            Color(0xFFDC2626)
+        ),
+        orbColors = listOf(
+            Color(0xFFFCA5A5),
+            Color(0xFFDC2626),
+            Color(0xFF7F1D1D)
+        )
     )
 )
 
