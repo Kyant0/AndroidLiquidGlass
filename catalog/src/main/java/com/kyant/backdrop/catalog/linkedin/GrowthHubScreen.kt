@@ -42,7 +42,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
@@ -97,29 +96,7 @@ fun GrowthHubScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(0.dp) },
-                effects = {
-                    vibrancy()
-                    blur(22f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFFF7FBFF).copy(alpha = 0.86f),
-                                Color(0xFFF2F8FF).copy(alpha = 0.80f),
-                                Color(0xFFE8F1FF).copy(alpha = 0.86f)
-                            )
-                        )
-                    )
-                }
-            )
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

@@ -340,6 +340,48 @@ private fun PostSkeletonCard(
     }
 }
 
+@Composable
+private fun SectionOverlayContainer(
+    backdrop: LayerBackdrop,
+    themeMode: String,
+    glassBackgroundKey: String,
+    accentColor: Color,
+    glassMotionStyleKey: String,
+    reduceAnimations: Boolean,
+    content: @Composable () -> Unit
+) {
+    val isGlassTheme = themeMode == "glass"
+    val isDarkTheme = themeMode == "dark"
+
+    Box(Modifier.fillMaxSize()) {
+        if (isGlassTheme) {
+            GlassBackgroundLayer(
+                modifier = Modifier
+                    .layerBackdrop(backdrop)
+                    .fillMaxSize(),
+                backgroundKey = glassBackgroundKey,
+                accentColor = accentColor,
+                motionStyleKey = glassMotionStyleKey,
+                reduceAnimations = reduceAnimations
+            )
+        } else {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(if (isDarkTheme) Color.Black else Color.White)
+            )
+        }
+
+        Box(
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            content()
+        }
+    }
+}
+
 enum class LinkedInTab {
     Home, Network, Post, Notifications, Jobs
 }
@@ -1535,30 +1577,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = accentColor
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     GroupsScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showGroupsScreen = false },
                         onNavigateToGroupDetail = { groupId -> selectedGroupId = groupId },
                         onNavigateToGroupChat = { groupId -> 
@@ -1576,31 +1606,19 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 selectedGroupId?.let { groupId ->
-                    val darkContentColor = Color.White
-                    val darkAccentColor = accentColor
-                    
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { RoundedRectangle(0f.dp) },
-                                effects = {
-                                    vibrancy()
-                                    blur(24f.dp.toPx())
-                                    lens(12f.dp.toPx(), 24f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                                }
-                            )
-                            .statusBarsPadding()
+                    SectionOverlayContainer(
+                        backdrop = backdrop,
+                        themeMode = themeMode,
+                        glassBackgroundKey = glassBackgroundKey,
+                        accentColor = accentColor,
+                        glassMotionStyleKey = glassMotionStyleKey,
+                        reduceAnimations = reduceAnimations
                     ) {
                         GroupDetailScreen(
                             groupId = groupId,
                             backdrop = backdrop,
-                            contentColor = darkContentColor,
-                            accentColor = darkAccentColor,
+                            contentColor = contentColor,
+                            accentColor = accentColor,
                             onNavigateBack = { selectedGroupId = null },
                             onNavigateToChat = { showGroupChat = true },
                             onNavigateToProfile = { userId -> viewingProfileUserId = userId }
@@ -1616,31 +1634,19 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 selectedGroupId?.let { groupId ->
-                    val darkContentColor = Color.White
-                    val darkAccentColor = accentColor
-                    
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { RoundedRectangle(0f.dp) },
-                                effects = {
-                                    vibrancy()
-                                    blur(24f.dp.toPx())
-                                    lens(12f.dp.toPx(), 24f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                                }
-                            )
-                            .statusBarsPadding()
+                    SectionOverlayContainer(
+                        backdrop = backdrop,
+                        themeMode = themeMode,
+                        glassBackgroundKey = glassBackgroundKey,
+                        accentColor = accentColor,
+                        glassMotionStyleKey = glassMotionStyleKey,
+                        reduceAnimations = reduceAnimations
                     ) {
                         GroupChatScreen(
                             groupId = groupId,
                             backdrop = backdrop,
-                            contentColor = darkContentColor,
-                            accentColor = darkAccentColor,
+                            contentColor = contentColor,
+                            accentColor = accentColor,
                             currentUserId = uiState.currentUser?.id,
                             onNavigateBack = { showGroupChat = false },
                             onNavigateToProfile = { userId -> viewingProfileUserId = userId }
@@ -1655,30 +1661,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFF6C5CE7) // Purple accent for Circles
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     CirclesScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showCirclesScreen = false },
                         onNavigateToCircle = { circleId -> selectedCircleId = circleId },
                         onNavigateToUpgrade = { /* TODO: Navigate to upgrade */ }
@@ -1693,31 +1687,19 @@ fun LinkedInContent(
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
                 selectedCircleId?.let { circleId ->
-                    val darkContentColor = Color.White
-                    val darkAccentColor = Color(0xFF6C5CE7)
-                    
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { RoundedRectangle(0f.dp) },
-                                effects = {
-                                    vibrancy()
-                                    blur(24f.dp.toPx())
-                                    lens(12f.dp.toPx(), 24f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                                }
-                            )
-                            .statusBarsPadding()
+                    SectionOverlayContainer(
+                        backdrop = backdrop,
+                        themeMode = themeMode,
+                        glassBackgroundKey = glassBackgroundKey,
+                        accentColor = accentColor,
+                        glassMotionStyleKey = glassMotionStyleKey,
+                        reduceAnimations = reduceAnimations
                     ) {
                         CircleDetailScreen(
                             circleId = circleId,
                             backdrop = backdrop,
-                            contentColor = darkContentColor,
-                            accentColor = darkAccentColor,
+                            contentColor = contentColor,
+                            accentColor = accentColor,
                             currentUserId = uiState.currentUser?.id,
                             onNavigateBack = { selectedCircleId = null },
                             onNavigateToProfile = { userId -> viewingProfileUserId = userId },
@@ -1735,30 +1717,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = accentColor
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     WeeklyGoalsDetailScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showWeeklyGoalsScreen = false },
                         onNavigateToFindPeople = {
                             showWeeklyGoalsScreen = false
@@ -1774,30 +1744,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFFFF9800)
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     StreakDetailsScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showStreakDetailsScreen = false }
                     )
                 }
@@ -1809,30 +1767,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = Color(0xFFFFD700)
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     TopNetworkersScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showTopNetworkersScreen = false },
                         onNavigateToProfile = { userId -> 
                             showTopNetworkersScreen = false
@@ -1867,30 +1813,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = accentColor
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     SavedPostsScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showSavedPostsScreen = false },
                         onNavigateToPost = { postId ->
                             showSavedPostsScreen = false
@@ -1914,14 +1848,17 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     NotificationsInboxScreen(
                         backdrop = backdrop,
-                        contentColor = Color.Black,
+                        contentColor = contentColor,
                         accentColor = accentColor,
                         onNavigateBack = { showNotificationsInbox = false },
                         onUnreadCountChanged = { notificationUnreadCount = it },
@@ -1961,14 +1898,17 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     GrowthHubScreen(
                         backdrop = backdrop,
-                        contentColor = Color.Black,
+                        contentColor = contentColor,
                         accentColor = accentColor,
                         onNavigateBack = { showGrowthHubScreen = false },
                         onOpenHookAction = { hook ->
@@ -2003,30 +1943,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = accentColor
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     NotificationSettingsScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showNotificationSettingsScreen = false }
                     )
                 }
@@ -2038,30 +1966,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = accentColor
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     PrivacySettingsScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showPrivacySettingsScreen = false }
                     )
                 }
@@ -2073,30 +1989,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = accentColor
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     AppearanceSettingsScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showAppearanceSettingsScreen = false }
                     )
                 }
@@ -2108,30 +2012,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = accentColor
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     HelpScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showHelpScreen = false }
                     )
                 }
@@ -2143,30 +2035,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = accentColor
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     AboutScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showAboutScreen = false }
                     )
                 }
@@ -2178,30 +2058,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = accentColor
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     InviteFriendsScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showInviteFriendsScreen = false }
                     )
                 }
@@ -2213,30 +2081,18 @@ fun LinkedInContent(
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
-                val darkContentColor = Color.White
-                val darkAccentColor = accentColor
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(0f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                                lens(12f.dp.toPx(), 24f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color(0xFF1a1a2e).copy(alpha = 0.98f))
-                            }
-                        )
-                        .statusBarsPadding()
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
                 ) {
                     ContactScreen(
                         backdrop = backdrop,
-                        contentColor = darkContentColor,
-                        accentColor = darkAccentColor,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
                         onNavigateBack = { showContactScreen = false }
                     )
                 }

@@ -1,15 +1,14 @@
 package com.kyant.backdrop.catalog.linkedin.groups
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,9 +32,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Lock
@@ -56,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -72,10 +72,45 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.catalog.network.models.*
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
+
+private fun Modifier.groupSurface(
+    contentColor: Color,
+    cornerRadius: Dp = 16.dp,
+    containerColor: Color? = null,
+    outlineColor: Color? = null
+): Modifier {
+    val isDarkSurface = contentColor == Color.White
+    val resolvedOutline = outlineColor ?: if (isDarkSurface) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.White.copy(alpha = 0.42f)
+    }
+    val shape = RoundedCornerShape(cornerRadius)
+    val base = this.clip(shape)
+
+    val withBackground = if (containerColor != null) {
+        base.background(containerColor)
+    } else {
+        base.background(
+            brush = Brush.verticalGradient(
+                colors = if (isDarkSurface) {
+                    listOf(
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.07f)
+                    )
+                } else {
+                    listOf(
+                        Color.White.copy(alpha = 0.34f),
+                        Color.White.copy(alpha = 0.18f)
+                    )
+                }
+            )
+        )
+    }
+
+    return withBackground
+        .border(1.dp, resolvedOutline, shape)
+}
 
 // ==================== Main Groups Screen ====================
 
@@ -251,13 +286,12 @@ private fun GroupsHeader(
             Box(
                 Modifier
                     .size(40.dp)
-                    .glassBackground(backdrop)
-                    .clip(CircleShape)
+                    .groupSurface(contentColor, 20.dp)
                     .clickable(onClick = onBackClick),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    Icons.Default.ArrowBack,
+                    Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
                     tint = contentColor,
                     modifier = Modifier.size(20.dp)
@@ -277,8 +311,7 @@ private fun GroupsHeader(
         Box(
             Modifier
                 .size(40.dp)
-                .glassBackground(backdrop)
-                .clip(CircleShape)
+                .groupSurface(contentColor, 20.dp)
                 .clickable(onClick = onCreateClick),
             contentAlignment = Alignment.Center
         ) {
@@ -306,14 +339,12 @@ private fun GroupsTabs(
     Row(
         Modifier
             .fillMaxWidth()
-            .glassBackground(backdrop, vibrancyAlpha = 0.08f)
-            .clip(RoundedCornerShape(12.dp))
+            .groupSurface(contentColor, 12.dp)
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         GroupsTab.entries.forEach { tab ->
             val isSelected = tab == selectedTab
-            val alpha by animateFloatAsState(if (isSelected) 1f else 0f, label = "alpha")
             
             Box(
                 Modifier
@@ -378,8 +409,7 @@ private fun GroupsSearchBar(
     Row(
         Modifier
             .fillMaxWidth()
-            .glassBackground(backdrop, vibrancyAlpha = 0.08f)
-            .clip(RoundedCornerShape(12.dp))
+            .groupSurface(contentColor, 12.dp)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -478,12 +508,12 @@ private fun CategoryChip(
 ) {
     Box(
         Modifier
-            .glassBackground(backdrop, vibrancyAlpha = 0.08f)
-            .background(
-                if (isSelected) accentColor.copy(alpha = 0.2f) else Color.Transparent,
-                RoundedCornerShape(20.dp)
+            .groupSurface(
+                contentColor = contentColor,
+                cornerRadius = 20.dp,
+                containerColor = if (isSelected) accentColor.copy(alpha = 0.16f) else null,
+                outlineColor = if (isSelected) accentColor.copy(alpha = 0.26f) else null
             )
-            .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
@@ -644,8 +674,7 @@ fun GroupCard(
     Column(
         Modifier
             .fillMaxWidth()
-            .glassBackground(backdrop)
-            .clip(RoundedCornerShape(16.dp))
+            .groupSurface(contentColor, 16.dp)
             .clickable(onClick = onClick)
     ) {
         // Cover image
@@ -882,7 +911,7 @@ fun GroupCard(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Default.Chat,
+                                    Icons.AutoMirrored.Filled.Chat,
                                     contentDescription = null,
                                     tint = accentColor,
                                     modifier = Modifier.size(16.dp)
@@ -973,8 +1002,7 @@ private fun InviteCard(
     Column(
         Modifier
             .fillMaxWidth()
-            .glassBackground(backdrop)
-            .clip(RoundedCornerShape(16.dp))
+            .groupSurface(contentColor, 16.dp)
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1152,8 +1180,7 @@ private fun ErrorContent(
             Spacer(Modifier.height(16.dp))
             Box(
                 Modifier
-                    .glassBackground(backdrop)
-                    .clip(RoundedCornerShape(8.dp))
+                    .groupSurface(contentColor, 8.dp)
                     .clickable(onClick = onRetry)
                     .padding(horizontal = 24.dp, vertical = 10.dp)
             ) {

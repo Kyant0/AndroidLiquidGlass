@@ -17,7 +17,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Create
+import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.material.icons.outlined.ModeComment
+import androidx.compose.material.icons.outlined.PersonAddAlt1
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.TrackChanges
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +39,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -299,18 +312,7 @@ fun WeeklyGoalsCard(
     Box(
         modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(20f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(20f.dp.toPx())
-                    lens(8f.dp.toPx(), 16f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.15f))
-                }
-            )
+            .retentionCard(contentColor, 20.dp)
             .clickable { onNavigateToDetails() }
             .padding(16.dp)
     ) {
@@ -327,9 +329,10 @@ fun WeeklyGoalsCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    BasicText(
-                        "🎯",
-                        style = TextStyle(fontSize = 20.sp)
+                    RetentionIconBadge(
+                        icon = Icons.Outlined.TrackChanges,
+                        tint = accentColor,
+                        modifier = Modifier.size(34.dp)
                     )
                     BasicText(
                         "Weekly Goals",
@@ -377,13 +380,24 @@ fun WeeklyGoalsCard(
                         .background(Color(0xFFFF6B6B).copy(alpha = 0.15f))
                         .padding(10.dp)
                 ) {
-                    BasicText(
-                        "⚠️ ${goalsData.reminderMessage}",
-                        style = TextStyle(
-                            color = Color(0xFFFF6B6B),
-                            fontSize = 12.sp
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.WarningAmber,
+                            contentDescription = null,
+                            tint = Color(0xFFFF6B6B),
+                            modifier = Modifier.size(16.dp)
                         )
-                    )
+                        BasicText(
+                            goalsData.reminderMessage,
+                            style = TextStyle(
+                                color = Color(0xFFFF6B6B),
+                                fontSize = 12.sp
+                            )
+                        )
+                    }
                 }
             }
             
@@ -392,15 +406,26 @@ fun WeeklyGoalsCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                BasicText(
-                    "View Details →",
-                    style = TextStyle(
-                        color = accentColor,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    ),
-                    modifier = Modifier.clickable { onNavigateToDetails() }
-                )
+                Row(
+                    modifier = Modifier.clickable { onNavigateToDetails() },
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BasicText(
+                        "View details",
+                        style = TextStyle(
+                            color = accentColor,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
         }
     }
@@ -472,6 +497,99 @@ private fun GoalProgressRow(
 
 // ==================== WEEKLY GOALS DETAIL SCREEN ====================
 
+private fun Modifier.retentionCard(
+    contentColor: Color,
+    cornerRadius: androidx.compose.ui.unit.Dp = 20.dp
+): Modifier {
+    val isDarkSurface = contentColor == Color.White
+    val shape = RoundedCornerShape(cornerRadius)
+    return this
+        .clip(shape)
+        .background(
+            brush = Brush.verticalGradient(
+                colors = if (isDarkSurface) {
+                    listOf(
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.07f)
+                    )
+                } else {
+                    listOf(
+                        Color.White.copy(alpha = 0.34f),
+                        Color.White.copy(alpha = 0.18f)
+                    )
+                }
+            )
+        )
+        .border(
+            1.dp,
+            if (isDarkSurface) Color.White.copy(alpha = 0.14f)
+            else Color.White.copy(alpha = 0.42f),
+            shape
+        )
+}
+
+@Composable
+private fun RetentionHeader(
+    title: String,
+    contentColor: Color,
+    onNavigateBack: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(contentColor.copy(alpha = 0.10f))
+                .clickable { onNavigateBack() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Back",
+                tint = contentColor,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        BasicText(
+            title,
+            style = TextStyle(
+                color = contentColor,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        )
+
+        Spacer(Modifier.size(40.dp))
+    }
+}
+
+@Composable
+private fun RetentionIconBadge(
+    icon: ImageVector,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(tint.copy(alpha = 0.16f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
 @Composable
 fun WeeklyGoalsDetailScreen(
     backdrop: LayerBackdrop,
@@ -495,58 +613,17 @@ fun WeeklyGoalsDetailScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(contentColor.copy(alpha = 0.1f))
-                    .clickable { onNavigateBack() },
-                contentAlignment = Alignment.Center
-            ) {
-                BasicText(
-                    "←",
-                    style = TextStyle(
-                        color = contentColor,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-            }
-            
-            BasicText(
-                "Weekly Goals",
-                style = TextStyle(
-                    color = contentColor,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            )
-            
-            Spacer(Modifier.size(40.dp))
-        }
+        RetentionHeader(
+            title = "Weekly Goals",
+            contentColor = contentColor,
+            onNavigateBack = onNavigateBack
+        )
         
         // Overall progress circle
         Box(
             Modifier
                 .fillMaxWidth()
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(24f.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(20f.dp.toPx())
-                        lens(8f.dp.toPx(), 16f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(Color.White.copy(alpha = 0.12f))
-                    }
-                )
+                .retentionCard(contentColor, 24.dp)
                 .padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -584,6 +661,7 @@ fun WeeklyGoalsDetailScreen(
         
         // Individual goals
         LazyColumn(
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(goalsData.goals) { goal ->
@@ -605,30 +683,21 @@ fun WeeklyGoalsDetailScreen(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(16f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(16f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(accentColor.copy(alpha = 0.15f))
-                            }
-                        )
+                        .retentionCard(contentColor, 16.dp)
                         .padding(16.dp)
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        BasicText(
-                            "💪",
-                            style = TextStyle(fontSize = 32.sp)
-                        )
-                        BasicText(
-                            "Keep going! You're building great networking habits.",
-                            style = TextStyle(
+                        ) {
+                            RetentionIconBadge(
+                                icon = Icons.Outlined.CheckCircle,
+                                tint = accentColor,
+                                modifier = Modifier.size(44.dp)
+                            )
+                            BasicText(
+                                "Keep going! You're building great networking habits.",
+                                style = TextStyle(
                                 color = contentColor,
                                 fontSize = 14.sp,
                                 textAlign = TextAlign.Center
@@ -706,22 +775,17 @@ private fun GoalDetailCard(
 ) {
     val progress = if (goal.target > 0) goal.current.toFloat() / goal.target else 0f
     val remaining = goal.target - goal.current
+    val icon = when (goal.type) {
+        "connections" -> Icons.Outlined.PersonAddAlt1
+        "posts" -> Icons.Outlined.Create
+        "messages" -> Icons.Outlined.ChatBubbleOutline
+        else -> Icons.Outlined.CheckCircle
+    }
     
     Box(
         Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(16f.dp.toPx())
-                    lens(8f.dp.toPx(), 12f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.12f))
-                }
-            )
+            .retentionCard(contentColor, 16.dp)
             .padding(16.dp)
     ) {
         Row(
@@ -737,13 +801,7 @@ private fun GoalDetailCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val emoji = when (goal.type) {
-                        "connections" -> "🤝"
-                        "posts" -> "📝"
-                        "messages" -> "💬"
-                        else -> "✨"
-                    }
-                    BasicText(emoji, style = TextStyle(fontSize = 20.sp))
+                    RetentionIconBadge(icon = icon, tint = accentColor, modifier = Modifier.size(36.dp))
                     BasicText(
                         goal.label,
                         style = TextStyle(
@@ -790,7 +848,7 @@ private fun GoalDetailCard(
                 }
                 
                 BasicText(
-                    if (goal.isComplete) "Goal achieved! 🎉" else "$remaining more to go",
+                    if (goal.isComplete) "Goal complete." else "$remaining more to go",
                     style = TextStyle(
                         color = contentColor.copy(alpha = 0.6f),
                         fontSize = 12.sp
@@ -879,57 +937,17 @@ fun StreakDetailsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(contentColor.copy(alpha = 0.1f))
-                    .clickable { onNavigateBack() },
-                contentAlignment = Alignment.Center
-            ) {
-                BasicText(
-                    "←",
-                    style = TextStyle(color = contentColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                )
-            }
-            
-            BasicText(
-                "Your Streaks 🔥",
-                style = TextStyle(color = contentColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            )
-            
-            Spacer(Modifier.size(40.dp))
-        }
+        RetentionHeader(
+            title = "Your Streaks",
+            contentColor = contentColor,
+            onNavigateBack = onNavigateBack
+        )
         
         // Main streak display
         Box(
             Modifier
                 .fillMaxWidth()
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(24f.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(24f.dp.toPx())
-                        lens(12f.dp.toPx(), 20f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    Color(0xFFFF9800).copy(alpha = 0.2f),
-                                    Color(0xFFFF5722).copy(alpha = 0.15f)
-                                )
-                            )
-                        )
-                    }
-                )
+                .retentionCard(contentColor, 24.dp)
                 .padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -937,7 +955,11 @@ fun StreakDetailsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                BasicText("🔥", style = TextStyle(fontSize = 48.sp))
+                RetentionIconBadge(
+                    icon = Icons.Outlined.LocalFireDepartment,
+                    tint = accentColor,
+                    modifier = Modifier.size(52.dp)
+                )
                 BasicText(
                     "${streaks.connectionStreak}-day",
                     style = TextStyle(
@@ -968,12 +990,13 @@ fun StreakDetailsScreen(
         
         // 4 Streak bars (like Duolingo)
         LazyColumn(
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
                 StreakDetailBar(
                     label = "Networking",
-                    emoji = "🤝",
+                    icon = Icons.Outlined.PersonAddAlt1,
                     currentStreak = streaks.connectionStreak,
                     longestStreak = streaks.longestConnectionStreak,
                     isAtRisk = streaks.isAtRisk.connection,
@@ -986,7 +1009,7 @@ fun StreakDetailsScreen(
             item {
                 StreakDetailBar(
                     label = "Login",
-                    emoji = "📱",
+                    icon = Icons.Outlined.Schedule,
                     currentStreak = streaks.loginStreak,
                     longestStreak = streaks.longestLoginStreak,
                     isAtRisk = streaks.isAtRisk.login,
@@ -999,7 +1022,7 @@ fun StreakDetailsScreen(
             item {
                 StreakDetailBar(
                     label = "Posting",
-                    emoji = "📝",
+                    icon = Icons.Outlined.Create,
                     currentStreak = streaks.postingStreak,
                     longestStreak = streaks.longestPostingStreak,
                     isAtRisk = streaks.isAtRisk.posting,
@@ -1012,7 +1035,7 @@ fun StreakDetailsScreen(
             item {
                 StreakDetailBar(
                     label = "Messaging",
-                    emoji = "💬",
+                    icon = Icons.Outlined.ChatBubbleOutline,
                     currentStreak = streaks.messagingStreak,
                     longestStreak = streaks.longestMessagingStreak,
                     isAtRisk = streaks.isAtRisk.messaging,
@@ -1028,24 +1051,19 @@ fun StreakDetailsScreen(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { RoundedRectangle(12f.dp) },
-                                effects = {
-                                    vibrancy()
-                                    blur(16f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(Color(0xFF00BCD4).copy(alpha = 0.15f))
-                                }
-                            )
+                            .retentionCard(contentColor, 12.dp)
                             .padding(12.dp)
                     ) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            BasicText("❄️", style = TextStyle(fontSize = 20.sp))
+                            Icon(
+                                imageVector = Icons.Outlined.WarningAmber,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(18.dp)
+                            )
                             BasicText(
                                 "${streaks.streakFreezes} Streak Freeze${if (streaks.streakFreezes > 1) "s" else ""} available",
                                 style = TextStyle(
@@ -1064,7 +1082,7 @@ fun StreakDetailsScreen(
 @Composable
 private fun StreakDetailBar(
     label: String,
-    emoji: String,
+    icon: ImageVector,
     currentStreak: Int,
     longestStreak: Int,
     isAtRisk: Boolean,
@@ -1077,22 +1095,11 @@ private fun StreakDetailBar(
     Box(
         Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(16f.dp.toPx())
-                    lens(6f.dp.toPx(), 12f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.12f))
-                }
-            )
+            .retentionCard(contentColor, 16.dp)
             .then(
                 if (isAtRisk) Modifier.border(
-                    width = 2.dp,
-                    color = Color(0xFFFF6B6B),
+                    width = 1.dp,
+                    color = Color(0xFFFF8A80),
                     shape = RoundedCornerShape(16.dp)
                 ) else Modifier
             )
@@ -1110,7 +1117,7 @@ private fun StreakDetailBar(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    BasicText(emoji, style = TextStyle(fontSize = 20.sp))
+                    RetentionIconBadge(icon = icon, tint = color, modifier = Modifier.size(36.dp))
                     BasicText(
                         label,
                         style = TextStyle(
@@ -1124,13 +1131,13 @@ private fun StreakDetailBar(
                         Box(
                             Modifier
                                 .clip(Capsule())
-                                .background(Color(0xFFFF6B6B).copy(alpha = 0.2f))
+                                .background(Color(0xFFFF8A80).copy(alpha = 0.16f))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             BasicText(
                                 "AT RISK",
                                 style = TextStyle(
-                                    color = Color(0xFFFF6B6B),
+                                    color = Color(0xFFFF8A80),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -1209,31 +1216,12 @@ fun TopNetworkersScreen(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(contentColor.copy(alpha = 0.1f))
-                    .clickable { onNavigateBack() },
-                contentAlignment = Alignment.Center
-            ) {
-                BasicText("←", style = TextStyle(color = contentColor, fontSize = 18.sp, fontWeight = FontWeight.Bold))
-            }
-            
-            BasicText(
-                "Top Networkers 🏆",
-                style = TextStyle(color = contentColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Box(Modifier.padding(horizontal = 16.dp)) {
+            RetentionHeader(
+                title = "Top Networkers",
+                contentColor = contentColor,
+                onNavigateBack = onNavigateBack
             )
-            
-            Spacer(Modifier.size(40.dp))
         }
         
         // Period toggle (Week/Month)
@@ -1241,8 +1229,7 @@ fun TopNetworkersScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .clip(Capsule())
-                .background(contentColor.copy(alpha = 0.1f))
+                .retentionCard(contentColor, 18.dp)
                 .padding(4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
@@ -1309,25 +1296,20 @@ fun TopNetworkersScreen(
                         Box(
                             Modifier
                                 .fillMaxWidth()
-                                .drawBackdrop(
-                                    backdrop = backdrop,
-                                    shape = { RoundedRectangle(12f.dp) },
-                                    effects = {
-                                        vibrancy()
-                                        blur(16f.dp.toPx())
-                                    },
-                                    onDrawSurface = {
-                                        drawRect(accentColor.copy(alpha = 0.15f))
-                                    }
-                                )
+                                .retentionCard(contentColor, 12.dp)
                                 .padding(12.dp)
                         ) {
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                RetentionIconBadge(
+                                    icon = Icons.Outlined.EmojiEvents,
+                                    tint = accentColor,
+                                    modifier = Modifier.size(34.dp)
+                                )
                                 BasicText(
-                                    "📍 You're ranked #$rank",
+                                    "You're ranked #$rank",
                                     style = TextStyle(
                                         color = contentColor,
                                         fontSize = 14.sp,
@@ -1360,26 +1342,7 @@ private fun TopThreePodium(
     Box(
         Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(20f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(20f.dp.toPx())
-                    lens(8f.dp.toPx(), 16f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                Color(0xFFFFD700).copy(alpha = 0.15f),
-                                Color(0xFFC0C0C0).copy(alpha = 0.1f),
-                                Color(0xFFCD7F32).copy(alpha = 0.1f)
-                            )
-                        )
-                    )
-                }
-            )
+            .retentionCard(contentColor, 20.dp)
             .padding(16.dp)
     ) {
         Row(
@@ -1429,16 +1392,23 @@ private fun PodiumUser(
     contentColor: Color,
     onProfileClick: () -> Unit
 ) {
-    val medals = listOf("🥇", "🥈", "🥉")
-    
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.clickable { onProfileClick() }
     ) {
-        // Medal
+        RetentionIconBadge(
+            icon = Icons.Outlined.EmojiEvents,
+            tint = color,
+            modifier = Modifier.size(36.dp)
+        )
+        Spacer(Modifier.height(4.dp))
         BasicText(
-            medals.getOrElse(rank - 1) { "$rank" },
-            style = TextStyle(fontSize = 28.sp)
+            "#$rank",
+            style = TextStyle(
+                color = color,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
         )
         
         // Avatar
@@ -1504,19 +1474,9 @@ private fun LeaderboardUserRow(
     Box(
         Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(12f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(16f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(
-                        if (user.isCurrentUser) accentColor.copy(alpha = 0.15f)
-                        else Color.White.copy(alpha = 0.1f)
-                    )
-                }
+            .retentionCard(
+                contentColor = contentColor,
+                cornerRadius = 12.dp
             )
             .clickable { onProfileClick() }
             .padding(12.dp)
@@ -1574,7 +1534,7 @@ private fun LeaderboardUserRow(
                     )
                     if (user.headline != null) {
                         BasicText(
-                            user.headline!!,
+                            user.headline,
                             style = TextStyle(
                                 color = contentColor.copy(alpha = 0.5f),
                                 fontSize = 11.sp
@@ -2083,9 +2043,11 @@ fun MatchExpiryCountdown(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        BasicText(
-            "⏰",
-            style = TextStyle(fontSize = 12.sp)
+        Icon(
+            imageVector = Icons.Outlined.Schedule,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(12.dp)
         )
         BasicText(
             if (hoursRemaining > 0) "Expires in ${hoursRemaining}h" else "Expires in ${minutesRemaining}m",
@@ -2126,23 +2088,9 @@ fun StayActiveBanner(
         modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(16f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(
-                        Brush.horizontalGradient(
-                            listOf(
-                                Color(0xFFFF6B35).copy(alpha = 0.15f),
-                                Color(0xFFFF8C00).copy(alpha = 0.1f)
-                            )
-                        )
-                    )
-                }
+            .retentionCard(
+                contentColor = contentColor,
+                cornerRadius = 16.dp
             )
             .padding(14.dp)
     ) {
@@ -2156,9 +2104,10 @@ fun StayActiveBanner(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                BasicText(
-                    "🔥",
-                    style = TextStyle(fontSize = 20.sp)
+                RetentionIconBadge(
+                    icon = Icons.Outlined.LocalFireDepartment,
+                    tint = accentColor,
+                    modifier = Modifier.size(34.dp)
                 )
 
                 Column {
@@ -2261,18 +2210,7 @@ fun EngagementDashboardCard(
         modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(20f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(20f.dp.toPx())
-                    lens(8f.dp.toPx(), 16f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.15f))
-                }
-            )
+            .retentionCard(contentColor, 20.dp)
             .padding(16.dp)
     ) {
         Column(
@@ -2294,7 +2232,11 @@ fun EngagementDashboardCard(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        BasicText("🎯", style = TextStyle(fontSize = 18.sp))
+                        RetentionIconBadge(
+                            icon = Icons.Outlined.TrackChanges,
+                            tint = accentColor,
+                            modifier = Modifier.size(32.dp)
+                        )
                         BasicText(
                             "Weekly Goals",
                             style = TextStyle(
@@ -2336,7 +2278,12 @@ fun EngagementDashboardCard(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            BasicText("💪", style = TextStyle(fontSize = 14.sp))
+                            Icon(
+                                imageVector = Icons.Outlined.PersonAddAlt1,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(14.dp)
+                            )
                             BasicText(
                                 "You're ${goal.current}/${goal.target} on weekly connections. ${goal.target - goal.current} more to go!",
                                 style = TextStyle(
@@ -2397,9 +2344,11 @@ fun EngagementDashboardCard(
                             ),
                             label = "fire"
                         )
-                        BasicText(
-                            "🔥",
-                            style = TextStyle(fontSize = (18 * scale).sp)
+                        Icon(
+                            imageVector = Icons.Outlined.LocalFireDepartment,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size((18 * scale).dp)
                         )
                         BasicText(
                             "${currentStreak}-day streak!",
@@ -2417,7 +2366,7 @@ fun EngagementDashboardCard(
                     ) {
                         if (streaksAtRisk > 0) {
                             BasicText(
-                                "⚠️ $streaksAtRisk at risk",
+                                "$streaksAtRisk at risk",
                                 style = TextStyle(
                                     color = Color(0xFFFF6B6B),
                                     fontSize = 11.sp,
@@ -2490,15 +2439,19 @@ private fun GoalProgressMini(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // Icon based on type
         val icon = when (goal.type) {
-            "connections" -> "🤝"
-            "posts" -> "📝"
-            "messages" -> "💬"
-            "comments" -> "💭"
-            else -> "✨"
+            "connections" -> Icons.Outlined.PersonAddAlt1
+            "posts" -> Icons.Outlined.Create
+            "messages" -> Icons.Outlined.ChatBubbleOutline
+            "comments" -> Icons.Outlined.ModeComment
+            else -> Icons.Outlined.CheckCircle
         }
-        BasicText(icon, style = TextStyle(fontSize = 16.sp))
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(16.dp)
+        )
         
         // Progress text
         BasicText(
@@ -2613,18 +2566,7 @@ fun TopNetworkersPreview(
         modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(20f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(20f.dp.toPx())
-                    lens(8f.dp.toPx(), 16f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.15f))
-                }
-            )
+            .retentionCard(contentColor, 20.dp)
             .padding(16.dp)
     ) {
         Column(
@@ -2640,7 +2582,11 @@ fun TopNetworkersPreview(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    BasicText("🏆", style = TextStyle(fontSize = 18.sp))
+                    RetentionIconBadge(
+                        icon = Icons.Outlined.EmojiEvents,
+                        tint = accentColor,
+                        modifier = Modifier.size(32.dp)
+                    )
                     BasicText(
                         "Top Networkers",
                         style = TextStyle(

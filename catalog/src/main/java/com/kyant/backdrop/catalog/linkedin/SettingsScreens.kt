@@ -9,6 +9,9 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,10 +34,12 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
@@ -43,19 +48,97 @@ import com.kyant.backdrop.catalog.BuildConfig
 import com.kyant.backdrop.catalog.components.LiquidToggle
 import com.kyant.backdrop.catalog.data.SettingsPreferences
 import com.kyant.backdrop.catalog.network.ApiClient
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.backdrop.catalog.network.GrowthApiService
 import kotlinx.coroutines.launch
 
 private data class HelpFaqItemData(
     val id: String,
-    val icon: String,
+    val icon: ImageVector,
     val title: String,
     val answer: String
 )
+
+@Composable
+private fun SettingsScreenContainer(
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingsIconBadge(
+    icon: ImageVector,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(42.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(accentColor.copy(alpha = 0.14f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = accentColor,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+private fun Modifier.settingsSurface(
+    contentColor: Color,
+    cornerRadius: Dp = 18.dp,
+    containerColor: Color? = null,
+    outlineColor: Color? = null
+): Modifier {
+    val isDarkSurface = contentColor == Color.White
+    val resolvedOutline = outlineColor ?: if (isDarkSurface) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.White.copy(alpha = 0.42f)
+    }
+    val shape = RoundedCornerShape(cornerRadius)
+
+    val base = this.clip(shape)
+
+    val withBackground = if (containerColor != null) {
+        base.background(containerColor)
+    } else {
+        base.background(
+            brush = Brush.verticalGradient(
+                colors = if (isDarkSurface) {
+                    listOf(
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.07f)
+                    )
+                } else {
+                    listOf(
+                        Color.White.copy(alpha = 0.34f),
+                        Color.White.copy(alpha = 0.18f)
+                    )
+                }
+            )
+        )
+    }
+
+    return withBackground
+        .border(1.dp, resolvedOutline, shape)
+}
 
 // ==================== NOTIFICATION SETTINGS SCREEN ====================
 
@@ -78,8 +161,6 @@ fun NotificationSettingsScreen(
     val pushEnabled by SettingsPreferences.pushNotificationsEnabled(context).collectAsState(initial = true)
     val dailyDigestEnabled by SettingsPreferences.dailyDigestEnabled(context).collectAsState(initial = true)
     val dailyDigestTime by SettingsPreferences.dailyDigestTime(context).collectAsState(initial = "09:00")
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
-    val isGlassTheme = themeMode == "glass"
     val matchAlertsEnabled by SettingsPreferences.matchAlertsEnabled(context).collectAsState(initial = true)
     val messageNotificationsEnabled by SettingsPreferences.messageNotificationsEnabled(context).collectAsState(initial = true)
     val connectionNotificationsEnabled by SettingsPreferences.connectionNotificationsEnabled(context).collectAsState(initial = true)
@@ -87,41 +168,8 @@ fun NotificationSettingsScreen(
     val commentNotificationsEnabled by SettingsPreferences.commentNotificationsEnabled(context).collectAsState(initial = true)
     val streakRemindersEnabled by SettingsPreferences.streakRemindersEnabled(context).collectAsState(initial = true)
     val weeklySummaryEnabled by SettingsPreferences.weeklySummaryEnabled(context).collectAsState(initial = true)
-    
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .then(
-                if (isGlassTheme) {
-                    Modifier.drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(0.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(22f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color(0xFFEAF4FF).copy(alpha = 0.65f),
-                                        Color(0xFFF8FBFF).copy(alpha = 0.50f),
-                                        Color(0xFFE9F2FF).copy(alpha = 0.60f)
-                                    )
-                                )
-                            )
-                        }
-                    )
-                } else {
-                    Modifier
-                }
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-        ) {
+
+    SettingsScreenContainer(backdrop = backdrop, contentColor = contentColor, accentColor = accentColor) {
             SettingsHeader(
                 title = "Notifications",
                 contentColor = contentColor,
@@ -132,17 +180,11 @@ fun NotificationSettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp)
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(18.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(12f.dp.toPx())
-                            lens(4f.dp.toPx(), 8f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(Color.White.copy(alpha = if (isGlassTheme) 0.16f else 0.10f))
-                        }
+                    .settingsSurface(
+                        contentColor = contentColor,
+                        cornerRadius = 18.dp,
+                        containerColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.10f else 0.12f),
+                        outlineColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.18f else 0.12f)
                     )
                     .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
@@ -172,11 +214,11 @@ fun NotificationSettingsScreen(
                 SettingsActionItem(
                     title = "System Notifications",
                     subtitle = if (systemNotificationsEnabled) "Enabled" else "Disabled - Tap to enable",
-                    icon = "📱",
+                    icon = Icons.Outlined.NotificationsActive,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
-                    trailingText = if (systemNotificationsEnabled) "✅" else "⚠️",
+                    trailingText = if (systemNotificationsEnabled) "On" else "Off",
                     onClick = {
                         openAppNotificationSettings(context)
                     }
@@ -192,7 +234,7 @@ fun NotificationSettingsScreen(
                 NotificationLiquidToggleItem(
                     title = "Push Notifications",
                     subtitle = "Receive push notifications",
-                    icon = "🔔",
+                    icon = Icons.Outlined.Notifications,
                     checked = pushEnabled,
                     backdrop = backdrop,
                     contentColor = contentColor,
@@ -214,7 +256,7 @@ fun NotificationSettingsScreen(
                 NotificationLiquidToggleItem(
                     title = "Messages",
                     subtitle = "New messages and chat requests",
-                    icon = "💬",
+                    icon = Icons.Outlined.ChatBubbleOutline,
                     checked = messageNotificationsEnabled && pushEnabled,
                     enabled = pushEnabled,
                     backdrop = backdrop,
@@ -232,7 +274,7 @@ fun NotificationSettingsScreen(
                 NotificationLiquidToggleItem(
                     title = "Connections",
                     subtitle = "Connection requests and acceptances",
-                    icon = "👥",
+                    icon = Icons.Outlined.Groups,
                     checked = connectionNotificationsEnabled && pushEnabled,
                     enabled = pushEnabled,
                     backdrop = backdrop,
@@ -250,7 +292,7 @@ fun NotificationSettingsScreen(
                 NotificationLiquidToggleItem(
                     title = "Likes",
                     subtitle = "When someone likes your posts",
-                    icon = "❤️",
+                    icon = Icons.Outlined.FavoriteBorder,
                     checked = likeNotificationsEnabled && pushEnabled,
                     enabled = pushEnabled,
                     backdrop = backdrop,
@@ -268,7 +310,7 @@ fun NotificationSettingsScreen(
                 NotificationLiquidToggleItem(
                     title = "Comments",
                     subtitle = "When someone comments on your posts",
-                    icon = "💭",
+                    icon = Icons.Outlined.ModeComment,
                     checked = commentNotificationsEnabled && pushEnabled,
                     enabled = pushEnabled,
                     backdrop = backdrop,
@@ -291,7 +333,7 @@ fun NotificationSettingsScreen(
                 NotificationLiquidToggleItem(
                     title = "Match Alerts",
                     subtitle = "Daily matches and recommendations",
-                    icon = "🎯",
+                    icon = Icons.Outlined.TrackChanges,
                     checked = matchAlertsEnabled && pushEnabled,
                     enabled = pushEnabled,
                     backdrop = backdrop,
@@ -314,7 +356,7 @@ fun NotificationSettingsScreen(
                 NotificationLiquidToggleItem(
                     title = "Streak Reminders",
                     subtitle = "Don't lose your streak!",
-                    icon = "🔥",
+                    icon = Icons.Outlined.LocalFireDepartment,
                     checked = streakRemindersEnabled && pushEnabled,
                     enabled = pushEnabled,
                     backdrop = backdrop,
@@ -337,7 +379,7 @@ fun NotificationSettingsScreen(
                 NotificationLiquidToggleItem(
                     title = "Daily Digest",
                     subtitle = "Daily summary at $dailyDigestTime",
-                    icon = "📰",
+                    icon = Icons.AutoMirrored.Outlined.Article,
                     checked = dailyDigestEnabled && pushEnabled,
                     enabled = pushEnabled,
                     backdrop = backdrop,
@@ -355,7 +397,7 @@ fun NotificationSettingsScreen(
                 NotificationLiquidToggleItem(
                     title = "Weekly Summary",
                     subtitle = "Your week in review",
-                    icon = "📊",
+                    icon = Icons.Outlined.Insights,
                     checked = weeklySummaryEnabled && pushEnabled,
                     enabled = pushEnabled,
                     backdrop = backdrop,
@@ -370,8 +412,7 @@ fun NotificationSettingsScreen(
             }
             
             item { Spacer(Modifier.height(80.dp)) }
-        }
-        }
+            }
     }
 }
 
@@ -379,7 +420,7 @@ fun NotificationSettingsScreen(
 private fun NotificationLiquidToggleItem(
     title: String,
     subtitle: String,
-    icon: String,
+    icon: ImageVector,
     checked: Boolean,
     backdrop: LayerBackdrop,
     contentColor: Color,
@@ -393,19 +434,7 @@ private fun NotificationLiquidToggleItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.12f))
-                }
-            )
-            .clip(RoundedCornerShape(16.dp))
+            .settingsSurface(contentColor = contentColor, cornerRadius = 16.dp)
             .clickable(enabled = enabled) { onCheckedChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
@@ -418,7 +447,7 @@ private fun NotificationLiquidToggleItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                BasicText(icon, style = TextStyle(fontSize = 24.sp))
+                SettingsIconBadge(icon = icon, accentColor = accentColor)
                 Spacer(Modifier.width(14.dp))
                 Column {
                     BasicText(
@@ -474,17 +503,36 @@ fun PrivacySettingsScreen(
     val discoverableByEmail by SettingsPreferences.discoverableByEmail(context).collectAsState(initial = true)
     val discoverableByPhone by SettingsPreferences.discoverableByPhone(context).collectAsState(initial = false)
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        // Header
+    SettingsScreenContainer(backdrop = backdrop, contentColor = contentColor, accentColor = accentColor) {
         SettingsHeader(
             title = "Privacy",
             contentColor = contentColor,
             onBack = onNavigateBack
         )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+                .settingsSurface(
+                    contentColor = contentColor,
+                    cornerRadius = 20.dp,
+                    containerColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.10f else 0.12f),
+                    outlineColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.18f else 0.12f)
+                )
+                .padding(16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                BasicText(
+                    "Privacy controls that feel clear",
+                    style = TextStyle(contentColor, 16.sp, FontWeight.SemiBold)
+                )
+                BasicText(
+                    "Choose who can find you, message you, and see your activity without digging through cramped menus.",
+                    style = TextStyle(contentColor.copy(alpha = 0.66f), 12.sp)
+                )
+            }
+        }
         
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -504,7 +552,7 @@ fun PrivacySettingsScreen(
                         "private" -> "Only you"
                         else -> "Everyone"
                     },
-                    icon = "👁️",
+                    icon = Icons.Outlined.Visibility,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -536,7 +584,7 @@ fun PrivacySettingsScreen(
                         "none" -> "No one"
                         else -> "Everyone"
                     },
-                    icon = "💬",
+                    icon = Icons.Outlined.ChatBubbleOutline,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -563,7 +611,7 @@ fun PrivacySettingsScreen(
                 SettingsSwitchItem(
                     title = "Show Online Status",
                     subtitle = "Let others see when you're online",
-                    icon = "🟢",
+                    icon = Icons.Outlined.Lens,
                     checked = showOnlineStatus,
                     backdrop = backdrop,
                     contentColor = contentColor,
@@ -580,7 +628,7 @@ fun PrivacySettingsScreen(
                 SettingsSwitchItem(
                     title = "Show Activity Status",
                     subtitle = "Show \"Active X minutes ago\"",
-                    icon = "⏰",
+                    icon = Icons.Outlined.Schedule,
                     checked = showActivityStatus,
                     backdrop = backdrop,
                     contentColor = contentColor,
@@ -597,7 +645,7 @@ fun PrivacySettingsScreen(
                 SettingsSwitchItem(
                     title = "Show Profile Views",
                     subtitle = "See who viewed your profile",
-                    icon = "👀",
+                    icon = Icons.Outlined.Visibility,
                     checked = showProfileViews,
                     backdrop = backdrop,
                     contentColor = contentColor,
@@ -619,7 +667,7 @@ fun PrivacySettingsScreen(
                 SettingsSwitchItem(
                     title = "Discoverable by Email",
                     subtitle = "Let others find you by email",
-                    icon = "📧",
+                    icon = Icons.Outlined.AlternateEmail,
                     checked = discoverableByEmail,
                     backdrop = backdrop,
                     contentColor = contentColor,
@@ -636,7 +684,7 @@ fun PrivacySettingsScreen(
                 SettingsSwitchItem(
                     title = "Discoverable by Phone",
                     subtitle = "Let others find you by phone number",
-                    icon = "📱",
+                    icon = Icons.Outlined.PhoneAndroid,
                     checked = discoverableByPhone,
                     backdrop = backdrop,
                     contentColor = contentColor,
@@ -678,12 +726,7 @@ fun AppearanceSettingsScreen(
     val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
     val selectedAccentColor = glassAccentPalette(accentPaletteKey).color
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        // Header
+    SettingsScreenContainer(backdrop = backdrop, contentColor = contentColor, accentColor = accentColor) {
         SettingsHeader(
             title = "Appearance",
             contentColor = contentColor,
@@ -731,6 +774,7 @@ fun AppearanceSettingsScreen(
                         themeName = "Glass",
                         themeKey = "glass",
                         isSelected = themeMode == "glass",
+                        contentColor = contentColor,
                         backdrop = backdrop,
                         accentColor = accentColor,
                         onClick = {
@@ -747,6 +791,7 @@ fun AppearanceSettingsScreen(
                         themeName = "Bright",
                         themeKey = "light",
                         isSelected = themeMode == "light",
+                        contentColor = contentColor,
                         backdrop = backdrop,
                         accentColor = accentColor,
                         onClick = {
@@ -763,6 +808,7 @@ fun AppearanceSettingsScreen(
                         themeName = "Dark",
                         themeKey = "dark",
                         isSelected = themeMode == "dark",
+                        contentColor = contentColor,
                         backdrop = backdrop,
                         accentColor = accentColor,
                         onClick = {
@@ -795,6 +841,7 @@ fun AppearanceSettingsScreen(
                             GlassBackgroundChoiceCard(
                                 preset = preset,
                                 isSelected = glassBackgroundKey == preset.key,
+                                contentColor = contentColor,
                                 backdrop = backdrop,
                                 accentColor = accentColor,
                                 previewAccentColor = selectedAccentColor,
@@ -828,6 +875,7 @@ fun AppearanceSettingsScreen(
                         GlassAccentChoiceCard(
                             palette = palette,
                             isSelected = accentPaletteKey == palette.key,
+                            contentColor = contentColor,
                             backdrop = backdrop,
                             selectionColor = accentColor,
                             onClick = {
@@ -861,6 +909,7 @@ fun AppearanceSettingsScreen(
                                 motionStyle = motionStyle,
                                 isSelected = glassMotionStyleKey == motionStyle.key,
                                 reduceAnimations = reduceAnimations,
+                                contentColor = contentColor,
                                 backdrop = backdrop,
                                 accentColor = accentColor,
                                 onClick = {
@@ -877,17 +926,9 @@ fun AppearanceSettingsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { RoundedRectangle(16.dp) },
-                                effects = {
-                                    vibrancy()
-                                    blur(10f.dp.toPx())
-                                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(Color.White.copy(alpha = 0.10f))
-                                }
+                            .settingsSurface(
+                                contentColor = contentColor,
+                                cornerRadius = 16.dp
                             )
                             .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
@@ -924,7 +965,7 @@ fun AppearanceSettingsScreen(
                 SettingsSwitchItem(
                     title = "Reduce Animations",
                     subtitle = "Minimize motion effects for better accessibility",
-                    icon = "✨",
+                    icon = Icons.Outlined.Tune,
                     checked = reduceAnimations,
                     backdrop = backdrop,
                     contentColor = contentColor,
@@ -948,6 +989,7 @@ private fun ThemePreviewCard(
     themeName: String,
     themeKey: String,
     isSelected: Boolean,
+    contentColor: Color,
     backdrop: LayerBackdrop,
     accentColor: Color,
     onClick: () -> Unit
@@ -959,20 +1001,12 @@ private fun ThemePreviewCard(
     
     Column(
         modifier = modifier
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(20.dp) },
-                effects = {
-                    vibrancy()
-                    blur(12f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.15f))
-                }
+            .settingsSurface(
+                contentColor = contentColor,
+                cornerRadius = 20.dp
             )
             .border(
-                width = if (isSelected) 3.dp else 0.dp,
+                width = if (isSelected) 2.dp else 0.dp,
                 color = borderColor,
                 shape = RoundedCornerShape(20.dp)
             )
@@ -1081,20 +1115,22 @@ private fun ThemePreviewCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            BasicText(
-                when (themeKey) {
-                    "glass" -> "✨"
-                    "light" -> "☀️"
-                    "dark" -> "🌙"
-                    else -> "✨"
+            Icon(
+                imageVector = when (themeKey) {
+                    "glass" -> Icons.Outlined.BlurOn
+                    "light" -> Icons.Outlined.LightMode
+                    "dark" -> Icons.Outlined.DarkMode
+                    else -> Icons.Outlined.BlurOn
                 },
-                style = TextStyle(fontSize = 16.sp)
+                contentDescription = null,
+                tint = if (isSelected) accentColor else contentColor.copy(alpha = 0.7f),
+                modifier = Modifier.size(18.dp)
             )
             Spacer(Modifier.width(4.dp))
             BasicText(
                 themeName,
                 style = TextStyle(
-                    color = if (isSelected) accentColor else Color.Black,
+                    color = if (isSelected) accentColor else contentColor,
                     fontSize = 14.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                 )
@@ -1110,13 +1146,11 @@ private fun ThemePreviewCard(
                     .background(accentColor),
                 contentAlignment = Alignment.Center
             ) {
-                BasicText(
-                    "✓",
-                    style = TextStyle(
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(13.dp)
                 )
             }
         } else {
@@ -1157,6 +1191,7 @@ private fun SettingsSubsectionHeader(
 private fun GlassBackgroundChoiceCard(
     preset: GlassBackgroundPreset,
     isSelected: Boolean,
+    contentColor: Color,
     backdrop: LayerBackdrop,
     accentColor: Color,
     previewAccentColor: Color,
@@ -1170,20 +1205,12 @@ private fun GlassBackgroundChoiceCard(
     Column(
         modifier = Modifier
             .width(152.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(20.dp) },
-                effects = {
-                    vibrancy()
-                    blur(12f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.15f))
-                }
+            .settingsSurface(
+                contentColor = contentColor,
+                cornerRadius = 20.dp
             )
             .border(
-                width = if (isSelected) 3.dp else 0.dp,
+                width = if (isSelected) 2.dp else 0.dp,
                 color = borderColor,
                 shape = RoundedCornerShape(20.dp)
             )
@@ -1208,7 +1235,7 @@ private fun GlassBackgroundChoiceCard(
         BasicText(
             preset.name,
             style = TextStyle(
-                color = Color.Black,
+                color = contentColor,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -1217,7 +1244,7 @@ private fun GlassBackgroundChoiceCard(
         BasicText(
             preset.description,
             style = TextStyle(
-                color = Color.Black.copy(alpha = 0.62f),
+                color = contentColor.copy(alpha = 0.62f),
                 fontSize = 12.sp
             )
         )
@@ -1246,6 +1273,7 @@ private fun GlassBackgroundChoiceCard(
 private fun GlassAccentChoiceCard(
     palette: GlassAccentPalette,
     isSelected: Boolean,
+    contentColor: Color,
     backdrop: LayerBackdrop,
     selectionColor: Color,
     onClick: () -> Unit
@@ -1258,20 +1286,12 @@ private fun GlassAccentChoiceCard(
     Column(
         modifier = Modifier
             .width(112.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(18.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.13f))
-                }
+            .settingsSurface(
+                contentColor = contentColor,
+                cornerRadius = 18.dp
             )
             .border(
-                width = if (isSelected) 3.dp else 0.dp,
+                width = if (isSelected) 2.dp else 0.dp,
                 color = borderColor,
                 shape = RoundedCornerShape(18.dp)
             )
@@ -1299,7 +1319,7 @@ private fun GlassAccentChoiceCard(
         BasicText(
             palette.name,
             style = TextStyle(
-                color = Color.Black,
+                color = contentColor,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
@@ -1313,6 +1333,7 @@ private fun GlassMotionChoiceCard(
     motionStyle: GlassMotionStyle,
     isSelected: Boolean,
     reduceAnimations: Boolean,
+    contentColor: Color,
     backdrop: LayerBackdrop,
     accentColor: Color,
     onClick: () -> Unit
@@ -1325,20 +1346,12 @@ private fun GlassMotionChoiceCard(
     Column(
         modifier = Modifier
             .width(144.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(18.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.13f))
-                }
+            .settingsSurface(
+                contentColor = contentColor,
+                cornerRadius = 18.dp
             )
             .border(
-                width = if (isSelected) 3.dp else 0.dp,
+                width = if (isSelected) 2.dp else 0.dp,
                 color = borderColor,
                 shape = RoundedCornerShape(18.dp)
             )
@@ -1385,7 +1398,7 @@ private fun GlassMotionChoiceCard(
         BasicText(
             motionStyle.name,
             style = TextStyle(
-                color = Color.Black,
+                color = contentColor,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -1398,7 +1411,7 @@ private fun GlassMotionChoiceCard(
                 motionStyle.description
             },
             style = TextStyle(
-                color = Color.Black.copy(alpha = 0.62f),
+                color = contentColor.copy(alpha = 0.62f),
                 fontSize = 12.sp
             )
         )
@@ -1421,37 +1434,37 @@ fun HelpScreen(
         listOf(
             HelpFaqItemData(
                 id = "post",
-                icon = "📝",
+                icon = Icons.Outlined.Edit,
                 title = "How to create a post",
                 answer = "Use the center create tab to publish text, images, videos, links, polls, or articles. After posting, go back to Home and your content should appear without reloading the entire app."
             ),
             HelpFaqItemData(
                 id = "connect",
-                icon = "🤝",
+                icon = Icons.Outlined.PersonAddAlt,
                 title = "How to connect with others",
                 answer = "Open Find, choose Smart, For You, Campus, or Nearby, then tap Connect on people who look relevant. The app now ranks active and more complete profiles higher to make this section feel more useful."
             ),
             HelpFaqItemData(
                 id = "notifications",
-                icon = "🔔",
+                icon = Icons.Outlined.NotificationsNone,
                 title = "Why notifications may not arrive",
                 answer = "Check Android system notifications first, then make sure push notifications are enabled inside Vormex. If the app was force-stopped from Android Settings, Firebase will stay blocked until the app is opened again."
             ),
             HelpFaqItemData(
                 id = "goals",
-                icon = "🎯",
+                icon = Icons.Outlined.TrackChanges,
                 title = "Understanding weekly goals",
                 answer = "Weekly goals track activity like connections and posting. Progress, streaks, and retention cards now stay cached for a few minutes, so reopening these sections should feel much faster."
             ),
             HelpFaqItemData(
                 id = "password",
-                icon = "🔒",
+                icon = Icons.Outlined.Lock,
                 title = "How to change password",
                 answer = "If you signed up with email and password, use the account flow on web or contact support from this screen and ask for a password reset. Include the email tied to your Vormex account."
             ),
             HelpFaqItemData(
                 id = "account",
-                icon = "🗑️",
+                icon = Icons.Outlined.DeleteOutline,
                 title = "How to delete your account",
                 answer = "Contact support and request account deletion from the email linked to your account. Include your username and a short confirmation that you want all account data removed."
             )
@@ -1469,12 +1482,7 @@ fun HelpScreen(
         }
     }
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        // Header
+    SettingsScreenContainer(backdrop = backdrop, contentColor = contentColor, accentColor = accentColor) {
         SettingsHeader(
             title = "Help & FAQ",
             contentColor = contentColor,
@@ -1489,17 +1497,11 @@ fun HelpScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(20.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(10f.dp.toPx())
-                                lens(4f.dp.toPx(), 8f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(accentColor.copy(alpha = 0.14f))
-                            }
+                        .settingsSurface(
+                            contentColor = contentColor,
+                            cornerRadius = 20.dp,
+                            containerColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.10f else 0.12f),
+                            outlineColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.18f else 0.12f)
                         )
                         .padding(16.dp)
                 ) {
@@ -1547,7 +1549,7 @@ fun HelpScreen(
                 SettingsActionItem(
                     title = "Notification troubleshooting",
                     subtitle = "Open Android notification settings for Vormex",
-                    icon = "🔔",
+                    icon = Icons.Outlined.NotificationsActive,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -1559,7 +1561,7 @@ fun HelpScreen(
                 SettingsActionItem(
                     title = "Copy app diagnostics",
                     subtitle = "Version, device, Android, and backend endpoint",
-                    icon = "🧪",
+                    icon = Icons.Outlined.Science,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -1577,7 +1579,7 @@ fun HelpScreen(
                 SettingsActionItem(
                     title = "Contact support",
                     subtitle = "Open email with support details filled in",
-                    icon = "📧",
+                    icon = Icons.Outlined.Email,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -1601,17 +1603,9 @@ fun HelpScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { RoundedRectangle(16.dp) },
-                                effects = {
-                                    vibrancy()
-                                    blur(10f.dp.toPx())
-                                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(Color.White.copy(alpha = 0.08f))
-                                }
+                            .settingsSurface(
+                                contentColor = contentColor,
+                                cornerRadius = 16.dp
                             )
                             .padding(16.dp)
                     ) {
@@ -1644,7 +1638,7 @@ fun HelpScreen(
                 SettingsNavigationItem(
                     title = "Visit Help Center",
                     subtitle = "Full documentation and guides",
-                    icon = "🌐",
+                    icon = Icons.Outlined.Language,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -1658,7 +1652,7 @@ fun HelpScreen(
                 SettingsNavigationItem(
                     title = "Contact Support",
                     subtitle = "Get help from our team",
-                    icon = "📧",
+                    icon = Icons.Outlined.SupportAgent,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -1690,12 +1684,7 @@ fun AboutScreen(
     val context = LocalContext.current
     var showOpenSourceDialog by rememberSaveable { mutableStateOf(false) }
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        // Header
+    SettingsScreenContainer(backdrop = backdrop, contentColor = contentColor, accentColor = accentColor) {
         SettingsHeader(
             title = "About",
             contentColor = contentColor,
@@ -1712,17 +1701,11 @@ fun AboutScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(24.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(10f.dp.toPx())
-                            lens(4f.dp.toPx(), 8f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(accentColor.copy(alpha = 0.1f))
-                        }
+                    .settingsSurface(
+                        contentColor = contentColor,
+                        cornerRadius = 24.dp,
+                        containerColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.10f else 0.08f),
+                        outlineColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.18f else 0.10f)
                     )
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
@@ -1784,7 +1767,7 @@ fun AboutScreen(
             SettingsActionItem(
                 title = "Copy Build Details",
                 subtitle = "Version, package, API endpoint, and device context",
-                icon = "🧪",
+                icon = Icons.Outlined.Science,
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
@@ -1800,17 +1783,9 @@ fun AboutScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(16.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(10f.dp.toPx())
-                            lens(4f.dp.toPx(), 8f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(Color.White.copy(alpha = 0.08f))
-                        }
+                    .settingsSurface(
+                        contentColor = contentColor,
+                        cornerRadius = 16.dp
                     )
                     .padding(16.dp)
             ) {
@@ -1824,7 +1799,7 @@ fun AboutScreen(
             
             SettingsNavigationItem(
                 title = "Terms of Service",
-                icon = "📜",
+                icon = Icons.Outlined.Gavel,
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
@@ -1835,7 +1810,7 @@ fun AboutScreen(
             
             SettingsNavigationItem(
                 title = "Privacy Policy",
-                icon = "🔐",
+                icon = Icons.Outlined.Policy,
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
@@ -1846,7 +1821,7 @@ fun AboutScreen(
             
             SettingsNavigationItem(
                 title = "Open Source Licenses",
-                icon = "📄",
+                icon = Icons.Outlined.Description,
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
@@ -1858,7 +1833,7 @@ fun AboutScreen(
             SettingsNavigationItem(
                 title = "Follow us on Twitter",
                 subtitle = "@VormexApp",
-                icon = "🐦",
+                icon = Icons.Outlined.AlternateEmail,
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
@@ -1870,7 +1845,7 @@ fun AboutScreen(
             SettingsNavigationItem(
                 title = "Visit our website",
                 subtitle = "vormex.in",
-                icon = "🌐",
+                icon = Icons.Outlined.Language,
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
@@ -1947,15 +1922,34 @@ fun InviteFriendsScreen(
     referralCode: String = "VORMEX2026"
 ) {
     val context = LocalContext.current
-    val inviteLink = remember(referralCode) { "https://vormex.in/download?ref=$referralCode" }
-    val inviteMessage = remember(referralCode) { buildInviteMessage(referralCode) }
-    
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        // Header
+    var resolvedReferralCode by remember { mutableStateOf(referralCode) }
+    var resolvedInviteLink by remember { mutableStateOf("https://vormex.in/download?ref=$referralCode") }
+    var isLoadingReferral by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        GrowthApiService.getReferralShareLinks(context)
+            .onSuccess { shareLinks ->
+                resolvedReferralCode = shareLinks.code.ifBlank { referralCode }
+                resolvedInviteLink = shareLinks.link.ifBlank {
+                    "https://vormex.in/download?ref=$resolvedReferralCode"
+                }
+                isLoadingReferral = false
+            }
+            .onFailure {
+                GrowthApiService.getReferralCode(context)
+                    .onSuccess { code ->
+                        resolvedReferralCode = code
+                        resolvedInviteLink = "https://vormex.in/download?ref=$code"
+                    }
+                isLoadingReferral = false
+            }
+    }
+
+    val inviteMessage = remember(resolvedReferralCode, resolvedInviteLink) {
+        buildInviteMessage(resolvedReferralCode, resolvedInviteLink)
+    }
+
+    SettingsScreenContainer(backdrop = backdrop, contentColor = contentColor, accentColor = accentColor) {
         SettingsHeader(
             title = "Invite Friends",
             contentColor = contentColor,
@@ -1975,13 +1969,15 @@ fun InviteFriendsScreen(
             Box(
                 modifier = Modifier
                     .size(120.dp)
-                    .clip(CircleShape)
-                    .background(accentColor.copy(alpha = 0.2f)),
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(accentColor.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center
             ) {
-                BasicText(
-                    "🎁",
-                    style = TextStyle(fontSize = 64.sp)
+                Icon(
+                    imageVector = Icons.Outlined.GroupAdd,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(56.dp)
                 )
             }
             
@@ -2009,17 +2005,11 @@ fun InviteFriendsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(16.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(10f.dp.toPx())
-                            lens(4f.dp.toPx(), 8f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(accentColor.copy(alpha = 0.15f))
-                        }
+                    .settingsSurface(
+                        contentColor = contentColor,
+                        cornerRadius = 16.dp,
+                        containerColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.10f else 0.12f),
+                        outlineColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.18f else 0.12f)
                     )
                     .padding(20.dp)
             ) {
@@ -2045,7 +2035,7 @@ fun InviteFriendsScreen(
                             .padding(horizontal = 24.dp, vertical = 12.dp)
                     ) {
                         BasicText(
-                            referralCode,
+                            resolvedReferralCode,
                             style = TextStyle(
                                 color = contentColor,
                                 fontSize = 24.sp,
@@ -2058,13 +2048,13 @@ fun InviteFriendsScreen(
 
             SettingsActionItem(
                 title = "Copy invite link",
-                subtitle = inviteLink,
-                icon = "🔗",
+                subtitle = if (isLoadingReferral) "Loading your share link..." else resolvedInviteLink,
+                icon = Icons.Outlined.Link,
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onClick = {
-                    copyText(context, "Invite link", inviteLink)
+                    copyText(context, "Invite link", resolvedInviteLink)
                 }
             )
 
@@ -2075,20 +2065,20 @@ fun InviteFriendsScreen(
                 InviteUtilityCard(
                     modifier = Modifier.weight(1f),
                     title = "Copy Code",
-                    subtitle = referralCode,
-                    icon = "📋",
+                    subtitle = resolvedReferralCode,
+                    icon = Icons.Outlined.ContentCopy,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        copyText(context, "Referral code", referralCode)
+                        copyText(context, "Referral code", resolvedReferralCode)
                     }
                 )
                 InviteUtilityCard(
                     modifier = Modifier.weight(1f),
                     title = "Copy Message",
                     subtitle = "Ready to paste",
-                    icon = "✉️",
+                    icon = Icons.Outlined.Drafts,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -2106,35 +2096,35 @@ fun InviteFriendsScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 ShareButton(
-                    icon = "💬",
+                    icon = Icons.Outlined.Sms,
                     label = "Message",
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        shareInvite(context, "sms", referralCode)
+                        shareInvite(context, "sms", inviteMessage)
                     }
                 )
                 
                 ShareButton(
-                    icon = "📧",
+                    icon = Icons.Outlined.Email,
                     label = "Email",
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        shareInvite(context, "email", referralCode)
+                        shareInvite(context, "email", inviteMessage)
                     }
                 )
                 
                 ShareButton(
-                    icon = "📤",
+                    icon = Icons.Outlined.Share,
                     label = "Share",
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
                     onClick = {
-                        shareInvite(context, "share", referralCode)
+                        shareInvite(context, "share", inviteMessage)
                     }
                 )
             }
@@ -2142,17 +2132,9 @@ fun InviteFriendsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(16.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(10f.dp.toPx())
-                            lens(4f.dp.toPx(), 8f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(Color.White.copy(alpha = 0.08f))
-                        }
+                    .settingsSurface(
+                        contentColor = contentColor,
+                        cornerRadius = 16.dp
                     )
                     .padding(16.dp)
             ) {
@@ -2178,7 +2160,7 @@ private fun InviteUtilityCard(
     modifier: Modifier = Modifier,
     title: String,
     subtitle: String,
-    icon: String,
+    icon: ImageVector,
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
@@ -2186,23 +2168,12 @@ private fun InviteUtilityCard(
 ) {
     Box(
         modifier = modifier
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(accentColor.copy(alpha = 0.10f))
-                }
-            )
+            .settingsSurface(contentColor = contentColor, cornerRadius = 16.dp)
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            BasicText(icon, style = TextStyle(fontSize = 20.sp))
+            SettingsIconBadge(icon = icon, accentColor = accentColor, modifier = Modifier.size(38.dp))
             BasicText(
                 title,
                 style = TextStyle(contentColor, 14.sp, FontWeight.SemiBold)
@@ -2217,7 +2188,7 @@ private fun InviteUtilityCard(
 
 @Composable
 private fun ShareButton(
-    icon: String,
+    icon: ImageVector,
     label: String,
     backdrop: LayerBackdrop,
     contentColor: Color,
@@ -2238,7 +2209,12 @@ private fun ShareButton(
                 .background(accentColor.copy(alpha = 0.2f)),
             contentAlignment = Alignment.Center
         ) {
-            BasicText(icon, style = TextStyle(fontSize = 24.sp))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = accentColor,
+                modifier = Modifier.size(24.dp)
+            )
         }
         
         Spacer(Modifier.height(8.dp))
@@ -2253,9 +2229,7 @@ private fun ShareButton(
     }
 }
 
-private fun shareInvite(context: Context, method: String, referralCode: String) {
-    val shareText = buildInviteMessage(referralCode)
-    
+private fun shareInvite(context: Context, method: String, shareText: String) {
     when (method) {
         "share" -> {
             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -2293,12 +2267,7 @@ fun ContactScreen(
 ) {
     val context = LocalContext.current
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        // Header
+    SettingsScreenContainer(backdrop = backdrop, contentColor = contentColor, accentColor = accentColor) {
         SettingsHeader(
             title = "Contact Us",
             contentColor = contentColor,
@@ -2313,17 +2282,11 @@ fun ContactScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(20.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(10f.dp.toPx())
-                                lens(4f.dp.toPx(), 8f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(accentColor.copy(alpha = 0.12f))
-                            }
+                        .settingsSurface(
+                            contentColor = contentColor,
+                            cornerRadius = 20.dp,
+                            containerColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.10f else 0.12f),
+                            outlineColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.18f else 0.12f)
                         )
                         .padding(16.dp)
                 ) {
@@ -2348,7 +2311,7 @@ fun ContactScreen(
                 SettingsActionItem(
                     title = "Copy app diagnostics",
                     subtitle = "Version, package, Android, device, and backend",
-                    icon = "🧪",
+                    icon = Icons.Outlined.Science,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -2362,7 +2325,7 @@ fun ContactScreen(
                 SettingsActionItem(
                     title = "Open help center",
                     subtitle = "Read onboarding and troubleshooting guides",
-                    icon = "🌐",
+                    icon = Icons.Outlined.Language,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -2380,7 +2343,7 @@ fun ContactScreen(
                 SettingsNavigationItem(
                     title = "Email Support",
                     subtitle = "support@vormex.in",
-                    icon = "📧",
+                    icon = Icons.Outlined.Email,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -2399,7 +2362,7 @@ fun ContactScreen(
                 SettingsNavigationItem(
                     title = "Report a Bug",
                     subtitle = "Help us improve",
-                    icon = "🐛",
+                    icon = Icons.Outlined.BugReport,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -2418,7 +2381,7 @@ fun ContactScreen(
                 SettingsNavigationItem(
                     title = "Feature Request",
                     subtitle = "Suggest new features",
-                    icon = "💡",
+                    icon = Icons.Outlined.TipsAndUpdates,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -2441,7 +2404,7 @@ fun ContactScreen(
                 SettingsNavigationItem(
                     title = "Twitter / X",
                     subtitle = "@VormexApp",
-                    icon = "🐦",
+                    icon = Icons.Outlined.AlternateEmail,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -2455,7 +2418,7 @@ fun ContactScreen(
                 SettingsNavigationItem(
                     title = "Instagram",
                     subtitle = "@vormex.app",
-                    icon = "📸",
+                    icon = Icons.Outlined.CameraAlt,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -2469,7 +2432,7 @@ fun ContactScreen(
                 SettingsNavigationItem(
                     title = "LinkedIn",
                     subtitle = "Vormex",
-                    icon = "💼",
+                    icon = Icons.Outlined.BusinessCenter,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -2496,18 +2459,7 @@ private fun HelpFaqCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.1f))
-                }
-            )
+            .settingsSurface(contentColor = contentColor, cornerRadius = 16.dp)
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
@@ -2521,16 +2473,18 @@ private fun HelpFaqCard(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    BasicText(faq.icon, style = TextStyle(fontSize = 22.sp))
+                    SettingsIconBadge(icon = faq.icon, accentColor = accentColor)
                     Spacer(Modifier.width(12.dp))
                     BasicText(
                         faq.title,
                         style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold)
                     )
                 }
-                BasicText(
-                    if (expanded) "−" else "+",
-                    style = TextStyle(accentColor, 20.sp, FontWeight.Bold)
+                Icon(
+                    imageVector = if (expanded) Icons.Outlined.Remove else Icons.Outlined.Add,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
                 )
             }
 
@@ -2572,6 +2526,29 @@ private fun BuildInfoRow(
     }
 }
 
+@Composable
+private fun SavedMetric(
+    icon: ImageVector,
+    value: Int,
+    contentColor: Color
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = contentColor.copy(alpha = 0.52f),
+            modifier = Modifier.size(14.dp)
+        )
+        BasicText(
+            value.toString(),
+            style = TextStyle(contentColor.copy(alpha = 0.52f), 12.sp)
+        )
+    }
+}
+
 // ==================== SAVED POSTS SCREEN ====================
 
 @Composable
@@ -2609,12 +2586,7 @@ fun SavedPostsScreen(
         }
     }
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        // Header
+    SettingsScreenContainer(backdrop = backdrop, contentColor = contentColor, accentColor = accentColor) {
         SettingsHeader(
             title = "Saved Posts",
             contentColor = contentColor,
@@ -2704,18 +2676,7 @@ private fun SavedReelItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.1f))
-                }
-            )
+            .settingsSurface(contentColor = contentColor, cornerRadius = 16.dp)
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
@@ -2739,9 +2700,9 @@ private fun SavedReelItem(
                     modifier = Modifier.padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    BasicText("❤️ ${reel.likesCount}", style = TextStyle(contentColor.copy(alpha = 0.5f), 12.sp))
-                    BasicText("💬 ${reel.commentsCount}", style = TextStyle(contentColor.copy(alpha = 0.5f), 12.sp))
-                    BasicText("▶ ${reel.viewsCount}", style = TextStyle(contentColor.copy(alpha = 0.5f), 12.sp))
+                    SavedMetric(icon = Icons.Outlined.FavoriteBorder, value = reel.likesCount, contentColor = contentColor)
+                    SavedMetric(icon = Icons.Outlined.ChatBubbleOutline, value = reel.commentsCount, contentColor = contentColor)
+                    SavedMetric(icon = Icons.Outlined.PlayCircleOutline, value = reel.viewsCount, contentColor = contentColor)
                 }
             }
 
@@ -2751,7 +2712,12 @@ private fun SavedReelItem(
                     .clickable(onClick = onUnsave)
                     .padding(8.dp)
             ) {
-                BasicText("🔖", style = TextStyle(fontSize = 20.sp))
+                Icon(
+                    imageVector = Icons.Outlined.Bookmark,
+                    contentDescription = "Unsave",
+                    tint = contentColor.copy(alpha = 0.72f),
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
@@ -2769,18 +2735,7 @@ private fun SavedPostItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.1f))
-                }
-            )
+            .settingsSurface(contentColor = contentColor, cornerRadius = 16.dp)
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
@@ -2804,14 +2759,8 @@ private fun SavedPostItem(
                     modifier = Modifier.padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    BasicText(
-                        "❤️ ${post.likesCount}",
-                        style = TextStyle(contentColor.copy(alpha = 0.5f), 12.sp)
-                    )
-                    BasicText(
-                        "💬 ${post.commentsCount}",
-                        style = TextStyle(contentColor.copy(alpha = 0.5f), 12.sp)
-                    )
+                    SavedMetric(icon = Icons.Outlined.FavoriteBorder, value = post.likesCount, contentColor = contentColor)
+                    SavedMetric(icon = Icons.Outlined.ChatBubbleOutline, value = post.commentsCount, contentColor = contentColor)
                 }
             }
             
@@ -2821,9 +2770,11 @@ private fun SavedPostItem(
                     .clickable(onClick = onUnsave)
                     .padding(8.dp)
             ) {
-                BasicText(
-                    "🔖",
-                    style = TextStyle(fontSize = 20.sp)
+                Icon(
+                    imageVector = Icons.Outlined.Bookmark,
+                    contentDescription = "Unsave",
+                    tint = contentColor.copy(alpha = 0.72f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -2882,6 +2833,7 @@ fun SettingsHeader(
     contentColor: Color,
     onBack: () -> Unit
 ) {
+    val isDarkSurface = contentColor == Color.White
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2892,13 +2844,19 @@ fun SettingsHeader(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
+                .background(
+                    if (isDarkSurface) Color.White.copy(alpha = 0.12f)
+                    else Color.Black.copy(alpha = 0.05f)
+                )
                 .clickable(onClick = onBack)
                 .padding(8.dp),
             contentAlignment = Alignment.Center
         ) {
-            BasicText(
-                "←",
-                style = TextStyle(contentColor, 24.sp, FontWeight.Bold)
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Back",
+                tint = contentColor,
+                modifier = Modifier.size(20.dp)
             )
         }
         
@@ -2931,7 +2889,7 @@ fun SettingsSectionHeader(
 fun SettingsSwitchItem(
     title: String,
     subtitle: String,
-    icon: String,
+    icon: ImageVector,
     checked: Boolean,
     backdrop: LayerBackdrop,
     contentColor: Color,
@@ -2944,18 +2902,7 @@ fun SettingsSwitchItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.1f))
-                }
-            )
+            .settingsSurface(contentColor = contentColor, cornerRadius = 18.dp)
             .clickable(enabled = enabled) { onCheckedChange(!checked) }
             .padding(16.dp)
     ) {
@@ -2968,7 +2915,7 @@ fun SettingsSwitchItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                BasicText(icon, style = TextStyle(fontSize = 24.sp))
+                SettingsIconBadge(icon = icon, accentColor = accentColor)
                 Spacer(Modifier.width(16.dp))
                 Column {
                     BasicText(
@@ -2983,18 +2930,14 @@ fun SettingsSwitchItem(
                     }
                 }
             }
-            
-            Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                enabled = enabled,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = accentColor,
-                    uncheckedThumbColor = contentColor.copy(alpha = 0.5f),
-                    uncheckedTrackColor = contentColor.copy(alpha = 0.2f)
+
+            Box(modifier = Modifier.alpha(alpha)) {
+                LiquidToggle(
+                    selected = { checked },
+                    onSelect = { if (enabled) onCheckedChange(it) },
+                    backdrop = backdrop
                 )
-            )
+            }
         }
     }
 }
@@ -3003,7 +2946,7 @@ fun SettingsSwitchItem(
 fun SettingsActionItem(
     title: String,
     subtitle: String,
-    icon: String,
+    icon: ImageVector,
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
@@ -3013,18 +2956,7 @@ fun SettingsActionItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.1f))
-                }
-            )
+            .settingsSurface(contentColor = contentColor, cornerRadius = 18.dp)
             .clickable { onClick() }
             .padding(16.dp)
     ) {
@@ -3037,7 +2969,7 @@ fun SettingsActionItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                BasicText(icon, style = TextStyle(fontSize = 24.sp))
+                SettingsIconBadge(icon = icon, accentColor = accentColor)
                 Spacer(Modifier.width(16.dp))
                 Column {
                     BasicText(
@@ -3056,7 +2988,11 @@ fun SettingsActionItem(
             if (trailingText.isNotEmpty()) {
                 BasicText(
                     trailingText,
-                    style = TextStyle(fontSize = 20.sp)
+                    style = TextStyle(
+                        color = accentColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 )
             }
         }
@@ -3066,7 +3002,7 @@ fun SettingsActionItem(
 @Composable
 fun SettingsNavigationItem(
     title: String,
-    icon: String,
+    icon: ImageVector,
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
@@ -3077,18 +3013,7 @@ fun SettingsNavigationItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.1f))
-                }
-            )
+            .settingsSurface(contentColor = contentColor, cornerRadius = 18.dp)
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
@@ -3101,7 +3026,7 @@ fun SettingsNavigationItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                BasicText(icon, style = TextStyle(fontSize = 24.sp))
+                SettingsIconBadge(icon = icon, accentColor = accentColor)
                 Spacer(Modifier.width(16.dp))
                 Column {
                     BasicText(
@@ -3125,9 +3050,11 @@ fun SettingsNavigationItem(
                     )
                     Spacer(Modifier.width(8.dp))
                 }
-                BasicText(
-                    "→",
-                    style = TextStyle(contentColor.copy(alpha = 0.3f), 20.sp)
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                    contentDescription = null,
+                    tint = contentColor.copy(alpha = 0.34f),
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -3138,7 +3065,7 @@ fun SettingsNavigationItem(
 fun SettingsOptionItem(
     title: String,
     subtitle: String,
-    icon: String,
+    icon: ImageVector,
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
@@ -3146,38 +3073,21 @@ fun SettingsOptionItem(
     selectedOption: String,
     onOptionSelected: (String) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    
+    val isDarkSurface = contentColor == Color.White
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                    lens(4f.dp.toPx(), 8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.1f))
-                }
-            )
-            .clickable { expanded = true }
+            .settingsSurface(contentColor = contentColor, cornerRadius = 18.dp)
             .padding(16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                BasicText(icon, style = TextStyle(fontSize = 24.sp))
+                SettingsIconBadge(icon = icon, accentColor = accentColor)
                 Spacer(Modifier.width(16.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     BasicText(
                         title,
                         style = TextStyle(contentColor, 16.sp, FontWeight.Medium)
@@ -3188,32 +3098,54 @@ fun SettingsOptionItem(
                     )
                 }
             }
-            
-            BasicText(
-                "▼",
-                style = TextStyle(contentColor.copy(alpha = 0.3f), 12.sp)
-            )
-        }
-        
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            options.forEach { (value, label) ->
-                DropdownMenuItem(
-                    text = {
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                options.forEach { (value, label) ->
+                    val isSelected = value == selectedOption
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(
+                                if (isSelected) accentColor.copy(alpha = 0.18f)
+                                else if (isDarkSurface) Color.White.copy(alpha = 0.10f)
+                                else Color.White.copy(alpha = 0.20f)
+                            )
+                            .border(
+                                1.dp,
+                                if (isSelected) accentColor.copy(alpha = 0.36f)
+                                else if (isDarkSurface) Color.White.copy(alpha = 0.14f)
+                                else Color.White.copy(alpha = 0.34f),
+                                RoundedCornerShape(999.dp)
+                            )
+                            .clickable { onOptionSelected(value) }
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (value == selectedOption) {
-                                BasicText("✓ ", style = TextStyle(accentColor, 14.sp))
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Check,
+                                    contentDescription = null,
+                                    tint = accentColor,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
                             }
-                            Text(label)
+                            BasicText(
+                                label,
+                                style = TextStyle(
+                                    color = if (isSelected) accentColor else contentColor.copy(alpha = 0.78f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
                         }
-                    },
-                    onClick = {
-                        onOptionSelected(value)
-                        expanded = false
                     }
-                )
+                }
             }
         }
     }
@@ -3275,8 +3207,11 @@ private fun copyText(
     Toast.makeText(context, "$label copied", Toast.LENGTH_SHORT).show()
 }
 
-private fun buildInviteMessage(referralCode: String): String {
-    return "Join me on Vormex! Connect with professionals, share your journey, and discover opportunities. Use my code $referralCode and download here: https://vormex.in/download?ref=$referralCode"
+private fun buildInviteMessage(
+    referralCode: String,
+    inviteLink: String = "https://vormex.in/download?ref=$referralCode"
+): String {
+    return "Join me on Vormex! Connect with professionals, share your journey, and discover opportunities. Use my code $referralCode and download here: $inviteLink"
 }
 
 private fun buildDiagnosticsText(): String {

@@ -1,13 +1,13 @@
 package com.kyant.backdrop.catalog.linkedin.groups
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.vibrancy
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.kyant.shapes.RoundedRectangle
 
 /**
@@ -20,17 +20,21 @@ fun Modifier.glassBackground(
     vibrancyAlpha: Float = 0.1f,
     cornerRadius: Float = 16f,
     surfaceAlpha: Float = 0.1f
-): Modifier = this.drawBackdrop(
-    backdrop = backdrop,
-    shape = { RoundedRectangle(cornerRadius.dp) },
-    effects = {
-        vibrancy()
-        blur(blurRadius.dp.toPx())
-    },
-    onDrawSurface = {
-        drawRect(Color.White.copy(alpha = surfaceAlpha))
-    }
-)
+): Modifier = this
+    .background(
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                Color.White.copy(alpha = maxOf(0.22f, surfaceAlpha + 0.10f)),
+                Color.White.copy(alpha = maxOf(0.12f, surfaceAlpha))
+            )
+        ),
+        shape = RoundedCornerShape(cornerRadius.dp)
+    )
+    .border(
+        width = 1.dp,
+        color = Color.White.copy(alpha = maxOf(0.24f, vibrancyAlpha + 0.14f)),
+        shape = RoundedCornerShape(cornerRadius.dp)
+    )
 
 /**
  * Glass background with no rounded corners (for full-screen headers etc)
@@ -39,14 +43,5 @@ fun Modifier.glassBackgroundFlat(
     backdrop: LayerBackdrop,
     blurRadius: Float = 20f,
     surfaceAlpha: Float = 0.1f
-): Modifier = this.drawBackdrop(
-    backdrop = backdrop,
-    shape = { RoundedRectangle(0f.dp) },
-    effects = {
-        vibrancy()
-        blur(blurRadius.dp.toPx())
-    },
-    onDrawSurface = {
-        drawRect(Color.White.copy(alpha = surfaceAlpha))
-    }
-)
+): Modifier = this
+    .background(Color.White.copy(alpha = maxOf(0.16f, surfaceAlpha + 0.08f)))

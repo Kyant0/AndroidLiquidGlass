@@ -30,7 +30,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -74,27 +73,7 @@ fun NotificationsInboxScreen(
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(0.dp) },
-                effects = {
-                    vibrancy()
-                    blur(22f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFFEAF4FF).copy(alpha = 0.74f),
-                                Color(0xFFF8FBFF).copy(alpha = 0.58f),
-                                Color(0xFFE9F2FF).copy(alpha = 0.72f)
-                            )
-                        )
-                    )
-                }
-            )
+        modifier = Modifier.fillMaxSize()
     ) {
         Column(
             modifier = Modifier
