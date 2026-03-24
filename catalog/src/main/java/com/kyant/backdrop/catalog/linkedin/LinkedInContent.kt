@@ -52,8 +52,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
@@ -85,6 +91,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -2446,18 +2453,6 @@ private fun FeedScreen(
                 )
             }
             
-            // Top Networkers Preview (like web's leaderboard sidebar) - Keep at top
-            if (state.leaderboardData.users.isNotEmpty()) {
-                item {
-                    TopNetworkersPreview(
-                        leaderboard = state.leaderboardData,
-                        backdrop = backdrop,
-                        contentColor = contentColor,
-                        accentColor = accentColor,
-                        onSeeAll = onTopNetworkersClick
-                    )
-                }
-            }
         }
 
         // Loading state - Skeleton loading
@@ -3575,424 +3570,672 @@ private fun MoreScreen(
     onNavigateToContact: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
-    // Calculate weekly goals summary
     val goalsData = retentionState.weeklyGoals
     val goalsProgressText = if (goalsData.goals.isNotEmpty()) {
         "${(goalsData.totalProgress * 100).toInt()}% complete"
     } else {
         "Start tracking"
     }
-    
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Spacer(Modifier.height(12.dp))
-        
-        // ==================== User Header (Optional) ====================
-        currentUser?.let { user ->
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .then(
-                        if (isGlassTheme) Modifier.drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(20.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(12f.dp.toPx())
-                                lens(6f.dp.toPx(), 12f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(accentColor.copy(alpha = 0.15f))
-                            }
-                        ) else Modifier.background(contentColor.copy(alpha = 0.08f))
-                    )
-                    .clickable(onClick = onNavigateToProfile)
-                    .padding(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // Avatar
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(accentColor.copy(alpha = 0.3f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (user.profileImage != null) {
-                            coil.compose.AsyncImage(
-                                model = user.profileImage,
-                                contentDescription = "Profile",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            BasicText(
-                                user.name?.firstOrNull()?.uppercase() ?: "U",
-                                style = TextStyle(Color.White, 24.sp, FontWeight.Bold)
-                            )
-                        }
-                    }
-                    
-                    Spacer(Modifier.width(16.dp))
-                    
-                    Column(modifier = Modifier.weight(1f)) {
-                        BasicText(
-                            user.name ?: "User",
-                            style = TextStyle(contentColor, 18.sp, FontWeight.Bold)
-                        )
-                        if (!user.username.isNullOrEmpty()) {
-                            BasicText(
-                                "@${user.username}",
-                                style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp)
-                            )
-                        }
-                        if (!user.headline.isNullOrEmpty()) {
-                            BasicText(
-                                user.headline!!,
-                                style = TextStyle(contentColor.copy(alpha = 0.5f), 12.sp),
-                                maxLines = 1
-                            )
-                        }
-                    }
-                    
-                    BasicText(
-                        "›",
-                        style = TextStyle(contentColor.copy(alpha = 0.4f), 24.sp)
-                    )
-                }
-            }
-        } ?: run {
-            // Fallback: Just "More" title
-            BasicText(
-                "More",
-                Modifier.padding(start = 4.dp),
-                style = TextStyle(contentColor, 24.sp, FontWeight.Bold)
+    val isDarkSurface = contentColor == Color.White
+    val pageBackground = Color.Transparent
+    val sectionSurfaceColor = if (isDarkSurface) {
+        Color.White.copy(alpha = if (isGlassTheme) 0.09f else 0.06f)
+    } else {
+        Color.White.copy(alpha = if (isGlassTheme) 0.22f else 0.68f)
+    }
+    val searchSurfaceColor = if (isDarkSurface) {
+        Color.White.copy(alpha = if (isGlassTheme) 0.12f else 0.08f)
+    } else {
+        Color.White.copy(alpha = if (isGlassTheme) 0.26f else 0.58f)
+    }
+    val dividerColor = if (isDarkSurface) {
+        Color.White.copy(alpha = if (isGlassTheme) 0.14f else 0.08f)
+    } else {
+        Color.Black.copy(alpha = if (isGlassTheme) 0.10f else 0.07f)
+    }
+    val secondaryTextColor = contentColor.copy(alpha = if (isDarkSurface) 0.66f else 0.58f)
+    val sectionHeaderColor = contentColor.copy(alpha = if (isDarkSurface) 0.72f else 0.48f)
+    val destructiveColor = if (isDarkSurface) Color(0xFFFF7A7A) else Color(0xFFD33A3A)
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+
+    val accountItems = mutableListOf<MoreSettingsItem>().apply {
+        if (currentUser == null) {
+            add(
+                MoreSettingsItem(
+                    title = "Profile",
+                    subtitle = "View and edit your profile",
+                    icon = Icons.Outlined.PersonOutline,
+                    onClick = onNavigateToProfile
+                )
             )
         }
-        
-        Spacer(Modifier.height(8.dp))
-
-        MoreWorkspaceCard(
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            goalsProgressText = goalsProgressText,
-            connectionStreak = retentionState.streakData.connectionStreak,
-            liveNow = retentionState.liveActivity.activeNow,
-            remainingConnections = retentionState.connectionLimit.remaining
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            MoreQuickActionChip(
-                label = "Saved",
-                icon = "🔖",
-                accentColor = accentColor,
-                contentColor = contentColor,
+        add(
+            MoreSettingsItem(
+                title = "Saved",
+                subtitle = "Posts you've bookmarked",
+                icon = Icons.Outlined.BookmarkBorder,
                 onClick = onNavigateToSavedPosts
             )
-            MoreQuickActionChip(
-                label = "Invite",
-                icon = "🎁",
-                accentColor = accentColor,
-                contentColor = contentColor,
-                onClick = onNavigateToInviteFriends
+        )
+        add(
+            MoreSettingsItem(
+                title = "Profile preferences",
+                subtitle = "Goals, interests and matching settings",
+                icon = Icons.Outlined.Description,
+                onClick = onNavigateToOnboarding
             )
-            MoreQuickActionChip(
-                label = "Help",
-                icon = "🛟",
-                accentColor = accentColor,
-                contentColor = contentColor,
-                onClick = onNavigateToHelp
-            )
-            MoreQuickActionChip(
-                label = "Profile",
-                icon = "👤",
-                accentColor = accentColor,
-                contentColor = contentColor,
-                onClick = onNavigateToProfile
-            )
-        }
-        
-        // ==================== GROUP 1: Goals & Activity ====================
-        MoreSectionHeader("Goals & Activity", contentColor)
-        
-        // Weekly Goals with live progress
-        MoreMenuItemWithSubtitle(
-            title = "Weekly Goals",
-            subtitle = goalsProgressText,
-            iconResId = R.drawable.ic_target,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            trailingIconResId = if (goalsData.streakAtRisk) R.drawable.ic_warning else null,
-            onClick = onNavigateToWeeklyGoals
         )
-        
-        // Streaks & Activity
-        MoreMenuItemWithSubtitle(
-            title = "Streaks & Activity",
-            subtitle = "Networking, Login, Posting, Messaging",
-            iconResId = R.drawable.ic_flame,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToStreakDetails
-        )
-        
-        // Top Networkers
-        MoreMenuItemWithSubtitle(
-            title = "Top Networkers",
-            subtitle = "Weekly & monthly leaderboard",
-            iconResId = R.drawable.ic_trophy,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToTopNetworkers
-        )
-        
-        // Live Activity Banner (if active)
-        if (retentionState.liveActivity.activeNow > 0) {
-            LiveActivityBanner(
-                activityData = retentionState.liveActivity,
-                backdrop = backdrop,
-                contentColor = contentColor,
-                isGlassTheme = isGlassTheme
-            )
-        }
-        
-        // ==================== GROUP 2: Account & Content ====================
-        MoreSectionHeader("Account & Content", contentColor)
-        
-        // Profile
-        MoreMenuItemWithSubtitle(
-            title = "Profile",
-            subtitle = "View and edit your profile",
-            iconResId = R.drawable.ic_profile,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToProfile
-        )
-        
-        // Saved Posts
-        MoreMenuItemWithSubtitle(
-            title = "Saved Posts",
-            subtitle = "Posts you've bookmarked",
-            iconResId = R.drawable.ic_bookmark,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToSavedPosts
-        )
-        
-        // Edit Profile Preferences / Onboarding
-        MoreMenuItemWithSubtitle(
-            title = "Profile Preferences",
-            subtitle = "Goals, interests & matching settings",
-            iconResId = R.drawable.ic_edit,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToOnboarding
-        )
-        
-        // ==================== GROUP 3: Communities ====================
-        MoreSectionHeader("Communities", contentColor)
-        
-        // Groups
-        MoreMenuItemWithSubtitle(
-            title = "Groups",
-            subtitle = "Connect with communities",
-            iconResId = R.drawable.ic_users,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToGroups
-        )
-        
-        // Circles
-        MoreMenuItemWithSubtitle(
-            title = "Circles",
-            subtitle = "Share with close friends",
-            iconResId = R.drawable.ic_circle,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToCircles
-        )
-        
-        // Reels
-        MoreMenuItemWithSubtitle(
-            title = "Reels",
-            subtitle = "Watch short videos",
-            iconResId = R.drawable.ic_video,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToReels
-        )
-        
-        // ==================== GROUP 4: Preferences ====================
-        MoreSectionHeader("Preferences", contentColor)
-        
-        // Notifications
-        MoreMenuItemWithSubtitle(
-            title = "Notifications",
-            subtitle = "Push, digest & alerts",
-            iconResId = R.drawable.ic_notifications,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToNotificationSettings
-        )
-        
-        // Privacy
-        MoreMenuItemWithSubtitle(
-            title = "Privacy",
-            subtitle = "Profile visibility & messaging",
-            iconResId = R.drawable.ic_lock,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToPrivacySettings
-        )
-        
-        // Appearance
-        MoreMenuItemWithSubtitle(
-            title = "Appearance",
-            subtitle = "Theme, font & accessibility",
-            iconResId = R.drawable.ic_palette,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToAppearanceSettings
-        )
-        
-        // ==================== GROUP 5: Support & Legal ====================
-        MoreSectionHeader("Support & Legal", contentColor)
-        
-        // Help & FAQ
-        MoreMenuItemWithSubtitle(
-            title = "Help & FAQ",
-            subtitle = "Getting started & troubleshooting",
-            iconResId = R.drawable.ic_help,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToHelp
-        )
-        
-        // Invite Friends
-        MoreMenuItemWithSubtitle(
-            title = "Invite Friends",
-            subtitle = "Share Vormex with others",
-            iconResId = R.drawable.ic_gift,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToInviteFriends
-        )
-        
-        // About
-        MoreMenuItemWithSubtitle(
-            title = "About",
-            subtitle = "Version, terms & privacy policy",
-            iconResId = R.drawable.ic_info,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToAbout
-        )
-        
-        // Contact Us
-        MoreMenuItemWithSubtitle(
-            title = "Contact Us",
-            subtitle = "Support & feedback",
-            iconResId = R.drawable.ic_email,
-            backdrop = backdrop,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            isGlassTheme = isGlassTheme,
-            onClick = onNavigateToContact
-        )
-        
-        // ==================== GROUP 6: Account Actions ====================
-        MoreSectionHeader("Account Actions", contentColor)
-        
-        // Log Out - special styling (danger action)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .then(
-                    if (isGlassTheme) Modifier.drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(16.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(10f.dp.toPx())
-                            lens(4f.dp.toPx(), 8f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(Color.Red.copy(alpha = 0.1f))
-                        }
-                    ) else Modifier.background(Color.Red.copy(alpha = 0.08f))
+    }
+
+    val sections = listOf(
+        MoreSettingsSection(
+            title = "Your account",
+            items = accountItems
+        ),
+        MoreSettingsSection(
+            title = "How you use Vormex",
+            items = listOf(
+                MoreSettingsItem(
+                    title = "Weekly goals",
+                    subtitle = goalsProgressText,
+                    icon = Icons.Outlined.TrackChanges,
+                    onClick = onNavigateToWeeklyGoals,
+                    trailingLabel = if (goalsData.streakAtRisk) "At risk" else null,
+                    showIndicatorDot = goalsData.streakAtRisk
+                ),
+                MoreSettingsItem(
+                    title = "Streaks & activity",
+                    subtitle = "Networking, login, posting, messaging",
+                    icon = Icons.Outlined.Schedule,
+                    onClick = onNavigateToStreakDetails
+                ),
+                MoreSettingsItem(
+                    title = "Top networkers",
+                    subtitle = "Weekly and monthly leaderboard",
+                    icon = Icons.Outlined.EmojiEvents,
+                    onClick = onNavigateToTopNetworkers
+                ),
+                MoreSettingsItem(
+                    title = "Notifications",
+                    subtitle = "Push, digest and alerts",
+                    icon = Icons.Outlined.NotificationsNone,
+                    onClick = onNavigateToNotificationSettings
                 )
-                .clickable(onClick = onLogout)
-                .padding(16.dp)
+            )
+        ),
+        MoreSettingsSection(
+            title = "For professionals",
+            items = listOf(
+                MoreSettingsItem(
+                    title = "Groups",
+                    subtitle = "Connect with communities",
+                    icon = Icons.Outlined.Groups,
+                    onClick = onNavigateToGroups
+                ),
+                MoreSettingsItem(
+                    title = "Circles",
+                    subtitle = "Share with close friends",
+                    icon = Icons.Default.FavoriteBorder,
+                    onClick = onNavigateToCircles
+                ),
+                MoreSettingsItem(
+                    title = "Reels",
+                    subtitle = "Watch short videos",
+                    icon = Icons.Outlined.SmartDisplay,
+                    onClick = onNavigateToReels
+                )
+            )
+        ),
+        MoreSettingsSection(
+            title = "Who can see your content",
+            items = listOf(
+                MoreSettingsItem(
+                    title = "Privacy",
+                    subtitle = "Profile visibility and messaging",
+                    icon = Icons.Outlined.Lock,
+                    onClick = onNavigateToPrivacySettings
+                ),
+                MoreSettingsItem(
+                    title = "Appearance",
+                    subtitle = "Theme, font and accessibility",
+                    icon = Icons.Outlined.Palette,
+                    onClick = onNavigateToAppearanceSettings
+                )
+            )
+        ),
+        MoreSettingsSection(
+            title = "Support and legal",
+            items = listOf(
+                MoreSettingsItem(
+                    title = "Help & FAQ",
+                    subtitle = "Getting started and troubleshooting",
+                    icon = Icons.AutoMirrored.Outlined.HelpOutline,
+                    onClick = onNavigateToHelp
+                ),
+                MoreSettingsItem(
+                    title = "Invite friends",
+                    subtitle = "Share Vormex with others",
+                    icon = Icons.Outlined.CardGiftcard,
+                    onClick = onNavigateToInviteFriends
+                ),
+                MoreSettingsItem(
+                    title = "About",
+                    subtitle = "Version, terms and privacy policy",
+                    icon = Icons.Outlined.Info,
+                    onClick = onNavigateToAbout
+                ),
+                MoreSettingsItem(
+                    title = "Contact us",
+                    subtitle = "Support and feedback",
+                    icon = Icons.Outlined.AlternateEmail,
+                    onClick = onNavigateToContact
+                )
+            )
+        ),
+        MoreSettingsSection(
+            title = "Account actions",
+            items = listOf(
+                MoreSettingsItem(
+                    title = "Log out",
+                    subtitle = "Sign out of your account on this device",
+                    icon = Icons.AutoMirrored.Outlined.Logout,
+                    onClick = onLogout,
+                    isDestructive = true
+                )
+            )
+        )
+    )
+
+    val normalizedQuery = searchQuery.trim()
+    val filteredSections = sections.mapNotNull { section ->
+        val filteredItems = if (normalizedQuery.isBlank()) {
+            section.items
+        } else {
+            section.items.filter { item ->
+                item.title.contains(normalizedQuery, ignoreCase = true) ||
+                    item.subtitle.contains(normalizedQuery, ignoreCase = true)
+            }
+        }
+        if (filteredItems.isNotEmpty()) {
+            section.copy(items = filteredItems)
+        } else {
+            null
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(pageBackground)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 18.dp)
+                .padding(bottom = 110.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.Center
             ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_logout),
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    colorFilter = ColorFilter.tint(Color.Red.copy(alpha = 0.9f))
-                )
-                Spacer(Modifier.width(16.dp))
                 BasicText(
-                    "Log Out",
-                    style = TextStyle(Color.Red.copy(alpha = 0.9f), 16.sp, FontWeight.Medium)
+                    "Settings and activity",
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+            }
+
+            MoreSearchBar(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                backdrop = backdrop,
+                isGlassTheme = isGlassTheme,
+                surfaceColor = searchSurfaceColor,
+                contentColor = contentColor,
+                placeholderColor = secondaryTextColor,
+                cursorColor = accentColor
+            )
+
+            filteredSections.forEach { section ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MoreSectionHeader(section.title, sectionHeaderColor)
+
+                    if (section.title == "Your account" && currentUser != null && normalizedQuery.isBlank()) {
+                        MoreCurrentUserCard(
+                            user = currentUser,
+                            backdrop = backdrop,
+                            isGlassTheme = isGlassTheme,
+                            surfaceColor = sectionSurfaceColor,
+                            borderColor = dividerColor,
+                            contentColor = contentColor,
+                            secondaryTextColor = secondaryTextColor,
+                            onClick = onNavigateToProfile
+                        )
+                    }
+
+                    MoreSettingsSectionCard(
+                        items = section.items,
+                        backdrop = backdrop,
+                        isGlassTheme = isGlassTheme,
+                        surfaceColor = sectionSurfaceColor,
+                        borderColor = dividerColor,
+                        contentColor = contentColor,
+                        secondaryTextColor = secondaryTextColor,
+                        accentColor = accentColor,
+                        destructiveColor = destructiveColor
+                    )
+                }
+            }
+
+            if (filteredSections.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .then(
+                            if (isGlassTheme) {
+                                Modifier.drawBackdrop(
+                                    backdrop = backdrop,
+                                    shape = { RoundedRectangle(18.dp) },
+                                    effects = {
+                                        vibrancy()
+                                        blur(14f.dp.toPx())
+                                        lens(6f.dp.toPx(), 12f.dp.toPx())
+                                    },
+                                    onDrawSurface = {
+                                        drawRect(sectionSurfaceColor)
+                                    }
+                                )
+                            } else {
+                                Modifier.background(sectionSurfaceColor)
+                            }
+                        )
+                        .border(1.dp, dividerColor, RoundedCornerShape(18.dp))
+                        .padding(horizontal = 18.dp, vertical = 20.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        BasicText(
+                            "No settings found",
+                            style = TextStyle(
+                                color = contentColor,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                        BasicText(
+                            "Try a different search term.",
+                            style = TextStyle(
+                                color = secondaryTextColor,
+                                fontSize = 12.sp
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class MoreSettingsItem(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit,
+    val trailingLabel: String? = null,
+    val showIndicatorDot: Boolean = false,
+    val isDestructive: Boolean = false
+)
+
+private data class MoreSettingsSection(
+    val title: String,
+    val items: List<MoreSettingsItem>
+)
+
+@Composable
+private fun MoreSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    backdrop: LayerBackdrop,
+    isGlassTheme: Boolean,
+    surfaceColor: Color,
+    contentColor: Color,
+    placeholderColor: Color,
+    cursorColor: Color
+) {
+    BasicTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .then(
+                if (isGlassTheme) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(14.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(12f.dp.toPx())
+                            lens(5f.dp.toPx(), 10f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(surfaceColor)
+                        }
+                    )
+                } else {
+                    Modifier.background(surfaceColor)
+                }
+            )
+            .padding(horizontal = 14.dp),
+        textStyle = TextStyle(
+            color = contentColor,
+            fontSize = 13.sp
+        ),
+        cursorBrush = SolidColor(cursorColor),
+        singleLine = true,
+        decorationBox = { innerTextField ->
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Search,
+                    contentDescription = null,
+                    tint = placeholderColor,
+                    modifier = Modifier.size(18.dp)
+                )
+
+                Box(modifier = Modifier.weight(1f)) {
+                    if (query.isEmpty()) {
+                        BasicText(
+                            "Search",
+                            style = TextStyle(
+                                color = placeholderColor,
+                                fontSize = 13.sp
+                            )
+                        )
+                    }
+                    innerTextField()
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun MoreCurrentUserCard(
+    user: com.kyant.backdrop.catalog.network.models.User,
+    backdrop: LayerBackdrop,
+    isGlassTheme: Boolean,
+    surfaceColor: Color,
+    borderColor: Color,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .then(
+                if (isGlassTheme) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(18.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(14f.dp.toPx())
+                            lens(6f.dp.toPx(), 12f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(surfaceColor)
+                        }
+                    )
+                } else {
+                    Modifier.background(surfaceColor)
+                }
+            )
+            .border(1.dp, borderColor, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(contentColor.copy(alpha = 0.08f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!user.profileImage.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = user.profileImage,
+                        contentDescription = "Profile",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    BasicText(
+                        user.name?.firstOrNull()?.uppercase() ?: "U",
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                BasicText(
+                    user.name ?: "User",
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!user.username.isNullOrEmpty()) {
+                    BasicText(
+                        "@${user.username}",
+                        style = TextStyle(
+                            color = secondaryTextColor,
+                            fontSize = 12.sp
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                BasicText(
+                    user.headline?.takeIf { it.isNotBlank() } ?: "Profile and account details",
+                    style = TextStyle(
+                        color = secondaryTextColor,
+                        fontSize = 11.sp
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            BasicText(
+                "›",
+                style = TextStyle(
+                    color = secondaryTextColor,
+                    fontSize = 20.sp
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun MoreSettingsSectionCard(
+    items: List<MoreSettingsItem>,
+    backdrop: LayerBackdrop,
+    isGlassTheme: Boolean,
+    surfaceColor: Color,
+    borderColor: Color,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    destructiveColor: Color
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .then(
+                if (isGlassTheme) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(18.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(14f.dp.toPx())
+                            lens(6f.dp.toPx(), 12f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(surfaceColor)
+                        }
+                    )
+                } else {
+                    Modifier.background(surfaceColor)
+                }
+            )
+            .border(1.dp, borderColor, RoundedCornerShape(18.dp))
+    ) {
+        items.forEachIndexed { index, item ->
+            MoreSettingsRow(
+                item = item,
+                contentColor = contentColor,
+                secondaryTextColor = secondaryTextColor,
+                accentColor = accentColor,
+                destructiveColor = destructiveColor
+            )
+
+            if (index != items.lastIndex) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 58.dp)
+                        .height(1.dp)
+                        .background(borderColor)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoreSettingsRow(
+    item: MoreSettingsItem,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    destructiveColor: Color
+) {
+    val rowColor = if (item.isDestructive) destructiveColor else contentColor
+    val rowSecondaryColor = if (item.isDestructive) {
+        destructiveColor.copy(alpha = 0.7f)
+    } else {
+        secondaryTextColor
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = item.onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier.size(30.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = item.icon,
+                    contentDescription = null,
+                    tint = rowColor.copy(alpha = if (item.isDestructive) 1f else 0.9f),
+                    modifier = Modifier.size(21.dp)
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                BasicText(
+                    item.title,
+                    style = TextStyle(
+                        color = rowColor,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+                BasicText(
+                    item.subtitle,
+                    style = TextStyle(
+                        color = rowSecondaryColor,
+                        fontSize = 11.sp
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
 
-        Spacer(Modifier.height(100.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item.trailingLabel?.let { label ->
+                BasicText(
+                    label,
+                    style = TextStyle(
+                        color = if (item.isDestructive) destructiveColor else secondaryTextColor,
+                        fontSize = 11.sp
+                    )
+                )
+            }
+
+            if (item.showIndicatorDot) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(accentColor)
+                )
+            }
+
+            BasicText(
+                "›",
+                style = TextStyle(
+                    color = rowSecondaryColor,
+                    fontSize = 18.sp
+                )
+            )
+        }
     }
 }
 
@@ -4002,14 +4245,13 @@ private fun MoreSectionHeader(
     contentColor: Color
 ) {
     BasicText(
-        title.uppercase(),
+        title,
         style = TextStyle(
-            color = contentColor.copy(alpha = 0.4f),
+            color = contentColor,
             fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.sp
+            fontWeight = FontWeight.Medium
         ),
-        modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 6.dp)
+        modifier = Modifier.padding(start = 2.dp)
     )
 }
 
