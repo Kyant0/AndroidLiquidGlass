@@ -12,6 +12,10 @@ val releaseStoreFilePath = secret("VORMEX_RELEASE_STORE_FILE")
 val releaseStorePassword = secret("VORMEX_RELEASE_STORE_PASSWORD")
 val releaseKeyAlias = secret("VORMEX_RELEASE_KEY_ALIAS")
 val releaseKeyPassword = secret("VORMEX_RELEASE_KEY_PASSWORD")
+val releaseApiBaseUrl = secret("VORMEX_RELEASE_API_BASE_URL") ?: "https://vormex-backend.onrender.com/api"
+val releaseSocketBaseUrl = secret("VORMEX_RELEASE_SOCKET_BASE_URL") ?: "https://vormex-backend.onrender.com"
+val debugApiBaseUrl = secret("VORMEX_DEBUG_API_BASE_URL") ?: "http://localhost:5000/api"
+val debugSocketBaseUrl = secret("VORMEX_DEBUG_SOCKET_BASE_URL") ?: "http://localhost:5000"
 val hasReleaseSigning = listOf(
     releaseStoreFilePath,
     releaseStorePassword,
@@ -44,11 +48,15 @@ android {
         versionCode = 4
         versionName = "1.0.2"
         androidResources.localeFilters += arrayOf("en")
-        buildConfigField("String", "API_BASE_URL", "\"https://vormex-backend.onrender.com/api\"")
-        buildConfigField("String", "SOCKET_BASE_URL", "\"https://vormex-backend.onrender.com\"")
+        buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
+        buildConfigField("String", "SOCKET_BASE_URL", "\"$releaseSocketBaseUrl\"")
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
+            buildConfigField("String", "SOCKET_BASE_URL", "\"$debugSocketBaseUrl\"")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

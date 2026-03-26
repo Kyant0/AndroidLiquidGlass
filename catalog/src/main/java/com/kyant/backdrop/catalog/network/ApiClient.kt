@@ -517,7 +517,83 @@ object ApiClient {
             Result.failure(e)
         }
     }
-    
+
+    suspend fun getPeopleYouKnow(context: Context): Result<PeopleYouKnowResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.get("$BASE_URL/people/contacts") {
+                header("Authorization", "Bearer $token")
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun discoverPeopleYouKnow(
+        context: Context,
+        contacts: List<PeopleYouKnowImportContact>,
+        source: String = "picker"
+    ): Result<PeopleYouKnowResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.post("$BASE_URL/people/contacts/import") {
+                header("Authorization", "Bearer $token")
+                setBody(PeopleYouKnowImportRequest(source = source, contacts = contacts))
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun clearPeopleYouKnow(context: Context): Result<MessageResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.delete("$BASE_URL/people/contacts") {
+                header("Authorization", "Bearer $token")
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun markPeopleYouKnowInviteSent(
+        context: Context,
+        entryId: String
+    ): Result<PeopleYouKnowInviteResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.post("$BASE_URL/people/contacts/$entryId/invite") {
+                header("Authorization", "Bearer $token")
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // Same College
     suspend fun getSameCollegePeople(context: Context, limit: Int = 20): Result<PeopleResponse> {
         return try {
@@ -1011,6 +1087,45 @@ object ApiClient {
     }
     
     // ==================== Variable Rewards APIs (Hook Model) ====================
+
+    suspend fun getRewardCards(context: Context): Result<RewardCardsResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.get("$BASE_URL/engagement/reward-cards") {
+                header("Authorization", "Bearer $token")
+                header("Cache-Control", "no-cache, no-store, must-revalidate")
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun trackRewardCardEvent(
+        context: Context,
+        request: RewardCardEventRequest
+    ): Result<Unit> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.post("$BASE_URL/engagement/reward-events") {
+                header("Authorization", "Bearer $token")
+                setBody(request)
+            }
+            if (response.status.isSuccess()) {
+                Result.success(Unit)
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     
     /**
      * Get daily matches with variable rewards.

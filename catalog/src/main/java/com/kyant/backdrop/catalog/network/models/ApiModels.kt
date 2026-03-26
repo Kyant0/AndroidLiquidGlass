@@ -337,7 +337,9 @@ data class PersonInfo(
     val interests: List<String> = emptyList(),
     val isOnline: Boolean = false,
     val connectionStatus: String = "none", // none, pending_sent, pending_received, connected
-    val mutualConnections: Int = 0
+    val mutualConnections: Int = 0,
+    val contactName: String? = null,
+    val isInContacts: Boolean = false
 )
 
 @Serializable
@@ -348,6 +350,45 @@ data class PeopleResponse(
     val totalPages: Int = 1,
     val hasMore: Boolean = false,
     val userCollege: String? = null // For same-college endpoint
+)
+
+@Serializable
+data class PeopleYouKnowImportContact(
+    val name: String? = null,
+    val email: String? = null
+)
+
+@Serializable
+data class PeopleYouKnowImportRequest(
+    val source: String = "picker",
+    val contacts: List<PeopleYouKnowImportContact> = emptyList()
+)
+
+@Serializable
+data class PeopleYouKnowInvite(
+    val id: String,
+    val contactName: String? = null,
+    val invitedAt: String? = null
+)
+
+@Serializable
+data class PeopleYouKnowStats(
+    val totalContacts: Int = 0,
+    val matchedCount: Int = 0,
+    val inviteCount: Int = 0
+)
+
+@Serializable
+data class PeopleYouKnowResponse(
+    val lastSyncedAt: String? = null,
+    val matched: List<PersonInfo> = emptyList(),
+    val invites: List<PeopleYouKnowInvite> = emptyList(),
+    val stats: PeopleYouKnowStats = PeopleYouKnowStats()
+)
+
+@Serializable
+data class PeopleYouKnowInviteResponse(
+    val invitedAt: String
 )
 
 @Serializable
@@ -1040,6 +1081,34 @@ data class HiddenGemData(
 @Serializable
 data class HiddenGemResponse(
     val data: HiddenGemData? = null
+)
+
+@Serializable
+data class RewardCard(
+    val id: String,
+    val cardType: String,
+    val name: String,
+    val profileImage: String? = null,
+    val headline: String? = null,
+    val primaryReason: String,
+    val secondaryMeta: String,
+    val isOnline: Boolean = false,
+    val badge: String? = null
+)
+
+@Serializable
+data class RewardCardsResponse(
+    val sessionId: String,
+    val count: Int = 0,
+    val cards: List<RewardCard> = emptyList()
+)
+
+@Serializable
+data class RewardCardEventRequest(
+    val sessionId: String,
+    val cardId: String? = null,
+    val cardType: String? = null,
+    val action: String
 )
 
 // Trending Profile (for "You're trending today!" feature)

@@ -554,6 +554,14 @@ fun LinkedInContent(
     LaunchedEffect(deepLink) {
         deepLink?.let { link ->
             when (link.action) {
+                "auth_flow" -> {
+                    if (!uiState.isLoggedIn) {
+                        viewModel.setPendingReferralCode(link.referralCode)
+                        if (link.authMode.equals("signup", ignoreCase = true) || !link.referralCode.isNullOrBlank()) {
+                            viewModel.showSignUp()
+                        }
+                    }
+                }
                 com.kyant.backdrop.catalog.notifications.VormexMessagingService.ACTION_STREAK_REMINDER -> {
                     showStreakDetailsScreen = true
                 }
@@ -632,8 +640,8 @@ fun LinkedInContent(
     // Variable Rewards state (Hook Model)
     val rewardsViewModel: FindPeopleViewModel = viewModel(factory = FindPeopleViewModel.Factory(context))
     val rewardsState by rewardsViewModel.uiState.collectAsState()
-    var showRewardCardsOverlay by remember { mutableStateOf(true) } // Show on app open
-    var hasShownRewards by remember { mutableStateOf(false) }
+    val rewardCardsViewModel: RewardCardsViewModel = viewModel(factory = RewardCardsViewModel.Factory(context))
+    val rewardCardsState by rewardCardsViewModel.uiState.collectAsState()
     
     // Reels state
     val reelsViewModel: ReelsViewModel = viewModel(factory = ReelsViewModel.Factory(context))
@@ -660,14 +668,8 @@ fun LinkedInContent(
         }
     }
     
-    // Load rewards when user logs in
     LaunchedEffect(uiState.isLoggedIn) {
-        if (uiState.isLoggedIn && !hasShownRewards) {
-            hasShownRewards = true
-            showRewardCardsOverlay = true
-
-            rewardsViewModel.ensureVariableRewardsLoaded()
-        }
+        rewardCardsViewModel.maybeLoadOnAppOpen(uiState.isLoggedIn)
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -1394,27 +1396,33 @@ fun LinkedInContent(
             }
             
             // Swipeable Reward Cards Overlay (shown when app opens)
-            if (showRewardCardsOverlay && (rewardsState.dailyMatches.isNotEmpty() || rewardsState.hiddenGem != null)) {
+            if (
+                rewardCardsState.shouldShowOverlay &&
+                rewardCardsState.cards.isNotEmpty() &&
+                rewardCardsState.sessionId != null
+            ) {
                 SwipeableRewardCardsOverlay(
-                    dailyMatches = rewardsState.dailyMatches,
-                    hiddenGem = rewardsState.hiddenGem,
-                    hiddenGemMessage = rewardsState.hiddenGemMessage,
+                    sessionId = rewardCardsState.sessionId!!,
+                    cards = rewardCardsState.cards,
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
                     currentTheme = themeMode,
-                    onMatchClick = { userId ->
-                        showRewardCardsOverlay = false
-                        viewingProfileUserId = userId
+                    onCardShown = {
+                        rewardCardsViewModel.trackShownCardsOnce()
                     },
-                    onHiddenGemConnect = {
-                        rewardsState.hiddenGem?.id?.let { 
-                            rewardsViewModel.sendConnectionRequest(it)
-                        }
-                        showRewardCardsOverlay = false
+                    onSkip = { card ->
+                        rewardCardsViewModel.trackSkipped(card)
+                    },
+                    onOpenProfile = { card ->
+                        rewardCardsViewModel.openProfile(card)
+                        viewingProfileUserId = card.id
+                    },
+                    onConnect = { card ->
+                        rewardCardsViewModel.connect(card)
                     },
                     onDismissAll = {
-                        showRewardCardsOverlay = false
+                        rewardCardsViewModel.dismissAll()
                     }
                 )
             }
