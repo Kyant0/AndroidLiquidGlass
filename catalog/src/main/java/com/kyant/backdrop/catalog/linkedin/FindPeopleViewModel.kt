@@ -2,11 +2,14 @@ package com.kyant.backdrop.catalog.linkedin
 
 import android.content.Context
 import android.location.Geocoder
+import android.net.Uri
 import android.os.Build
+import android.provider.ContactsContract
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.kyant.backdrop.catalog.network.ApiClient
+import com.kyant.backdrop.catalog.network.GrowthApiService
 import com.kyant.backdrop.catalog.network.models.CollegeInfo
 import com.kyant.backdrop.catalog.network.models.DailyMatchUser
 import com.kyant.backdrop.catalog.network.models.FilterOptions
@@ -15,6 +18,9 @@ import com.kyant.backdrop.catalog.network.models.LocationUpdateRequest
 import com.kyant.backdrop.catalog.network.models.NearbyUser
 import com.kyant.backdrop.catalog.network.models.NearbyUserLocation
 import com.kyant.backdrop.catalog.network.models.PersonInfo
+import com.kyant.backdrop.catalog.network.models.PeopleYouKnowImportContact
+import com.kyant.backdrop.catalog.network.models.PeopleYouKnowInvite
+import com.kyant.backdrop.catalog.network.models.PeopleYouKnowResponse
 import com.kyant.backdrop.catalog.network.models.ProfileUpdateRequest
 import com.kyant.backdrop.catalog.network.models.SmartMatch
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +34,7 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 enum class FindPeopleTab {
+    PEOPLE_YOU_KNOW,
     SMART_MATCHES,
     ALL_PEOPLE,
     FOR_YOU,
@@ -43,8 +50,21 @@ enum class SmartMatchFilter {
 }
 
 data class FindPeopleUiState(
-    val selectedTab: FindPeopleTab = FindPeopleTab.ALL_PEOPLE,
-    
+    val selectedTab: FindPeopleTab = FindPeopleTab.PEOPLE_YOU_KNOW,
+
+    // People You Know
+    val peopleYouKnowMatches: List<PersonInfo> = emptyList(),
+    val peopleYouKnowInvites: List<PeopleYouKnowInvite> = emptyList(),
+    val peopleYouKnowLastSyncedAt: String? = null,
+    val peopleYouKnowStats: PeopleYouKnowStatsUi = PeopleYouKnowStatsUi(),
+    val peopleYouKnowShareLink: String? = null,
+    val isLoadingPeopleYouKnow: Boolean = false,
+    val isDiscoveringPeopleYouKnow: Boolean = false,
+    val isClearingPeopleYouKnow: Boolean = false,
+    val peopleYouKnowError: String? = null,
+    val isPeopleYouKnowGateVisible: Boolean = false,
+    val peopleYouKnowInviteInProgress: Set<String> = emptySet(),
+
     // Smart Matches
     val smartMatches: List<SmartMatch> = emptyList(),
     val isLoadingSmartMatches: Boolean = false,
@@ -127,6 +147,12 @@ data class FindPeopleUiState(
     val showTrendingBanner: Boolean = false
 )
 
+data class PeopleYouKnowStatsUi(
+    val totalContacts: Int = 0,
+    val matchedCount: Int = 0,
+    val inviteCount: Int = 0
+)
+
 class FindPeopleViewModel(private val context: Context) : ViewModel() {
     
     private val _uiState = MutableStateFlow(FindPeopleUiState())
@@ -145,6 +171,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     private var hiddenGemLoadedAt = 0L
     private var trendingStatusLoadedAt = 0L
     private var nearbyLoadedAt = 0L
+    private var peopleYouKnowLoadedAt = 0L
 
     private var isFilterOptionsRequestInFlight = false
     private var isStreakRequestInFlight = false
@@ -153,6 +180,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     private var isDailyMatchesRequestInFlight = false
     private var isHiddenGemRequestInFlight = false
     private var isTrendingStatusRequestInFlight = false
+    private var isPeopleYouKnowRequestInFlight = false
 
     private val smartMatchesCache = mutableMapOf<SmartMatchFilter, List<SmartMatch>>()
     private val smartMatchesLoadedAt = mutableMapOf<SmartMatchFilter, Long>()
@@ -185,6 +213,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
 
     fun ensureTabDataLoaded(tab: FindPeopleTab, forceRefresh: Boolean = false) {
         when (tab) {
+            FindPeopleTab.PEOPLE_YOU_KNOW -> loadPeopleYouKnow(forceRefresh = forceRefresh)
             FindPeopleTab.SMART_MATCHES -> loadSmartMatches(forceRefresh = forceRefresh)
             FindPeopleTab.ALL_PEOPLE -> {
                 loadFilterOptions(forceRefresh = forceRefresh)
@@ -376,6 +405,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
         
         // Clear errors and hide the at-risk badge
         _uiState.value = _uiState.value.copy(
+            peopleYouKnowError = null,
             smartMatchError = null,
             allPeopleError = null,
             suggestionsError = null,
@@ -387,6 +417,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     
     fun clearAllErrors() {
         _uiState.value = _uiState.value.copy(
+            peopleYouKnowError = null,
             smartMatchError = null,
             allPeopleError = null,
             suggestionsError = null,
@@ -407,7 +438,211 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
         _uiState.value = _uiState.value.copy(selectedTab = tab)
         ensureTabDataLoaded(tab)
     }
-    
+
+    // ==================== People You Know ====================
+
+    fun showPeopleYouKnowGate() {
+        _uiState.value = _uiState.value.copy(
+            isPeopleYouKnowGateVisible = true,
+            peopleYouKnowError = null
+        )
+    }
+
+    fun hidePeopleYouKnowGate() {
+        _uiState.value = _uiState.value.copy(isPeopleYouKnowGateVisible = false)
+    }
+
+    fun loadPeopleYouKnow(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(peopleYouKnowLoadedAt)) {
+            return
+        }
+        if (isPeopleYouKnowRequestInFlight) return
+
+        viewModelScope.launch {
+            isPeopleYouKnowRequestInFlight = true
+            _uiState.value = _uiState.value.copy(
+                isLoadingPeopleYouKnow = true,
+                peopleYouKnowError = null
+            )
+
+            ApiClient.getPeopleYouKnow(context)
+                .onSuccess { response ->
+                    peopleYouKnowLoadedAt = System.currentTimeMillis()
+                    applyPeopleYouKnowResponse(response)
+                    if (response.stats.totalContacts > 0) {
+                        loadPeopleYouKnowShareLink()
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoadingPeopleYouKnow = false,
+                        peopleYouKnowError = error.message ?: "Failed to load people you know"
+                    )
+                }
+
+            isPeopleYouKnowRequestInFlight = false
+        }
+    }
+
+    fun discoverPeopleYouKnowFromDeviceContacts() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isDiscoveringPeopleYouKnow = true,
+                peopleYouKnowError = null
+            )
+
+            val contacts = withContext(Dispatchers.IO) { readDeviceEmailContacts() }
+            if (contacts.isEmpty()) {
+                _uiState.value = _uiState.value.copy(
+                    isDiscoveringPeopleYouKnow = false,
+                    peopleYouKnowError = "We couldn't find any email addresses in your contacts yet."
+                )
+                return@launch
+            }
+
+            submitPeopleYouKnowDiscovery(contacts = contacts, source = "picker")
+        }
+    }
+
+    fun discoverPeopleYouKnowFromFile(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isDiscoveringPeopleYouKnow = true,
+                peopleYouKnowError = null
+            )
+
+            val contacts = withContext(Dispatchers.IO) {
+                context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { reader ->
+                    parseCsvContacts(reader.readText())
+                }.orEmpty()
+            }
+
+            if (contacts.isEmpty()) {
+                _uiState.value = _uiState.value.copy(
+                    isDiscoveringPeopleYouKnow = false,
+                    peopleYouKnowError = "That file didn’t include any usable email contacts."
+                )
+                return@launch
+            }
+
+            submitPeopleYouKnowDiscovery(contacts = contacts, source = "file")
+        }
+    }
+
+    fun clearPeopleYouKnow() {
+        if (_uiState.value.isClearingPeopleYouKnow) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isClearingPeopleYouKnow = true,
+                peopleYouKnowError = null
+            )
+
+            ApiClient.clearPeopleYouKnow(context)
+                .onSuccess {
+                    peopleYouKnowLoadedAt = System.currentTimeMillis()
+                    _uiState.value = _uiState.value.copy(
+                        peopleYouKnowMatches = emptyList(),
+                        peopleYouKnowInvites = emptyList(),
+                        peopleYouKnowLastSyncedAt = null,
+                        peopleYouKnowStats = PeopleYouKnowStatsUi(),
+                        peopleYouKnowShareLink = null,
+                        isLoadingPeopleYouKnow = false,
+                        isDiscoveringPeopleYouKnow = false,
+                        isClearingPeopleYouKnow = false,
+                        isPeopleYouKnowGateVisible = false,
+                        peopleYouKnowInviteInProgress = emptySet()
+                    )
+                }
+                .onFailure { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isClearingPeopleYouKnow = false,
+                        peopleYouKnowError = error.message ?: "Failed to clear your list"
+                    )
+                }
+        }
+    }
+
+    fun markPeopleYouKnowInviteSent(entryId: String) {
+        if (_uiState.value.peopleYouKnowInviteInProgress.contains(entryId)) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                peopleYouKnowInviteInProgress = _uiState.value.peopleYouKnowInviteInProgress + entryId
+            )
+
+            ApiClient.markPeopleYouKnowInviteSent(context, entryId)
+                .onSuccess { response ->
+                    _uiState.value = _uiState.value.copy(
+                        peopleYouKnowInvites = _uiState.value.peopleYouKnowInvites.map { invite ->
+                            if (invite.id == entryId) invite.copy(invitedAt = response.invitedAt) else invite
+                        }
+                    )
+                }
+                .onFailure { error ->
+                    _uiState.value = _uiState.value.copy(
+                        peopleYouKnowError = error.message ?: "Failed to update invite status"
+                    )
+                }
+
+            _uiState.value = _uiState.value.copy(
+                peopleYouKnowInviteInProgress = _uiState.value.peopleYouKnowInviteInProgress - entryId
+            )
+        }
+    }
+
+    private suspend fun submitPeopleYouKnowDiscovery(
+        contacts: List<PeopleYouKnowImportContact>,
+        source: String
+    ) {
+        ApiClient.discoverPeopleYouKnow(context, contacts = contacts, source = source)
+            .onSuccess { response ->
+                peopleYouKnowLoadedAt = System.currentTimeMillis()
+                applyPeopleYouKnowResponse(response)
+                loadPeopleYouKnowShareLink()
+            }
+            .onFailure { error ->
+                _uiState.value = _uiState.value.copy(
+                    isDiscoveringPeopleYouKnow = false,
+                    peopleYouKnowError = error.message ?: "Failed to find people you know"
+                )
+            }
+    }
+
+    private fun applyPeopleYouKnowResponse(response: PeopleYouKnowResponse) {
+        _uiState.value = _uiState.value.copy(
+            peopleYouKnowMatches = response.matched.distinctBy { it.id },
+            peopleYouKnowInvites = response.invites.sortedWith(
+                compareBy<PeopleYouKnowInvite> { if (it.invitedAt == null) 0 else 1 }
+                    .thenBy { it.contactName.orEmpty().lowercase(Locale.getDefault()) }
+            ),
+            peopleYouKnowLastSyncedAt = response.lastSyncedAt,
+            peopleYouKnowStats = PeopleYouKnowStatsUi(
+                totalContacts = response.stats.totalContacts,
+                matchedCount = response.stats.matchedCount,
+                inviteCount = response.stats.inviteCount
+            ),
+            isLoadingPeopleYouKnow = false,
+            isDiscoveringPeopleYouKnow = false,
+            isClearingPeopleYouKnow = false,
+            peopleYouKnowError = null,
+            isPeopleYouKnowGateVisible = false
+        )
+    }
+
+    private fun loadPeopleYouKnowShareLink() {
+        if (!_uiState.value.peopleYouKnowShareLink.isNullOrBlank()) return
+
+        viewModelScope.launch {
+            GrowthApiService.getReferralShareLinks(context)
+                .onSuccess { shareLinks ->
+                    _uiState.value = _uiState.value.copy(
+                        peopleYouKnowShareLink = shareLinks.link.ifBlank { null }
+                    )
+                }
+        }
+    }
+
     // ==================== Smart Matches ====================
     
     fun setSmartMatchFilter(filter: SmartMatchFilter) {
@@ -974,6 +1209,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     
     private fun findPersonById(userId: String): PersonInfo? {
         // Search all lists for the person
+        _uiState.value.peopleYouKnowMatches.find { it.id == userId }?.let { return it }
         _uiState.value.allPeople.find { it.id == userId }?.let { return it }
         _uiState.value.suggestions.find { it.id == userId }?.let { return it }
         _uiState.value.sameCampusPeople.find { it.id == userId }?.let { return it }
@@ -1078,6 +1314,9 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     private fun updatePersonConnectionStatus(userId: String, status: String) {
         // Update in all lists
         _uiState.value = _uiState.value.copy(
+            peopleYouKnowMatches = _uiState.value.peopleYouKnowMatches.map {
+                if (it.id == userId) it.copy(connectionStatus = status) else it
+            },
             allPeople = _uiState.value.allPeople.map {
                 if (it.id == userId) it.copy(connectionStatus = status) else it
             },
@@ -1089,7 +1328,122 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
             }
         )
     }
-    
+
+    private fun readDeviceEmailContacts(): List<PeopleYouKnowImportContact> {
+        val contactsByEmail = linkedMapOf<String, PeopleYouKnowImportContact>()
+        val projection = arrayOf(
+            ContactsContract.CommonDataKinds.Email.ADDRESS,
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY
+        )
+
+        context.contentResolver.query(
+            ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+            projection,
+            null,
+            null,
+            "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY} COLLATE NOCASE ASC"
+        )?.use { cursor ->
+            val emailIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Email.ADDRESS)
+            val nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY)
+            if (emailIndex == -1) {
+                return emptyList()
+            }
+
+            while (cursor.moveToNext()) {
+                val rawEmail = cursor.getString(emailIndex)?.trim()?.lowercase(Locale.getDefault())
+                if (rawEmail.isNullOrBlank()) continue
+
+                val contactName = if (nameIndex >= 0) {
+                    cursor.getString(nameIndex)?.trim()?.takeIf { it.isNotEmpty() }
+                } else {
+                    null
+                }
+                val existing = contactsByEmail[rawEmail]
+                if (existing == null || (existing.name.isNullOrBlank() && !contactName.isNullOrBlank())) {
+                    contactsByEmail[rawEmail] = PeopleYouKnowImportContact(
+                        name = contactName,
+                        email = rawEmail
+                    )
+                }
+            }
+        }
+
+        return contactsByEmail.values.toList()
+    }
+
+    private fun parseCsvContacts(csvText: String): List<PeopleYouKnowImportContact> {
+        val lines = csvText
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .split('\n')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        if (lines.isEmpty()) return emptyList()
+
+        val headers = parseCsvLine(lines.first())
+        val emailIndex = headers.indexOfFirst { header ->
+            val normalized = header.trim().lowercase(Locale.getDefault())
+            normalized == "email" || normalized.contains("email")
+        }
+        if (emailIndex == -1) return emptyList()
+
+        val nameIndex = headers.indexOfFirst { header ->
+            val normalized = header.trim().lowercase(Locale.getDefault())
+            normalized == "name" || normalized == "full name" || normalized.contains("name")
+        }
+
+        val contactsByEmail = linkedMapOf<String, PeopleYouKnowImportContact>()
+        lines.drop(1).forEach { line ->
+            val columns = parseCsvLine(line)
+            if (emailIndex >= columns.size) return@forEach
+
+            val email = columns[emailIndex].trim().lowercase(Locale.getDefault())
+            if (email.isBlank()) return@forEach
+
+            val name = columns.getOrNull(nameIndex)?.trim()?.takeIf { it.isNotEmpty() }
+            val existing = contactsByEmail[email]
+            if (existing == null || (existing.name.isNullOrBlank() && !name.isNullOrBlank())) {
+                contactsByEmail[email] = PeopleYouKnowImportContact(name = name, email = email)
+            }
+        }
+
+        return contactsByEmail.values.toList()
+    }
+
+    private fun parseCsvLine(line: String): List<String> {
+        if (line.isBlank()) return emptyList()
+
+        val columns = mutableListOf<String>()
+        val current = StringBuilder()
+        var inQuotes = false
+        var index = 0
+
+        while (index < line.length) {
+            val char = line[index]
+            when {
+                char == '"' -> {
+                    val nextIsQuote = index + 1 < line.length && line[index + 1] == '"'
+                    if (inQuotes && nextIsQuote) {
+                        current.append('"')
+                        index += 1
+                    } else {
+                        inQuotes = !inQuotes
+                    }
+                }
+                char == ',' && !inQuotes -> {
+                    columns += current.toString()
+                    current.clear()
+                }
+                else -> current.append(char)
+            }
+            index += 1
+        }
+
+        columns += current.toString()
+        return columns
+    }
+
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

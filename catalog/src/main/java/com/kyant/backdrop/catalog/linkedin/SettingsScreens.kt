@@ -1923,7 +1923,7 @@ fun InviteFriendsScreen(
 ) {
     val context = LocalContext.current
     var resolvedReferralCode by remember { mutableStateOf(referralCode) }
-    var resolvedInviteLink by remember { mutableStateOf("https://vormex.in/download?ref=$referralCode") }
+    var resolvedInviteLink by remember { mutableStateOf("https://vormex.in/login?mode=signup&ref=$referralCode") }
     var isLoadingReferral by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
@@ -1931,7 +1931,7 @@ fun InviteFriendsScreen(
             .onSuccess { shareLinks ->
                 resolvedReferralCode = shareLinks.code.ifBlank { referralCode }
                 resolvedInviteLink = shareLinks.link.ifBlank {
-                    "https://vormex.in/download?ref=$resolvedReferralCode"
+                    "https://vormex.in/login?mode=signup&ref=$resolvedReferralCode"
                 }
                 isLoadingReferral = false
             }
@@ -1939,7 +1939,7 @@ fun InviteFriendsScreen(
                 GrowthApiService.getReferralCode(context)
                     .onSuccess { code ->
                         resolvedReferralCode = code
-                        resolvedInviteLink = "https://vormex.in/download?ref=$code"
+                        resolvedInviteLink = "https://vormex.in/login?mode=signup&ref=$code"
                     }
                 isLoadingReferral = false
             }
@@ -2144,7 +2144,7 @@ fun InviteFriendsScreen(
                         style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold)
                     )
                     BasicText(
-                        "A direct download link, your referral code, and a short note about networking, creators, and opportunities on Vormex.",
+                        "A direct signup link, your referral code, and a short note about networking, creators, and opportunities on Vormex.",
                         style = TextStyle(contentColor.copy(alpha = 0.68f), 13.sp)
                     )
                 }
@@ -3209,9 +3209,9 @@ private fun copyText(
 
 private fun buildInviteMessage(
     referralCode: String,
-    inviteLink: String = "https://vormex.in/download?ref=$referralCode"
+    inviteLink: String = "https://vormex.in/login?mode=signup&ref=$referralCode"
 ): String {
-    return "Join me on Vormex! Connect with professionals, share your journey, and discover opportunities. Use my code $referralCode and download here: $inviteLink"
+    return "Join me on Vormex! Connect with professionals, share your journey, and discover opportunities. Use my code $referralCode and join here: $inviteLink"
 }
 
 private fun buildDiagnosticsText(): String {

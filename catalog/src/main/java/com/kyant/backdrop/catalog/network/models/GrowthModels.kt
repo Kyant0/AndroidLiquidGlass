@@ -128,6 +128,18 @@ data class ReferralShareLinks(
 )
 
 @Serializable
+data class ApplyReferralRequest(
+    val code: String
+)
+
+@Serializable
+data class ApplyReferralResponse(
+    val success: Boolean = false,
+    val message: String = "",
+    val xpEarned: Int = 0
+)
+
+@Serializable
 data class DailyHookAction(
     val label: String = "",
     val href: String = ""

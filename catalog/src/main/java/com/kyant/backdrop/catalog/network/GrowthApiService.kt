@@ -241,6 +241,20 @@ object GrowthApiService {
         }
     }
 
+    suspend fun applyReferralCode(context: Context, code: String): Result<ApplyReferralResponse> {
+        return try {
+            val token = authToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.post("$baseUrl/referrals/apply") {
+                header("Authorization", "Bearer $token")
+                setBody(ApplyReferralRequest(code = code))
+            }
+            if (response.status.value in 200..299) Result.success(response.body())
+            else Result.failure(Exception(parseError(response)))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getDailyHooks(context: Context): Result<DailyHooksResponse> {
         return try {
             val token = authToken(context) ?: return Result.failure(Exception("Not logged in"))

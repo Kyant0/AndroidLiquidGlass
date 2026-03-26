@@ -36,7 +36,9 @@ data class NotificationDeepLink(
     val connectionId: String? = null,
     val postId: String? = null,
     val reelId: String? = null,
-    val conversationId: String? = null
+    val conversationId: String? = null,
+    val referralCode: String? = null,
+    val authMode: String? = null
 )
 
 class MainActivity : ComponentActivity() {
@@ -113,6 +115,19 @@ class MainActivity : ComponentActivity() {
     
     private fun handleIntent(intent: Intent?) {
         intent ?: return
+
+        intent.data?.let { uri ->
+            val mode = uri.getQueryParameter("mode")
+            val ref = uri.getQueryParameter("ref")
+            if (!mode.isNullOrBlank() || !ref.isNullOrBlank()) {
+                pendingDeepLink = NotificationDeepLink(
+                    action = "auth_flow",
+                    referralCode = ref,
+                    authMode = mode
+                )
+                return
+            }
+        }
         
         val action = intent.getStringExtra(VormexMessagingService.EXTRA_ACTION)
         if (action != null) {

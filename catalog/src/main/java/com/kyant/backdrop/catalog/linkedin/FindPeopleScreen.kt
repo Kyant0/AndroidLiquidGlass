@@ -221,6 +221,17 @@ fun FindPeopleScreenNew(
             
             // Content based on selected tab
             when (uiState.selectedTab) {
+                FindPeopleTab.PEOPLE_YOU_KNOW -> PeopleYouKnowContent(
+                    backdrop = backdrop,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    isGlassTheme = isGlassTheme,
+                    isLightTheme = isLightTheme,
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    onNavigateToProfile = onNavigateToProfile
+                )
+
                 FindPeopleTab.SMART_MATCHES -> SmartMatchesContent(
                     backdrop = backdrop,
                     contentColor = contentColor,
@@ -422,6 +433,15 @@ private fun FindPeopleTabs(
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        FindPeopleTabItem(
+            icon = { color -> UsersIcon(color = color, size = 14.dp) },
+            label = "People You Know",
+            isSelected = selectedTab == FindPeopleTab.PEOPLE_YOU_KNOW,
+            contentColor = contentColor,
+            accentColor = accentColor,
+            onClick = { onTabSelected(FindPeopleTab.PEOPLE_YOU_KNOW) }
+        )
+
         // All People tab
         FindPeopleTabItem(
             icon = { color -> UsersIcon(color = color, size = 14.dp) },
@@ -813,6 +833,21 @@ fun PersonCard(
                                     .clip(CircleShape)
                                     .background(Color(0xFF22C55E))
                             )
+                        }
+
+                        if (person.isInContacts) {
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                Modifier
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(accentColor.copy(alpha = 0.14f))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                BasicText(
+                                    "In your contacts",
+                                    style = TextStyle(accentColor, 9.sp, FontWeight.Medium)
+                                )
+                            }
                         }
                     }
                     

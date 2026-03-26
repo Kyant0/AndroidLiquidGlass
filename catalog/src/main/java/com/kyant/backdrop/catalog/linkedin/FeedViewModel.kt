@@ -13,6 +13,7 @@ import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.PostsApiService
 import com.kyant.backdrop.catalog.network.GoogleAuthHelper
 import com.kyant.backdrop.catalog.network.PostSocketManager
+import com.kyant.backdrop.catalog.network.GrowthApiService
 import com.kyant.backdrop.catalog.network.models.FullComment
 import com.kyant.backdrop.catalog.network.models.FullPost
 import com.kyant.backdrop.catalog.network.models.MentionUser
@@ -175,6 +176,7 @@ data class FeedUiState(
     val isCreatingPost: Boolean = false,
     val isGoogleLoading: Boolean = false,
     val authScreen: AuthScreen = AuthScreen.LOGIN,
+    val pendingReferralCode: String? = null,
     val posts: List<Post> = emptyList(),
     val storyGroups: List<StoryGroup> = emptyList(),
     val myStories: List<Story> = emptyList(),
@@ -375,6 +377,12 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     fun showSignUp() {
         _uiState.value = _uiState.value.copy(authScreen = AuthScreen.SIGNUP, error = null)
     }
+
+    fun setPendingReferralCode(code: String?) {
+        _uiState.value = _uiState.value.copy(
+            pendingReferralCode = code?.trim()?.takeIf { it.isNotEmpty() }
+        )
+    }
     
     private fun checkLoginStatus() {
         viewModelScope.launch {
@@ -536,6 +544,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             ApiClient.register(email, password, name, username)
                 .onSuccess { response ->
                     ApiClient.saveToken(context, response.token, response.user.id)
+                    applyPendingReferralCodeIfNeeded(shouldApply = true)
                     PushTokenRegistrar.syncCurrentToken(context)
                     ensurePostRealtimeConnected()
                     _uiState.value = _uiState.value.copy(
@@ -563,6 +572,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     fun googleSignIn(activity: Activity) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isGoogleLoading = true, error = null)
+            val shouldApplyReferral = _uiState.value.authScreen == AuthScreen.SIGNUP
             
             when (val result = GoogleAuthHelper.signIn(activity)) {
                 is GoogleAuthHelper.GoogleSignInResult.Success -> {
@@ -570,6 +580,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     ApiClient.googleSignIn(result.idToken)
                         .onSuccess { response ->
                             ApiClient.saveToken(context, response.token, response.user.id)
+                            applyPendingReferralCodeIfNeeded(shouldApply = shouldApplyReferral)
                             PushTokenRegistrar.syncCurrentToken(context)
                             ensurePostRealtimeConnected()
                             _uiState.value = _uiState.value.copy(
@@ -603,6 +614,14 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                 }
             }
         }
+    }
+
+    private suspend fun applyPendingReferralCodeIfNeeded(shouldApply: Boolean) {
+        val code = _uiState.value.pendingReferralCode ?: return
+        if (!shouldApply) return
+
+        GrowthApiService.applyReferralCode(context, code)
+        _uiState.value = _uiState.value.copy(pendingReferralCode = null)
     }
     
     fun logout() {
