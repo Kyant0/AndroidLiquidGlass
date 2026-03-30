@@ -91,6 +91,13 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
     
     // Number of reels to preload ahead while user watches current reel.
     private val PRELOAD_AHEAD_COUNT = 8
+
+    private val previewCacheTtlMillis = 5 * 60 * 1000L
+    private val feedCacheTtlMillis = 5 * 60 * 1000L
+    private var lastPreviewLoadedAt = 0L
+    private var lastFeedLoadedAt = 0L
+    private var isPreviewRequestInFlight = false
+    private var isFeedRequestInFlight = false
     
     // Min and max preload bytes per MP4 reel. We aim for ~30% when size is known.
     private val MIN_PRELOAD_BYTES = 2 * 1024 * 1024L
@@ -101,11 +108,18 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
     }
 
     private fun prefetchFeedSilently(mode: String = "foryou") {
-        if (_uiState.value.feedReels.isNotEmpty()) return
+        val now = System.currentTimeMillis()
+        val isFeedFresh =
+            _uiState.value.feedReels.isNotEmpty() &&
+                (now - lastFeedLoadedAt) < feedCacheTtlMillis
 
+        if (isFeedFresh || isFeedRequestInFlight) return
+
+        isFeedRequestInFlight = true
         viewModelScope.launch {
             val result = ApiClient.getReelsFeed(context, limit = 20, mode = mode)
             result.onSuccess { response ->
+                lastFeedLoadedAt = System.currentTimeMillis()
                 _uiState.value = _uiState.value.copy(
                     feedReels = response.reels,
                     nextCursor = response.nextCursor,
@@ -113,19 +127,38 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
                 )
                 preloadReelsAhead(0)
             }
+            isFeedRequestInFlight = false
         }
+    }
+
+    fun prefetchAppStartData() {
+        loadPreviewReels()
+        prefetchFeedSilently()
     }
     
     /**
      * Load trending reels for the home feed preview section
      */
-    fun loadPreviewReels() {
+    fun loadPreviewReels(forceRefresh: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val isPreviewFresh =
+            !forceRefresh &&
+                _uiState.value.previewReels.isNotEmpty() &&
+                (now - lastPreviewLoadedAt) < previewCacheTtlMillis
+
+        if (isPreviewFresh || isPreviewRequestInFlight) return
+
+        isPreviewRequestInFlight = true
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoadingPreview = true, previewError = null)
+            _uiState.value = _uiState.value.copy(
+                isLoadingPreview = _uiState.value.previewReels.isEmpty() || forceRefresh,
+                previewError = null
+            )
             
             val result = ApiClient.getTrendingReels(context, hours = 48, limit = 15)
             
             result.onSuccess { response ->
+                lastPreviewLoadedAt = System.currentTimeMillis()
                 _uiState.value = _uiState.value.copy(
                     previewReels = response.reels,
                     isLoadingPreview = false
@@ -139,13 +172,23 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
                     previewError = error.message
                 )
             }
+            isPreviewRequestInFlight = false
         }
     }
     
     /**
      * Load the main reels feed
      */
-    fun loadReelsFeed(mode: String = "foryou") {
+    fun loadReelsFeed(mode: String = "foryou", forceRefresh: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val isFeedFresh =
+            !forceRefresh &&
+                _uiState.value.feedReels.isNotEmpty() &&
+                (now - lastFeedLoadedAt) < feedCacheTtlMillis
+
+        if (isFeedFresh || isFeedRequestInFlight) return
+
+        isFeedRequestInFlight = true
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isLoadingFeed = true,
@@ -157,6 +200,7 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
             val result = ApiClient.getReelsFeed(context, limit = 20, mode = mode)
             
             result.onSuccess { response ->
+                lastFeedLoadedAt = System.currentTimeMillis()
                 _uiState.value = _uiState.value.copy(
                     feedReels = response.reels,
                     isLoadingFeed = false,
@@ -172,6 +216,7 @@ class ReelsViewModel(private val context: Context) : ViewModel() {
                     feedError = error.message
                 )
             }
+            isFeedRequestInFlight = false
         }
     }
     

@@ -637,9 +637,16 @@ fun LinkedInContent(
         }
     }
     
-    // Variable Rewards state (Hook Model)
-    val rewardsViewModel: FindPeopleViewModel = viewModel(factory = FindPeopleViewModel.Factory(context))
-    val rewardsState by rewardsViewModel.uiState.collectAsState()
+    // Find/Profile/Reels state shared across tab switches so those sections stay warm.
+    val findPeopleViewModel: FindPeopleViewModel = viewModel(
+        key = "find-people",
+        factory = FindPeopleViewModel.Factory(context)
+    )
+    val rewardsState by findPeopleViewModel.uiState.collectAsState()
+    val ownProfileViewModel: ProfileViewModel = viewModel(
+        key = "profile:me",
+        factory = ProfileViewModel.Factory(context)
+    )
     val rewardCardsViewModel: RewardCardsViewModel = viewModel(factory = RewardCardsViewModel.Factory(context))
     val rewardCardsState by rewardCardsViewModel.uiState.collectAsState()
     
@@ -658,6 +665,14 @@ fun LinkedInContent(
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) {
             chatViewModel.preloadChats()
+        }
+    }
+
+    LaunchedEffect(uiState.isLoggedIn) {
+        if (uiState.isLoggedIn) {
+            ownProfileViewModel.prefetchOwnProfile()
+            findPeopleViewModel.prefetchInitialData()
+            reelsViewModel.prefetchAppStartData()
         }
     }
     
@@ -849,8 +864,8 @@ fun LinkedInContent(
                                 onRefresh = {
                                     viewModel.loadFeed(forceRefresh = true)
                                     viewModel.loadStories(forceRefresh = true)
-                                    reelsViewModel.loadPreviewReels()
-                                    rewardsViewModel.refreshAllVariableRewards()
+                                    reelsViewModel.loadPreviewReels(forceRefresh = true)
+                                    findPeopleViewModel.refreshAllVariableRewards()
                                     retentionViewModel.loadAllRetentionData(forceRefresh = true)
                                 },
                                 onLike = { postId -> viewModel.toggleLike(postId) },
@@ -989,6 +1004,7 @@ fun LinkedInContent(
                             backdrop = backdrop,
                             contentColor = contentColor,
                             accentColor = accentColor,
+                            findPeopleViewModel = findPeopleViewModel,
                             onNavigateToProfile = { userId -> viewingProfileUserId = userId }
                         )
                         2 -> com.kyant.backdrop.catalog.linkedin.posts.CreatePostScreen(
@@ -1062,6 +1078,7 @@ fun LinkedInContent(
                                 backdrop = backdrop,
                                 contentColor = contentColor,
                                 accentColor = accentColor,
+                                profileViewModel = ownProfileViewModel,
                                 onNavigateBack = { selectedTab = 0 },
                                 onEditProfile = { showOnboardingScreen = true },
                                 onOpenFeedItem = { item ->
@@ -1895,6 +1912,10 @@ fun LinkedInContent(
                         onOpenNetwork = {
                             showNotificationsInbox = false
                             selectedTab = 1
+                        },
+                        onOpenGrowthHub = {
+                            showNotificationsInbox = false
+                            showGrowthHubScreen = true
                         }
                     )
                 }

@@ -105,12 +105,12 @@ fun FindPeopleScreenNew(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    findPeopleViewModel: FindPeopleViewModel,
     onNavigateToProfile: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val viewModel: FindPeopleViewModel = viewModel(factory = FindPeopleViewModel.Factory(context))
     val retentionViewModel: RetentionViewModel = viewModel(factory = RetentionViewModel.Factory(context))
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by findPeopleViewModel.uiState.collectAsState()
     val retentionState by retentionViewModel.uiState.collectAsState()
     
     // Theme preference: "glass", "light", "dark"
@@ -134,8 +134,8 @@ fun FindPeopleScreenNew(
     
     // Clear any existing errors when this screen is opened
     LaunchedEffect(Unit) {
-        viewModel.clearAllErrors()
-        viewModel.ensureFindSurfaceLoaded()
+        findPeopleViewModel.clearAllErrors()
+        findPeopleViewModel.ensureFindSurfaceLoaded()
         retentionViewModel.ensureRetentionLoaded()
     }
     
@@ -165,7 +165,7 @@ fun FindPeopleScreenNew(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 selectedTab = uiState.selectedTab,
-                onTabSelected = { viewModel.selectTab(it) }
+                onTabSelected = { findPeopleViewModel.selectTab(it) }
             )
             
             Spacer(Modifier.height(8.dp))
@@ -210,12 +210,12 @@ fun FindPeopleScreenNew(
                         uiState.hiddenGem?.id?.let { onNavigateToProfile(it) }
                     },
                     onHiddenGemConnect = {
-                        uiState.hiddenGem?.id?.let { viewModel.sendConnectionRequest(it) }
+                        uiState.hiddenGem?.id?.let { findPeopleViewModel.sendConnectionRequest(it) }
                     },
                     onViewTrendingStats = { /* TODO: Navigate to profile stats */ },
-                    onDismissDailyMatches = { viewModel.dismissDailyMatchesBanner() },
-                    onDismissHiddenGem = { viewModel.dismissHiddenGemCard() },
-                    onDismissTrending = { viewModel.dismissTrendingBanner() }
+                    onDismissDailyMatches = { findPeopleViewModel.dismissDailyMatchesBanner() },
+                    onDismissHiddenGem = { findPeopleViewModel.dismissHiddenGemCard() },
+                    onDismissTrending = { findPeopleViewModel.dismissTrendingBanner() }
                 )
             }
             
@@ -228,7 +228,7 @@ fun FindPeopleScreenNew(
                     isGlassTheme = isGlassTheme,
                     isLightTheme = isLightTheme,
                     uiState = uiState,
-                    viewModel = viewModel,
+                    viewModel = findPeopleViewModel,
                     onNavigateToProfile = onNavigateToProfile
                 )
 
@@ -242,10 +242,10 @@ fun FindPeopleScreenNew(
                     isLoading = uiState.isLoadingSmartMatches,
                     error = uiState.smartMatchError,
                     selectedFilter = uiState.smartMatchFilter,
-                    onFilterSelected = { viewModel.setSmartMatchFilter(it) },
+                    onFilterSelected = { findPeopleViewModel.setSmartMatchFilter(it) },
                     onNavigateToProfile = onNavigateToProfile,
-                    onRetry = { viewModel.loadSmartMatches(forceRefresh = true) },
-                    onDismissError = { viewModel.dismissErrorsWithCooldown() }
+                    onRetry = { findPeopleViewModel.loadSmartMatches(forceRefresh = true) },
+                    onDismissError = { findPeopleViewModel.dismissErrorsWithCooldown() }
                 )
             
             FindPeopleTab.ALL_PEOPLE -> AllPeopleContent(
@@ -258,24 +258,24 @@ fun FindPeopleScreenNew(
                 isLoading = uiState.isLoadingAllPeople,
                 error = uiState.allPeopleError,
                 searchQuery = uiState.searchQuery,
-                onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                onSearchQueryChange = { findPeopleViewModel.updateSearchQuery(it) },
                 filterOptions = uiState.filterOptions,
                 selectedCollege = uiState.selectedCollege,
                 selectedBranch = uiState.selectedBranch,
                 selectedGraduationYear = uiState.selectedGraduationYear,
                 isFilterExpanded = uiState.isFilterExpanded,
-                onToggleFilter = { viewModel.toggleFilterExpanded() },
-                onCollegeSelected = { viewModel.setCollegeFilter(it) },
-                onBranchSelected = { viewModel.setBranchFilter(it) },
-                onYearSelected = { viewModel.setGraduationYearFilter(it) },
-                onClearFilters = { viewModel.clearFilters() },
+                onToggleFilter = { findPeopleViewModel.toggleFilterExpanded() },
+                onCollegeSelected = { findPeopleViewModel.setCollegeFilter(it) },
+                onBranchSelected = { findPeopleViewModel.setBranchFilter(it) },
+                onYearSelected = { findPeopleViewModel.setGraduationYearFilter(it) },
+                onClearFilters = { findPeopleViewModel.clearFilters() },
                 hasMore = uiState.hasMoreAllPeople,
-                onLoadMore = { viewModel.loadMorePeople() },
+                onLoadMore = { findPeopleViewModel.loadMorePeople() },
                 connectionActionInProgress = uiState.connectionActionInProgress,
-                onConnect = { viewModel.sendConnectionRequest(it) },
+                onConnect = { findPeopleViewModel.sendConnectionRequest(it) },
                 onNavigateToProfile = onNavigateToProfile,
-                onRetry = { viewModel.loadAllPeople(resetPage = true, forceRefresh = true) },
-                onDismissError = { viewModel.dismissErrorsWithCooldown() }
+                onRetry = { findPeopleViewModel.loadAllPeople(resetPage = true, forceRefresh = true) },
+                onDismissError = { findPeopleViewModel.dismissErrorsWithCooldown() }
             )
             
             FindPeopleTab.FOR_YOU -> ForYouContent(
@@ -288,10 +288,10 @@ fun FindPeopleScreenNew(
                 isLoading = uiState.isLoadingSuggestions,
                 error = uiState.suggestionsError,
                 connectionActionInProgress = uiState.connectionActionInProgress,
-                onConnect = { viewModel.sendConnectionRequest(it) },
+                onConnect = { findPeopleViewModel.sendConnectionRequest(it) },
                 onNavigateToProfile = onNavigateToProfile,
-                onRetry = { viewModel.loadSuggestions(forceRefresh = true) },
-                onDismissError = { viewModel.dismissErrorsWithCooldown() }
+                onRetry = { findPeopleViewModel.loadSuggestions(forceRefresh = true) },
+                onDismissError = { findPeopleViewModel.dismissErrorsWithCooldown() }
             )
             
             FindPeopleTab.SAME_CAMPUS -> SameCampusContent(
@@ -308,12 +308,12 @@ fun FindPeopleScreenNew(
                 collegeSuggestions = uiState.collegeSuggestions,
                 isSearchingColleges = uiState.isSearchingColleges,
                 connectionActionInProgress = uiState.connectionActionInProgress,
-                onConnect = { viewModel.sendConnectionRequest(it) },
+                onConnect = { findPeopleViewModel.sendConnectionRequest(it) },
                 onNavigateToProfile = onNavigateToProfile,
-                onRetry = { viewModel.loadSameCampus(forceRefresh = true) },
-                onSaveCollege = { viewModel.saveCollege(it) },
-                onCollegeSearch = { viewModel.searchColleges(it) },
-                onDismissError = { viewModel.dismissErrorsWithCooldown() }
+                onRetry = { findPeopleViewModel.loadSameCampus(forceRefresh = true) },
+                onSaveCollege = { findPeopleViewModel.saveCollege(it) },
+                onCollegeSearch = { findPeopleViewModel.searchColleges(it) },
+                onDismissError = { findPeopleViewModel.dismissErrorsWithCooldown() }
             )
             
             FindPeopleTab.NEARBY -> NearbyContent(
@@ -329,11 +329,11 @@ fun FindPeopleScreenNew(
                 currentCity = uiState.currentCity,
                 selectedRadius = uiState.selectedRadius,
                 hasLocationPermission = uiState.hasLocationPermission,
-                onPermissionGranted = { viewModel.setLocationPermission(true) },
-                onLocationUpdate = { lat, lng, acc -> viewModel.updateLocation(lat, lng, acc) },
-                onRadiusChange = { viewModel.setRadius(it) },
+                onPermissionGranted = { findPeopleViewModel.setLocationPermission(true) },
+                onLocationUpdate = { lat, lng, acc -> findPeopleViewModel.updateLocation(lat, lng, acc) },
+                onRadiusChange = { findPeopleViewModel.setRadius(it) },
                 onNavigateToProfile = onNavigateToProfile,
-                onRefresh = { viewModel.loadNearbyPeople(forceRefresh = true) }
+                onRefresh = { findPeopleViewModel.loadNearbyPeople(forceRefresh = true) }
             )
         }
         }
@@ -351,7 +351,7 @@ fun FindPeopleScreenNew(
                     isAtRisk = uiState.isStreakAtRisk,
                     backdrop = backdrop,
                     onTap = { /* Navigate to streak details */ },
-                    onDismiss = { viewModel.dismissErrorsWithCooldown() }
+                    onDismiss = { findPeopleViewModel.dismissErrorsWithCooldown() }
                 )
             }
         }
@@ -365,7 +365,7 @@ fun FindPeopleScreenNew(
             connectionStreak = uiState.connectionStreak,
             isNewStreakMilestone = uiState.isNewStreakMilestone,
             backdrop = backdrop,
-            onDismiss = { viewModel.dismissConnectionCelebration() }
+            onDismiss = { findPeopleViewModel.dismissConnectionCelebration() }
         )
     }
 }

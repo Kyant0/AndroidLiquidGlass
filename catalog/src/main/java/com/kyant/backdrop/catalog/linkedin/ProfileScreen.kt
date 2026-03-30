@@ -121,14 +121,18 @@ fun ProfileScreen(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    profileViewModel: ProfileViewModel? = null,
     onNavigateBack: () -> Unit = {},
     onEditProfile: () -> Unit = {},
     onMessage: (String) -> Unit = {},
     onOpenFeedItem: (FeedItem) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val viewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory(context))
-    val uiState by viewModel.uiState.collectAsState()
+    val screenViewModel = profileViewModel ?: viewModel(
+        key = "profile:${userId ?: "me"}",
+        factory = ProfileViewModel.Factory(context)
+    )
+    val uiState by screenViewModel.uiState.collectAsState()
     
     // Theme detection
     val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
@@ -194,7 +198,7 @@ fun ProfileScreen(
     }
     
     LaunchedEffect(userId) {
-        viewModel.loadProfile(userId)
+        screenViewModel.loadProfile(userId)
     }
     
     Box(Modifier.fillMaxSize()) {
@@ -208,7 +212,7 @@ fun ProfileScreen(
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
-                    onRetry = { viewModel.retry() }
+                    onRetry = { screenViewModel.retry() }
                 )
             }
             uiState.profile != null -> {
@@ -222,30 +226,30 @@ fun ProfileScreen(
                     showBackButton = userId != null,
                     onNavigateBack = onNavigateBack,
                     onEditProfile = onEditProfile,
-                    onConnect = { viewModel.sendConnectionRequest() },
-                    onCancelRequest = { viewModel.cancelConnectionRequest() },
-                    onAcceptRequest = { viewModel.acceptConnectionRequest() },
-                    onRejectRequest = { viewModel.rejectConnectionRequest() },
-                    onRemoveConnection = { viewModel.removeConnection() },
-                    onToggleFollow = { viewModel.toggleFollow() },
-                    onFilterChange = { viewModel.setFeedFilter(it) },
-                    onLoadMore = { viewModel.loadMoreFeed() },
-                    onYearChange = { viewModel.loadActivityForYear(it) },
-                    onEditBio = { viewModel.startEditingBio() },
-                    onSaveBio = { viewModel.saveEditedBio() },
-                    onCancelEditBio = { viewModel.cancelEditingBio() },
-                    onBioChange = { viewModel.updateEditedBio(it) },
-                    onToggleOpenToWork = { viewModel.updateOpenToOpportunities(it) },
+                    onConnect = { screenViewModel.sendConnectionRequest() },
+                    onCancelRequest = { screenViewModel.cancelConnectionRequest() },
+                    onAcceptRequest = { screenViewModel.acceptConnectionRequest() },
+                    onRejectRequest = { screenViewModel.rejectConnectionRequest() },
+                    onRemoveConnection = { screenViewModel.removeConnection() },
+                    onToggleFollow = { screenViewModel.toggleFollow() },
+                    onFilterChange = { screenViewModel.setFeedFilter(it) },
+                    onLoadMore = { screenViewModel.loadMoreFeed() },
+                    onYearChange = { screenViewModel.loadActivityForYear(it) },
+                    onEditBio = { screenViewModel.startEditingBio() },
+                    onSaveBio = { screenViewModel.saveEditedBio() },
+                    onCancelEditBio = { screenViewModel.cancelEditingBio() },
+                    onBioChange = { screenViewModel.updateEditedBio(it) },
+                    onToggleOpenToWork = { screenViewModel.updateOpenToOpportunities(it) },
                     onMessage = onMessage,
                     onOpenFeedItem = onOpenFeedItem,
-                    onVotePoll = { postId, optionId -> viewModel.votePoll(postId, optionId) },
-                    onUploadAvatar = { viewModel.uploadAvatar(it) },
-                    onUploadBanner = { viewModel.uploadBanner(it) },
+                    onVotePoll = { postId, optionId -> screenViewModel.votePoll(postId, optionId) },
+                    onUploadAvatar = { screenViewModel.uploadAvatar(it) },
+                    onUploadBanner = { screenViewModel.uploadBanner(it) },
                     // Project callbacks
                     onAddProject = { showAddProject = true },
                     onEditProject = { editingProject = it },
                     onViewProject = { viewingProject = it },
-                    onToggleProjectFeatured = { viewModel.toggleProjectFeatured(it.id) },
+                    onToggleProjectFeatured = { screenViewModel.toggleProjectFeatured(it.id) },
                     // Experience callbacks
                     onAddExperience = { showAddExperience = true },
                     onEditExperience = { editingExperience = it },
@@ -264,9 +268,9 @@ fun ProfileScreen(
                     onViewAchievement = { viewingAchievement = it },
                     // Skills callbacks
                     onAddSkill = { showAddSkill = true },
-                    onRemoveSkill = { skill -> viewModel.removeLocalSkill(skill.id) },
+                    onRemoveSkill = { skill -> screenViewModel.removeLocalSkill(skill.id) },
                     onDeleteFeedPost = { postId ->
-                        viewModel.deleteFeedPost(
+                        screenViewModel.deleteFeedPost(
                             postId = postId,
                             onSuccess = {},
                             onError = { }
@@ -298,7 +302,7 @@ fun ProfileScreen(
                 accentColor = accentColor,
                 onSave = { editingProject = null },
                 onDelete = {
-                    viewModel.deleteProject(
+                    screenViewModel.deleteProject(
                         projectId = project.id,
                         onSuccess = { editingProject = null },
                         onError = { /* Show error toast */ }
@@ -332,7 +336,7 @@ fun ProfileScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onSave = { savedExperience ->
-                    viewModel.addExperience(savedExperience)
+                    screenViewModel.addExperience(savedExperience)
                     showAddExperience = false
                 },
                 onDelete = null,
@@ -347,7 +351,7 @@ fun ProfileScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onSave = { name, proficiency ->
-                    viewModel.addLocalSkill(name = name, proficiency = proficiency)
+                    screenViewModel.addLocalSkill(name = name, proficiency = proficiency)
                     showAddSkill = false
                 },
                 onCancel = { showAddSkill = false }
@@ -362,11 +366,11 @@ fun ProfileScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onSave = { savedExperience ->
-                    viewModel.updateExperience(savedExperience)
+                    screenViewModel.updateExperience(savedExperience)
                     editingExperience = null
                 },
                 onDelete = {
-                    viewModel.deleteExperience(
+                    screenViewModel.deleteExperience(
                         experienceId = experience.id,
                         onSuccess = { editingExperience = null },
                         onError = { /* Show error toast */ }
@@ -384,7 +388,7 @@ fun ProfileScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onSave = { savedEducation ->
-                    viewModel.addEducation(savedEducation)
+                    screenViewModel.addEducation(savedEducation)
                     showAddEducation = false
                 },
                 onDelete = null,
@@ -400,11 +404,11 @@ fun ProfileScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onSave = { savedEducation ->
-                    viewModel.updateEducation(savedEducation)
+                    screenViewModel.updateEducation(savedEducation)
                     editingEducation = null
                 },
                 onDelete = {
-                    viewModel.deleteEducation(
+                    screenViewModel.deleteEducation(
                         educationId = education.id,
                         onSuccess = { editingEducation = null },
                         onError = { /* Show error toast */ }
@@ -422,7 +426,7 @@ fun ProfileScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onSave = { savedCertificate ->
-                    viewModel.addCertificate(savedCertificate)
+                    screenViewModel.addCertificate(savedCertificate)
                     showAddCertificate = false
                 },
                 onDelete = null,
@@ -438,11 +442,11 @@ fun ProfileScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onSave = { savedCertificate ->
-                    viewModel.updateCertificate(savedCertificate)
+                    screenViewModel.updateCertificate(savedCertificate)
                     editingCertificate = null
                 },
                 onDelete = {
-                    viewModel.deleteCertificate(
+                    screenViewModel.deleteCertificate(
                         certificateId = certificate.id,
                         onSuccess = { editingCertificate = null },
                         onError = { /* Show error toast */ }
@@ -471,7 +475,7 @@ fun ProfileScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onSave = { savedAchievement ->
-                    viewModel.addAchievement(savedAchievement)
+                    screenViewModel.addAchievement(savedAchievement)
                     showAddAchievement = false
                 },
                 onDelete = null,
@@ -487,11 +491,11 @@ fun ProfileScreen(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 onSave = { savedAchievement ->
-                    viewModel.updateAchievement(savedAchievement)
+                    screenViewModel.updateAchievement(savedAchievement)
                     editingAchievement = null
                 },
                 onDelete = {
-                    viewModel.deleteAchievement(
+                    screenViewModel.deleteAchievement(
                         achievementId = achievement.id,
                         onSuccess = { editingAchievement = null },
                         onError = { /* Show error toast */ }

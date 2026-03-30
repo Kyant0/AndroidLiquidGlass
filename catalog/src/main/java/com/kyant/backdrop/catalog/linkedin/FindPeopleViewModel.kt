@@ -202,8 +202,9 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
         ensureVariableRewardsLoaded()
     }
 
-    fun prefetchInitialData() {
-        ensureVariableRewardsLoaded()
+    fun prefetchInitialData(forceRefresh: Boolean = false) {
+        ensureVariableRewardsLoaded(forceRefresh = forceRefresh)
+        ensureFindSurfaceLoaded(forceRefresh = forceRefresh)
     }
 
     fun ensureFindSurfaceLoaded(forceRefresh: Boolean = false) {

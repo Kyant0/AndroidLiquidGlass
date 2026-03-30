@@ -1656,7 +1656,7 @@ data class Notification(
     val actor: NotificationActor? = null,
     val post: NotificationPost? = null,
     val reel: NotificationReel? = null,
-    val data: Map<String, String>? = null
+    val data: Map<String, JsonElement>? = null
 )
 
 @Serializable
