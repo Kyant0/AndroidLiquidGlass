@@ -532,6 +532,34 @@ data class ConnectionStatusResponse(
     val connectionId: String? = null
 )
 
+@Serializable
+data class PendingConnectionRequestUser(
+    val id: String,
+    val username: String? = null,
+    val name: String? = null,
+    val profileImage: String? = null,
+    val headline: String? = null,
+    val college: String? = null
+)
+
+@Serializable
+data class PendingConnectionRequest(
+    val id: String,
+    val status: String = "PENDING",
+    val message: String? = null,
+    val createdAt: String = "",
+    val user: PendingConnectionRequestUser
+)
+
+@Serializable
+data class PendingConnectionRequestsResponse(
+    val connections: List<PendingConnectionRequest> = emptyList(),
+    val total: Int = 0,
+    val page: Int = 1,
+    val totalPages: Int = 1,
+    val hasMore: Boolean = false
+)
+
 // ==================== Profile Models ====================
 
 @Serializable

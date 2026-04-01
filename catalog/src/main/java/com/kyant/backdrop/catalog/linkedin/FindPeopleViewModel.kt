@@ -17,6 +17,7 @@ import com.kyant.backdrop.catalog.network.models.HiddenGemUser
 import com.kyant.backdrop.catalog.network.models.LocationUpdateRequest
 import com.kyant.backdrop.catalog.network.models.NearbyUser
 import com.kyant.backdrop.catalog.network.models.NearbyUserLocation
+import com.kyant.backdrop.catalog.network.models.PendingConnectionRequest
 import com.kyant.backdrop.catalog.network.models.PersonInfo
 import com.kyant.backdrop.catalog.network.models.PeopleYouKnowImportContact
 import com.kyant.backdrop.catalog.network.models.PeopleYouKnowInvite
@@ -50,7 +51,7 @@ enum class SmartMatchFilter {
 }
 
 data class FindPeopleUiState(
-    val selectedTab: FindPeopleTab = FindPeopleTab.PEOPLE_YOU_KNOW,
+    val selectedTab: FindPeopleTab = FindPeopleTab.ALL_PEOPLE,
 
     // People You Know
     val peopleYouKnowMatches: List<PersonInfo> = emptyList(),
@@ -110,6 +111,11 @@ data class FindPeopleUiState(
     val currentCity: String? = null,
     val selectedRadius: Int = 50,
     val hasLocationPermission: Boolean = false,
+
+    // Pending connection requests
+    val pendingConnectionRequests: List<PendingConnectionRequest> = emptyList(),
+    val isLoadingPendingConnectionRequests: Boolean = false,
+    val pendingConnectionRequestsError: String? = null,
     
     // Connection actions
     val connectionActionInProgress: Set<String> = emptySet(),
@@ -172,6 +178,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     private var trendingStatusLoadedAt = 0L
     private var nearbyLoadedAt = 0L
     private var peopleYouKnowLoadedAt = 0L
+    private var pendingConnectionRequestsLoadedAt = 0L
 
     private var isFilterOptionsRequestInFlight = false
     private var isStreakRequestInFlight = false
@@ -181,6 +188,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     private var isHiddenGemRequestInFlight = false
     private var isTrendingStatusRequestInFlight = false
     private var isPeopleYouKnowRequestInFlight = false
+    private var isPendingConnectionRequestsRequestInFlight = false
 
     private val smartMatchesCache = mutableMapOf<SmartMatchFilter, List<SmartMatch>>()
     private val smartMatchesLoadedAt = mutableMapOf<SmartMatchFilter, Long>()
@@ -209,6 +217,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
 
     fun ensureFindSurfaceLoaded(forceRefresh: Boolean = false) {
         loadStreakData(forceRefresh = forceRefresh)
+        loadPendingConnectionRequests(forceRefresh = forceRefresh)
         ensureTabDataLoaded(_uiState.value.selectedTab, forceRefresh = forceRefresh)
     }
 
@@ -352,6 +361,41 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     
     fun dismissTrendingBanner() {
         _uiState.value = _uiState.value.copy(showTrendingBanner = false)
+    }
+
+    fun loadPendingConnectionRequests(forceRefresh: Boolean = false) {
+        if (!forceRefresh && isFresh(pendingConnectionRequestsLoadedAt)) {
+            return
+        }
+        if (isPendingConnectionRequestsRequestInFlight) return
+
+        viewModelScope.launch {
+            isPendingConnectionRequestsRequestInFlight = true
+            _uiState.value = _uiState.value.copy(
+                isLoadingPendingConnectionRequests = true,
+                pendingConnectionRequestsError = null
+            )
+
+            ApiClient.getPendingConnectionRequests(context)
+                .onSuccess { response ->
+                    pendingConnectionRequestsLoadedAt = System.currentTimeMillis()
+                    val pendingRequests = response.connections
+                    _uiState.value = _uiState.value.copy(
+                        pendingConnectionRequests = pendingRequests,
+                        isLoadingPendingConnectionRequests = false,
+                        pendingConnectionRequestsError = null
+                    )
+                    syncPendingRequestStatuses(pendingRequests)
+                }
+                .onFailure { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoadingPendingConnectionRequests = false,
+                        pendingConnectionRequestsError = error.message ?: "Failed to load connection requests"
+                    )
+                }
+
+            isPendingConnectionRequestsRequestInFlight = false
+        }
     }
     
     // ==================== Streak Data (from Backend API) ====================
@@ -1214,6 +1258,24 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
         _uiState.value.allPeople.find { it.id == userId }?.let { return it }
         _uiState.value.suggestions.find { it.id == userId }?.let { return it }
         _uiState.value.sameCampusPeople.find { it.id == userId }?.let { return it }
+        _uiState.value.pendingConnectionRequests.find { it.user.id == userId }?.let {
+            return PersonInfo(
+                id = it.user.id,
+                username = it.user.username,
+                name = it.user.name,
+                profileImage = it.user.profileImage,
+                headline = it.user.headline,
+                college = it.user.college,
+                branch = null,
+                bio = null,
+                interests = emptyList(),
+                skills = emptyList(),
+                bannerImageUrl = null,
+                isOnline = false,
+                mutualConnections = 0,
+                connectionStatus = "pending_received"
+            )
+        }
         _uiState.value.smartMatches.find { it.user.id == userId }?.let { match ->
             // Convert SmartMatchUser to PersonInfo
             return PersonInfo(
@@ -1266,6 +1328,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
             ApiClient.cancelConnectionRequest(context, connectionId)
                 .onSuccess {
                     updatePersonConnectionStatus(userId, "none")
+                    removePendingConnectionRequest(connectionId)
                 }
             
             _uiState.value = _uiState.value.copy(
@@ -1285,6 +1348,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
             ApiClient.acceptConnection(context, connectionId)
                 .onSuccess {
                     updatePersonConnectionStatus(userId, "connected")
+                    removePendingConnectionRequest(connectionId)
                 }
             
             _uiState.value = _uiState.value.copy(
@@ -1304,6 +1368,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
             ApiClient.rejectConnection(context, connectionId)
                 .onSuccess {
                     updatePersonConnectionStatus(userId, "none")
+                    removePendingConnectionRequest(connectionId)
                 }
             
             _uiState.value = _uiState.value.copy(
@@ -1326,6 +1391,47 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
             },
             sameCampusPeople = _uiState.value.sameCampusPeople.map {
                 if (it.id == userId) it.copy(connectionStatus = status) else it
+            }
+        )
+    }
+
+    private fun removePendingConnectionRequest(connectionId: String) {
+        _uiState.value = _uiState.value.copy(
+            pendingConnectionRequests = _uiState.value.pendingConnectionRequests.filterNot { it.id == connectionId },
+            pendingConnectionRequestsError = null
+        )
+    }
+
+    private fun syncPendingRequestStatuses(requests: List<PendingConnectionRequest>) {
+        val pendingUserIds = requests.map { it.user.id }.toSet()
+        _uiState.value = _uiState.value.copy(
+            peopleYouKnowMatches = _uiState.value.peopleYouKnowMatches.map {
+                when {
+                    pendingUserIds.contains(it.id) -> it.copy(connectionStatus = "pending_received")
+                    it.connectionStatus == "pending_received" -> it.copy(connectionStatus = "none")
+                    else -> it
+                }
+            },
+            allPeople = _uiState.value.allPeople.map {
+                when {
+                    pendingUserIds.contains(it.id) -> it.copy(connectionStatus = "pending_received")
+                    it.connectionStatus == "pending_received" -> it.copy(connectionStatus = "none")
+                    else -> it
+                }
+            },
+            suggestions = _uiState.value.suggestions.map {
+                when {
+                    pendingUserIds.contains(it.id) -> it.copy(connectionStatus = "pending_received")
+                    it.connectionStatus == "pending_received" -> it.copy(connectionStatus = "none")
+                    else -> it
+                }
+            },
+            sameCampusPeople = _uiState.value.sameCampusPeople.map {
+                when {
+                    pendingUserIds.contains(it.id) -> it.copy(connectionStatus = "pending_received")
+                    it.connectionStatus == "pending_received" -> it.copy(connectionStatus = "none")
+                    else -> it
+                }
             }
         )
     }

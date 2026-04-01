@@ -1,5 +1,6 @@
 package com.kyant.backdrop.catalog.linkedin
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,7 +34,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -386,6 +389,8 @@ private fun NotificationInboxCard(
 ) {
     val tone = notificationTone(notification.type, accentColor)
     val preview = notificationContextPreview(notification)
+    val displayTitle = notificationDisplayTitle(notification.title)
+    val usesVormexBranding = notificationUsesVormexBranding(notification)
 
     Box(
         modifier = Modifier
@@ -450,41 +455,58 @@ private fun NotificationInboxCard(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        NotificationMetaPill(
-                            text = notificationTypeLabel(notification.type),
-                            background = tone.copy(alpha = 0.16f),
-                            borderColor = tone.copy(alpha = 0.24f),
-                            textColor = tone
-                        )
-                        NotificationMetaPill(
-                            text = destination.badge,
-                            background = Color.White.copy(alpha = 0.08f),
-                            borderColor = Color.White.copy(alpha = 0.12f),
-                            textColor = contentColor.copy(alpha = 0.75f)
-                        )
-                        if (!notification.isRead) {
+                    if (!usesVormexBranding) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             NotificationMetaPill(
-                                text = "New",
-                                background = Color(0xFFFF6B6B).copy(alpha = 0.16f),
-                                borderColor = Color(0xFFFF6B6B).copy(alpha = 0.22f),
-                                textColor = Color(0xFFFF6B6B)
+                                text = notificationTypeLabel(notification.type),
+                                background = tone.copy(alpha = 0.16f),
+                                borderColor = tone.copy(alpha = 0.24f),
+                                textColor = tone
                             )
+                            NotificationMetaPill(
+                                text = destination.badge,
+                                background = Color.White.copy(alpha = 0.08f),
+                                borderColor = Color.White.copy(alpha = 0.12f),
+                                textColor = contentColor.copy(alpha = 0.75f)
+                            )
+                            if (!notification.isRead) {
+                                NotificationMetaPill(
+                                    text = "New",
+                                    background = Color(0xFFFF6B6B).copy(alpha = 0.16f),
+                                    borderColor = Color(0xFFFF6B6B).copy(alpha = 0.22f),
+                                    textColor = Color(0xFFFF6B6B)
+                                )
+                            }
                         }
                     }
 
-                    BasicText(
-                        text = notification.title,
-                        style = TextStyle(
-                            color = contentColor,
-                            fontSize = 13.sp,
-                            fontWeight = if (notification.isRead) FontWeight.SemiBold else FontWeight.Bold,
-                            lineHeight = 17.sp
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (!usesVormexBranding) {
+                            NotificationTypeIcon(
+                                type = notification.type,
+                                tint = tone,
+                                size = 14.dp
+                            )
+                        }
+                        BasicText(
+                            text = displayTitle,
+                            style = TextStyle(
+                                color = contentColor,
+                                fontSize = 13.sp,
+                                fontWeight = if (notification.isRead) FontWeight.SemiBold else FontWeight.Bold,
+                                lineHeight = 17.sp
+                            ),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    )
+                    }
                 }
 
                 Spacer(Modifier.width(8.dp))
@@ -510,7 +532,7 @@ private fun NotificationInboxCard(
                 overflow = TextOverflow.Ellipsis
             )
 
-            if (!preview.isNullOrBlank()) {
+            if (!usesVormexBranding && !preview.isNullOrBlank()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -532,51 +554,53 @@ private fun NotificationInboxCard(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+            if (!usesVormexBranding) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    BasicText(
-                        text = destination.label,
-                        style = TextStyle(
-                            color = tone,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        BasicText(
+                            text = destination.label,
+                            style = TextStyle(
+                                color = tone,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         )
-                    )
-                    BasicText(
-                        text = destination.hint,
-                        style = TextStyle(
-                            color = contentColor.copy(alpha = 0.52f),
-                            fontSize = 10.sp
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Spacer(Modifier.width(12.dp))
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(tone.copy(alpha = 0.16f))
-                        .border(1.dp, tone.copy(alpha = 0.24f), RoundedCornerShape(999.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    BasicText(
-                        text = "Open →",
-                        style = TextStyle(
-                            color = tone,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold
+                        BasicText(
+                            text = destination.hint,
+                            style = TextStyle(
+                                color = contentColor.copy(alpha = 0.52f),
+                                fontSize = 10.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    )
+                    }
+
+                    Spacer(Modifier.width(12.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(tone.copy(alpha = 0.16f))
+                            .border(1.dp, tone.copy(alpha = 0.24f), RoundedCornerShape(999.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        BasicText(
+                            text = "Open →",
+                            style = TextStyle(
+                                color = tone,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -588,7 +612,22 @@ private fun NotificationAvatar(
     notification: Notification,
     tone: Color
 ) {
-    if (notification.actor?.profileImage != null) {
+    if (notificationUsesVormexBranding(notification)) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+                .border(1.dp, tone.copy(alpha = 0.24f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(com.kyant.backdrop.catalog.R.drawable.vormex_logo),
+                contentDescription = "Vormex",
+                modifier = Modifier.size(28.dp)
+            )
+        }
+    } else if (notification.actor?.profileImage != null) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(notification.actor.profileImage)
@@ -609,12 +648,27 @@ private fun NotificationAvatar(
                 .border(1.dp, tone.copy(alpha = 0.24f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            BasicText(
-                text = notificationEmoji(notification.type),
-                style = TextStyle(fontSize = 18.sp)
+            NotificationTypeIcon(
+                type = notification.type,
+                tint = tone,
+                size = 18.dp
             )
         }
     }
+}
+
+@Composable
+private fun NotificationTypeIcon(
+    type: String,
+    tint: Color,
+    size: androidx.compose.ui.unit.Dp
+) {
+    Image(
+        painter = painterResource(notificationIconRes(type)),
+        contentDescription = notificationTypeLabel(type),
+        modifier = Modifier.size(size),
+        colorFilter = ColorFilter.tint(tint)
+    )
 }
 
 @Composable
@@ -927,6 +981,7 @@ private fun startOfDayMillis(calendar: Calendar): Long {
 private fun notificationTypeLabel(type: String): String {
     val normalized = type.lowercase(Locale.getDefault())
     return when {
+        normalized == "admin_announcement" -> "Announcement"
         normalized == "connection_request" -> "Connection request"
         normalized == "connection_accepted" -> "Connection accepted"
         normalized == "comment_reply" -> "Reply"
@@ -944,9 +999,16 @@ private fun notificationTypeLabel(type: String): String {
     }
 }
 
+private fun notificationDisplayTitle(title: String): String {
+    val trimmed = title.trim()
+    val cleaned = trimmed.replace(Regex("^[^\\p{L}\\p{N}]+\\s*"), "")
+    return cleaned.ifBlank { trimmed }
+}
+
 private fun notificationTone(type: String, accentColor: Color): Color {
     val normalized = type.lowercase(Locale.getDefault())
     return when {
+        "admin" in normalized -> Color(0xFF2563EB)
         "message" in normalized -> Color(0xFF4FC3F7)
         "mention" in normalized -> Color(0xFFFFB74D)
         "follow" in normalized || "connection" in normalized -> Color(0xFF66BB6A)
@@ -976,6 +1038,13 @@ private fun resolveNotificationDestination(notification: Notification): Notifica
     val actorId = notification.actor?.id ?: notification.dataValue("userId") ?: notification.dataValue("actorId")
 
     return when {
+        notificationUsesVormexBranding(notification) || normalizedType == "admin_announcement" -> NotificationDestination(
+            kind = NotificationDestinationKind.GrowthHub,
+            label = "Open Vormex",
+            hint = "Read the latest update from the Vormex team",
+            badge = "Vormex"
+        )
+
         !conversationId.isNullOrBlank() || "message" in normalizedType -> NotificationDestination(
             kind = NotificationDestinationKind.Conversation,
             targetId = conversationId,
@@ -1074,19 +1143,29 @@ private fun resolveNotificationDestination(notification: Notification): Notifica
     }
 }
 
-private fun notificationEmoji(type: String): String {
+private fun notificationUsesVormexBranding(notification: Notification): Boolean {
+    return notification.type.lowercase(Locale.getDefault()) == "admin_announcement" ||
+        notification.dataValue("branding") == "vormex" ||
+        notification.dataValue("senderType") == "admin"
+}
+
+private fun notificationIconRes(type: String): Int {
     val normalized = type.lowercase(Locale.getDefault())
     return when {
-        "message" in normalized -> "💬"
-        "mention" in normalized -> "📣"
-        "follow" in normalized -> "👋"
-        "connection" in normalized -> "🤝"
-        "comment" in normalized -> "🗨️"
-        "reel" in normalized -> "🎬"
-        "share" in normalized -> "🔁"
-        "streak" in normalized -> "🔥"
-        "xp" in normalized -> "✨"
-        else -> "🔔"
+        normalized == "admin_announcement" -> com.kyant.backdrop.catalog.R.drawable.ic_notifications
+        normalized == "connection_accepted" -> com.kyant.backdrop.catalog.R.drawable.ic_check
+        normalized == "connection_request" -> com.kyant.backdrop.catalog.R.drawable.ic_network
+        "message" in normalized -> com.kyant.backdrop.catalog.R.drawable.ic_message
+        "mention" in normalized -> com.kyant.backdrop.catalog.R.drawable.ic_mention
+        "follow" in normalized -> com.kyant.backdrop.catalog.R.drawable.ic_profile
+        "connection" in normalized -> com.kyant.backdrop.catalog.R.drawable.ic_users
+        "comment" in normalized -> com.kyant.backdrop.catalog.R.drawable.ic_message
+        "reel" in normalized -> com.kyant.backdrop.catalog.R.drawable.ic_video
+        "share" in normalized -> com.kyant.backdrop.catalog.R.drawable.ic_repost
+        "streak" in normalized -> com.kyant.backdrop.catalog.R.drawable.ic_flame
+        "xp" in normalized -> com.kyant.backdrop.catalog.R.drawable.ic_sparkles
+        "like" in normalized -> com.kyant.backdrop.catalog.R.drawable.ic_favorite
+        else -> com.kyant.backdrop.catalog.R.drawable.ic_notifications
     }
 }
 

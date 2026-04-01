@@ -120,6 +120,7 @@ import com.kyant.backdrop.catalog.components.LiquidButton
 import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.models.Comment
 import com.kyant.backdrop.catalog.network.models.FullProfileResponse
+import com.kyant.backdrop.catalog.network.models.PendingConnectionRequest
 import com.kyant.backdrop.catalog.network.models.PollOption
 import com.kyant.backdrop.catalog.network.models.Post
 import com.kyant.backdrop.catalog.network.models.StoryGroup
@@ -458,6 +459,7 @@ fun LinkedInContent(
     // Settings & More screen navigation state
     var showProfileScreen by remember { mutableStateOf(false) }
     var showSavedPostsScreen by remember { mutableStateOf(false) }
+    var showConnectionRequestsScreen by remember { mutableStateOf(false) }
     var showNotificationsInbox by remember { mutableStateOf(false) }
     var showNotificationSettingsScreen by remember { mutableStateOf(false) }
     var showPrivacySettingsScreen by remember { mutableStateOf(false) }
@@ -484,6 +486,7 @@ fun LinkedInContent(
             showConnectionCelebration ||
             showProfileScreen ||
             showSavedPostsScreen ||
+            showConnectionRequestsScreen ||
             showNotificationsInbox ||
             showNotificationSettingsScreen ||
             showPrivacySettingsScreen ||
@@ -525,6 +528,7 @@ fun LinkedInContent(
             // Settings screens
             showProfileScreen -> showProfileScreen = false
             showSavedPostsScreen -> showSavedPostsScreen = false
+            showConnectionRequestsScreen -> showConnectionRequestsScreen = false
             showNotificationsInbox -> showNotificationsInbox = false
             showNotificationSettingsScreen -> showNotificationSettingsScreen = false
             showPrivacySettingsScreen -> showPrivacySettingsScreen = false
@@ -638,7 +642,7 @@ fun LinkedInContent(
             isInChatThread = false
         }
     }
-    
+
     // Find/Profile/Reels state shared across tab switches so those sections stay warm.
     val findPeopleViewModel: FindPeopleViewModel = viewModel(
         key = "find-people",
@@ -663,6 +667,18 @@ fun LinkedInContent(
     // Chat state for unread message indicator
     val chatViewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory(context))
     val chatState by chatViewModel.uiState.collectAsState()
+
+    LaunchedEffect(selectedTab, uiState.isLoggedIn) {
+        if (uiState.isLoggedIn && selectedTab == 3) {
+            findPeopleViewModel.loadPendingConnectionRequests()
+        }
+    }
+
+    LaunchedEffect(showConnectionRequestsScreen, uiState.isLoggedIn) {
+        if (uiState.isLoggedIn && showConnectionRequestsScreen) {
+            findPeopleViewModel.loadPendingConnectionRequests(forceRefresh = true)
+        }
+    }
 
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) {
@@ -1052,7 +1068,11 @@ fun LinkedInContent(
                             isGlassTheme = isGlassTheme,
                             retentionState = retentionState,
                             currentUser = uiState.currentUser,
+                            connectionRequests = rewardsState.pendingConnectionRequests,
+                            isLoadingConnectionRequests = rewardsState.isLoadingPendingConnectionRequests,
+                            connectionRequestsError = rewardsState.pendingConnectionRequestsError,
                             onNavigateToProfile = { selectedTab = 4 },
+                            onNavigateToConnectionRequests = { showConnectionRequestsScreen = true },
                             onNavigateToGroups = { showGroupsScreen = true },
                             onNavigateToCircles = { showCirclesScreen = true },
                             onNavigateToReels = { 
@@ -1864,6 +1884,44 @@ fun LinkedInContent(
                             showSavedPostsScreen = false
                             selectedTab = 0
                             reelsViewModel.loadReelById(reelId)
+                        }
+                    )
+                }
+            }
+
+            // Connection Requests Screen Overlay
+            AnimatedVisibility(
+                visible = showConnectionRequestsScreen,
+                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+            ) {
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
+                ) {
+                    ConnectionRequestsScreen(
+                        backdrop = backdrop,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        isGlassTheme = isGlassTheme,
+                        requests = rewardsState.pendingConnectionRequests,
+                        isLoading = rewardsState.isLoadingPendingConnectionRequests,
+                        error = rewardsState.pendingConnectionRequestsError,
+                        actionInProgress = rewardsState.connectionActionInProgress,
+                        onNavigateBack = { showConnectionRequestsScreen = false },
+                        onOpenProfile = { userId ->
+                            showConnectionRequestsScreen = false
+                            viewingProfileUserId = userId
+                        },
+                        onAccept = { userId, connectionId ->
+                            findPeopleViewModel.acceptConnection(userId, connectionId)
+                        },
+                        onReject = { userId, connectionId ->
+                            findPeopleViewModel.rejectConnection(userId, connectionId)
                         }
                     )
                 }
@@ -3571,7 +3629,11 @@ private fun MoreScreen(
     isGlassTheme: Boolean,
     retentionState: RetentionUiState,
     currentUser: com.kyant.backdrop.catalog.network.models.User? = null,
+    connectionRequests: List<PendingConnectionRequest> = emptyList(),
+    isLoadingConnectionRequests: Boolean = false,
+    connectionRequestsError: String? = null,
     onNavigateToProfile: () -> Unit = {},
+    onNavigateToConnectionRequests: () -> Unit = {},
     onNavigateToGroups: () -> Unit = {},
     onNavigateToCircles: () -> Unit = {},
     onNavigateToReels: () -> Unit = {},
@@ -3617,6 +3679,14 @@ private fun MoreScreen(
     val sectionHeaderColor = contentColor.copy(alpha = if (isDarkSurface) 0.72f else 0.48f)
     val destructiveColor = if (isDarkSurface) Color(0xFFFF7A7A) else Color(0xFFD33A3A)
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    val pendingRequestsCount = connectionRequests.size
+    val connectionRequestsSubtitle = when {
+        isLoadingConnectionRequests && pendingRequestsCount == 0 -> "Checking for incoming requests"
+        pendingRequestsCount == 0 && connectionRequestsError != null -> "Open to retry loading requests"
+        pendingRequestsCount == 0 -> "People who send requests will show up here"
+        pendingRequestsCount == 1 -> "1 person is waiting for your reply"
+        else -> "$pendingRequestsCount people are waiting for your reply"
+    }
 
     val accountItems = mutableListOf<MoreSettingsItem>().apply {
         if (currentUser == null) {
@@ -3651,6 +3721,19 @@ private fun MoreScreen(
         MoreSettingsSection(
             title = "Your account",
             items = accountItems
+        ),
+        MoreSettingsSection(
+            title = "Connections",
+            items = listOf(
+                MoreSettingsItem(
+                    title = "Connection requests",
+                    subtitle = connectionRequestsSubtitle,
+                    icon = Icons.Outlined.PersonAddAlt1,
+                    onClick = onNavigateToConnectionRequests,
+                    trailingLabel = pendingRequestsCount.takeIf { it > 0 }?.toString(),
+                    showIndicatorDot = pendingRequestsCount > 0
+                )
+            )
         ),
         MoreSettingsSection(
             title = "How you use Vormex",
@@ -4171,6 +4254,332 @@ private fun MoreSettingsSectionCard(
 }
 
 @Composable
+private fun MoreConnectionRequestsCard(
+    requests: List<PendingConnectionRequest>,
+    isLoading: Boolean,
+    error: String?,
+    actionInProgress: Set<String>,
+    backdrop: LayerBackdrop,
+    isGlassTheme: Boolean,
+    surfaceColor: Color,
+    borderColor: Color,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    onOpenProfile: (String) -> Unit,
+    onAccept: (String, String) -> Unit,
+    onReject: (String, String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .then(
+                if (isGlassTheme) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(18.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(14f.dp.toPx())
+                            lens(6f.dp.toPx(), 12f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(surfaceColor)
+                        }
+                    )
+                } else {
+                    Modifier.background(surfaceColor)
+                }
+            )
+            .border(1.dp, borderColor, RoundedCornerShape(18.dp))
+    ) {
+        when {
+            isLoading && requests.isEmpty() -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = accentColor
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        BasicText(
+                            "Checking for new requests",
+                            style = TextStyle(
+                                color = contentColor,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                        BasicText(
+                            "People who want to connect will show up here.",
+                            style = TextStyle(
+                                color = secondaryTextColor,
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+                }
+            }
+
+            error != null && requests.isEmpty() -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    BasicText(
+                        "Could not load connection requests",
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                    BasicText(
+                        error,
+                        style = TextStyle(
+                            color = secondaryTextColor,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
+
+            requests.isEmpty() -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    BasicText(
+                        "No connection requests right now",
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                    BasicText(
+                        "When someone sends you a request, you’ll see them here.",
+                        style = TextStyle(
+                            color = secondaryTextColor,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
+
+            else -> {
+                requests.forEachIndexed { index, request ->
+                    MoreConnectionRequestRow(
+                        request = request,
+                        isActionInProgress = actionInProgress.contains(request.user.id),
+                        contentColor = contentColor,
+                        secondaryTextColor = secondaryTextColor,
+                        accentColor = accentColor,
+                        borderColor = borderColor,
+                        onOpenProfile = onOpenProfile,
+                        onAccept = onAccept,
+                        onReject = onReject
+                    )
+
+                    if (index != requests.lastIndex) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 74.dp)
+                                .height(1.dp)
+                                .background(borderColor)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoreConnectionRequestRow(
+    request: PendingConnectionRequest,
+    isActionInProgress: Boolean,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    borderColor: Color,
+    onOpenProfile: (String) -> Unit,
+    onAccept: (String, String) -> Unit,
+    onReject: (String, String) -> Unit
+) {
+    val user = request.user
+    val subtitle = listOfNotNull(
+        user.headline?.takeIf { it.isNotBlank() },
+        user.college?.takeIf { it.isNotBlank() }
+    ).joinToString(" • ").ifBlank { "Sent you a connection request" }
+    val avatarLetter = (
+        user.name?.firstOrNull()?.toString()
+            ?: user.username?.firstOrNull()?.toString()
+            ?: "U"
+        ).uppercase()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(contentColor.copy(alpha = 0.08f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!user.profileImage.isNullOrEmpty()) {
+                AsyncImage(
+                    model = user.profileImage,
+                    contentDescription = "Profile",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                BasicText(
+                    avatarLetter,
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Column(
+                modifier = Modifier.clickable { onOpenProfile(user.id) },
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                BasicText(
+                    user.name?.takeIf { it.isNotBlank() } ?: user.username ?: "Vormex user",
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!user.username.isNullOrBlank()) {
+                    BasicText(
+                        "@${user.username}",
+                        style = TextStyle(
+                            color = secondaryTextColor,
+                            fontSize = 11.sp
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                BasicText(
+                    subtitle,
+                    style = TextStyle(
+                        color = secondaryTextColor,
+                        fontSize = 11.sp
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (isActionInProgress) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = accentColor
+                    )
+                    BasicText(
+                        "Updating request",
+                        style = TextStyle(
+                            color = secondaryTextColor,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MoreConnectionRequestActionButton(
+                        label = "Ignore",
+                        filled = false,
+                        accentColor = accentColor,
+                        contentColor = contentColor,
+                        borderColor = borderColor,
+                        onClick = { onReject(user.id, request.id) }
+                    )
+                    MoreConnectionRequestActionButton(
+                        label = "Accept",
+                        filled = true,
+                        accentColor = accentColor,
+                        contentColor = contentColor,
+                        borderColor = borderColor,
+                        onClick = { onAccept(user.id, request.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoreConnectionRequestActionButton(
+    label: String,
+    filled: Boolean,
+    accentColor: Color,
+    contentColor: Color,
+    borderColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (filled) accentColor else accentColor.copy(alpha = 0.12f))
+            .border(
+                width = 1.dp,
+                color = if (filled) accentColor else borderColor,
+                shape = RoundedCornerShape(999.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        BasicText(
+            label,
+            style = TextStyle(
+                color = if (filled) Color.White else contentColor,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        )
+    }
+}
+
+@Composable
 private fun MoreSettingsRow(
     item: MoreSettingsItem,
     contentColor: Color,
@@ -4279,6 +4688,108 @@ private fun MoreSectionHeader(
         ),
         modifier = Modifier.padding(start = 2.dp)
     )
+}
+
+@Composable
+private fun ConnectionRequestsScreen(
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    isGlassTheme: Boolean,
+    requests: List<PendingConnectionRequest>,
+    isLoading: Boolean,
+    error: String?,
+    actionInProgress: Set<String>,
+    onNavigateBack: () -> Unit,
+    onOpenProfile: (String) -> Unit,
+    onAccept: (String, String) -> Unit,
+    onReject: (String, String) -> Unit
+) {
+    val isDarkSurface = contentColor == Color.White
+    val summarySurfaceColor = if (isDarkSurface) {
+        accentColor.copy(alpha = 0.10f)
+    } else {
+        accentColor.copy(alpha = 0.12f)
+    }
+    val summaryBorderColor = if (isDarkSurface) {
+        accentColor.copy(alpha = 0.18f)
+    } else {
+        accentColor.copy(alpha = 0.12f)
+    }
+    val sectionSurfaceColor = if (isDarkSurface) {
+        Color.White.copy(alpha = 0.09f)
+    } else {
+        Color.White.copy(alpha = 0.22f)
+    }
+    val dividerColor = if (isDarkSurface) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.Black.copy(alpha = 0.10f)
+    }
+    val secondaryTextColor = contentColor.copy(alpha = if (isDarkSurface) 0.66f else 0.58f)
+    val requestCountText = when (requests.size) {
+        0 -> "No pending requests"
+        1 -> "1 pending request"
+        else -> "${requests.size} pending requests"
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+    ) {
+        SettingsHeader(
+            title = "Connection requests",
+            contentColor = contentColor,
+            onBack = onNavigateBack
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(summarySurfaceColor)
+                    .border(1.dp, summaryBorderColor, RoundedCornerShape(18.dp))
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    BasicText(
+                        requestCountText,
+                        style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold)
+                    )
+                    BasicText(
+                        "Review the people who sent you connection requests and respond from here.",
+                        style = TextStyle(secondaryTextColor, 12.sp)
+                    )
+                }
+            }
+
+            MoreConnectionRequestsCard(
+                requests = requests,
+                isLoading = isLoading,
+                error = error,
+                actionInProgress = actionInProgress,
+                backdrop = backdrop,
+                isGlassTheme = isGlassTheme,
+                surfaceColor = sectionSurfaceColor,
+                borderColor = dividerColor,
+                contentColor = contentColor,
+                secondaryTextColor = secondaryTextColor,
+                accentColor = accentColor,
+                onOpenProfile = onOpenProfile,
+                onAccept = onAccept,
+                onReject = onReject
+            )
+
+            Spacer(Modifier.height(80.dp))
+        }
+    }
 }
 
 @Composable

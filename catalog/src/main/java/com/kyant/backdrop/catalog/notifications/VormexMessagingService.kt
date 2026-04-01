@@ -264,6 +264,19 @@ class VormexMessagingService : FirebaseMessagingService() {
                             putExtra(EXTRA_REEL_ID, it)
                         }
                     }
+                    type.equals("connection_accepted", ignoreCase = true) ||
+                    type.equals("new_connection", ignoreCase = true) ||
+                    type.equals("connection_celebration", ignoreCase = true) ||
+                    data["screen"].equals("connection_celebration", ignoreCase = true) -> {
+                        val connectionId = data["connectionId"].orEmpty()
+                        if (connectionId.isNotBlank()) {
+                            putExtra(EXTRA_ACTION, ACTION_CONNECTION_CELEBRATION)
+                            putExtra(EXTRA_CONNECTION_ID, connectionId)
+                        } else {
+                            putExtra(EXTRA_ACTION, ACTION_CONNECTIONS)
+                        }
+                        data["actorId"]?.let { putExtra(EXTRA_USER_ID, it) }
+                    }
                     type.contains("connection", ignoreCase = true) -> {
                         putExtra(EXTRA_ACTION, ACTION_CONNECTIONS)
                         data["connectionId"]?.let { putExtra(EXTRA_CONNECTION_ID, it) }
@@ -394,7 +407,7 @@ class VormexMessagingService : FirebaseMessagingService() {
             .setDefaults(NotificationCompat.DEFAULT_LIGHTS)
             // Full screen intent for heads-up notification on locked screen
             .setFullScreenIntent(pendingIntent, true)
-        
+
         if (body.length > 50) {
             notificationBuilder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
         }

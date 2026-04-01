@@ -73,6 +73,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -109,6 +111,8 @@ fun FindPeopleScreenNew(
     onNavigateToProfile: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val retentionViewModel: RetentionViewModel = viewModel(factory = RetentionViewModel.Factory(context))
     val uiState by findPeopleViewModel.uiState.collectAsState()
     val retentionState by retentionViewModel.uiState.collectAsState()
@@ -131,12 +135,22 @@ fun FindPeopleScreenNew(
         targetValue = if (isScrolled) 0f else 1f,
         label = "headerAlpha"
     )
+    val navigateToProfile: (String) -> Unit = { userId ->
+        keyboardController?.hide()
+        focusManager.clearFocus(force = true)
+        onNavigateToProfile(userId)
+    }
     
     // Clear any existing errors when this screen is opened
     LaunchedEffect(Unit) {
         findPeopleViewModel.clearAllErrors()
         findPeopleViewModel.ensureFindSurfaceLoaded()
         retentionViewModel.ensureRetentionLoaded()
+    }
+
+    LaunchedEffect(uiState.selectedTab) {
+        keyboardController?.hide()
+        focusManager.clearFocus(force = true)
     }
     
     Box(Modifier.fillMaxSize()) {
@@ -205,9 +219,9 @@ fun FindPeopleScreenNew(
                     contentColor = contentColor,
                     accentColor = accentColor,
                     // Actions
-                    onMatchClick = { userId -> onNavigateToProfile(userId) },
+                    onMatchClick = navigateToProfile,
                     onHiddenGemViewProfile = { 
-                        uiState.hiddenGem?.id?.let { onNavigateToProfile(it) }
+                        uiState.hiddenGem?.id?.let(navigateToProfile)
                     },
                     onHiddenGemConnect = {
                         uiState.hiddenGem?.id?.let { findPeopleViewModel.sendConnectionRequest(it) }
@@ -229,7 +243,7 @@ fun FindPeopleScreenNew(
                     isLightTheme = isLightTheme,
                     uiState = uiState,
                     viewModel = findPeopleViewModel,
-                    onNavigateToProfile = onNavigateToProfile
+                    onNavigateToProfile = navigateToProfile
                 )
 
                 FindPeopleTab.SMART_MATCHES -> SmartMatchesContent(
@@ -243,7 +257,7 @@ fun FindPeopleScreenNew(
                     error = uiState.smartMatchError,
                     selectedFilter = uiState.smartMatchFilter,
                     onFilterSelected = { findPeopleViewModel.setSmartMatchFilter(it) },
-                    onNavigateToProfile = onNavigateToProfile,
+                    onNavigateToProfile = navigateToProfile,
                     onRetry = { findPeopleViewModel.loadSmartMatches(forceRefresh = true) },
                     onDismissError = { findPeopleViewModel.dismissErrorsWithCooldown() }
                 )
@@ -273,7 +287,7 @@ fun FindPeopleScreenNew(
                 onLoadMore = { findPeopleViewModel.loadMorePeople() },
                 connectionActionInProgress = uiState.connectionActionInProgress,
                 onConnect = { findPeopleViewModel.sendConnectionRequest(it) },
-                onNavigateToProfile = onNavigateToProfile,
+                onNavigateToProfile = navigateToProfile,
                 onRetry = { findPeopleViewModel.loadAllPeople(resetPage = true, forceRefresh = true) },
                 onDismissError = { findPeopleViewModel.dismissErrorsWithCooldown() }
             )
@@ -289,7 +303,7 @@ fun FindPeopleScreenNew(
                 error = uiState.suggestionsError,
                 connectionActionInProgress = uiState.connectionActionInProgress,
                 onConnect = { findPeopleViewModel.sendConnectionRequest(it) },
-                onNavigateToProfile = onNavigateToProfile,
+                onNavigateToProfile = navigateToProfile,
                 onRetry = { findPeopleViewModel.loadSuggestions(forceRefresh = true) },
                 onDismissError = { findPeopleViewModel.dismissErrorsWithCooldown() }
             )
@@ -309,7 +323,7 @@ fun FindPeopleScreenNew(
                 isSearchingColleges = uiState.isSearchingColleges,
                 connectionActionInProgress = uiState.connectionActionInProgress,
                 onConnect = { findPeopleViewModel.sendConnectionRequest(it) },
-                onNavigateToProfile = onNavigateToProfile,
+                onNavigateToProfile = navigateToProfile,
                 onRetry = { findPeopleViewModel.loadSameCampus(forceRefresh = true) },
                 onSaveCollege = { findPeopleViewModel.saveCollege(it) },
                 onCollegeSearch = { findPeopleViewModel.searchColleges(it) },
@@ -332,7 +346,7 @@ fun FindPeopleScreenNew(
                 onPermissionGranted = { findPeopleViewModel.setLocationPermission(true) },
                 onLocationUpdate = { lat, lng, acc -> findPeopleViewModel.updateLocation(lat, lng, acc) },
                 onRadiusChange = { findPeopleViewModel.setRadius(it) },
-                onNavigateToProfile = onNavigateToProfile,
+                onNavigateToProfile = navigateToProfile,
                 onRefresh = { findPeopleViewModel.loadNearbyPeople(forceRefresh = true) }
             )
         }
@@ -434,7 +448,40 @@ private fun FindPeopleTabs(
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         FindPeopleTabItem(
-            icon = { color -> UsersIcon(color = color, size = 14.dp) },
+            icon = { color ->
+                FindPeopleVectorTabIcon(
+                    drawableRes = R.drawable.ic_search,
+                    color = color
+                )
+            },
+            label = "All",
+            isSelected = selectedTab == FindPeopleTab.ALL_PEOPLE,
+            contentColor = contentColor,
+            accentColor = accentColor,
+            onClick = { onTabSelected(FindPeopleTab.ALL_PEOPLE) }
+        )
+
+        FindPeopleTabItem(
+            icon = { color ->
+                FindPeopleVectorTabIcon(
+                    drawableRes = R.drawable.ic_target,
+                    color = color
+                )
+            },
+            label = "Smart",
+            isSelected = selectedTab == FindPeopleTab.SMART_MATCHES,
+            contentColor = contentColor,
+            accentColor = accentColor,
+            onClick = { onTabSelected(FindPeopleTab.SMART_MATCHES) }
+        )
+
+        FindPeopleTabItem(
+            icon = { color ->
+                FindPeopleVectorTabIcon(
+                    drawableRes = R.drawable.ic_network,
+                    color = color
+                )
+            },
             label = "People You Know",
             isSelected = selectedTab == FindPeopleTab.PEOPLE_YOU_KNOW,
             contentColor = contentColor,
@@ -442,27 +489,6 @@ private fun FindPeopleTabs(
             onClick = { onTabSelected(FindPeopleTab.PEOPLE_YOU_KNOW) }
         )
 
-        // All People tab
-        FindPeopleTabItem(
-            icon = { color -> UsersIcon(color = color, size = 14.dp) },
-            label = "All",
-            isSelected = selectedTab == FindPeopleTab.ALL_PEOPLE,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            onClick = { onTabSelected(FindPeopleTab.ALL_PEOPLE) }
-        )
-        
-        // Smart Matches tab
-        FindPeopleTabItem(
-            icon = { color -> ZapIcon(color = color, size = 14.dp) },
-            label = "Smart",
-            isSelected = selectedTab == FindPeopleTab.SMART_MATCHES,
-            contentColor = contentColor,
-            accentColor = accentColor,
-            onClick = { onTabSelected(FindPeopleTab.SMART_MATCHES) }
-        )
-        
-        // For You tab
         FindPeopleTabItem(
             icon = { color -> SparkleIcon(color = color, size = 14.dp) },
             label = "For You",
@@ -492,6 +518,20 @@ private fun FindPeopleTabs(
             onClick = { onTabSelected(FindPeopleTab.NEARBY) }
         )
     }
+}
+
+@Composable
+private fun FindPeopleVectorTabIcon(
+    drawableRes: Int,
+    color: Color,
+    size: androidx.compose.ui.unit.Dp = 14.dp
+) {
+    androidx.compose.foundation.Image(
+        painter = painterResource(drawableRes),
+        contentDescription = null,
+        modifier = Modifier.size(size),
+        colorFilter = ColorFilter.tint(color)
+    )
 }
 
 @Composable

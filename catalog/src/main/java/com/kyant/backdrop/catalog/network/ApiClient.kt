@@ -788,6 +788,29 @@ object ApiClient {
             Result.failure(e)
         }
     }
+
+    suspend fun getPendingConnectionRequests(
+        context: Context,
+        page: Int = 1,
+        limit: Int = 20
+    ): Result<PendingConnectionRequestsResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.get("$BASE_URL/connections/pending") {
+                header("Authorization", "Bearer $token")
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     
     // ==================== Profile APIs (Additional) ====================
     
