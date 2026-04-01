@@ -250,6 +250,7 @@ class VormexMessagingService : FirebaseMessagingService() {
                         putExtra(EXTRA_ACTION, ACTION_CHAT)
                         data["conversationId"]?.let { putExtra(EXTRA_CONVERSATION_ID, it) }
                         data["user_id"]?.let { putExtra(EXTRA_USER_ID, it) }
+                            ?: data["senderId"]?.let { putExtra(EXTRA_USER_ID, it) }
                     }
                     type.contains("like", ignoreCase = true) || 
                     type.contains("comment", ignoreCase = true) ||
@@ -331,16 +332,22 @@ class VormexMessagingService : FirebaseMessagingService() {
             
             // For data-only messages (when app killed), data contains title/body
             // For notification+data messages (when app foreground), notification contains title/body
-            val title = notification?.title ?: data["title"] ?: "Vormex"
-            val body = notification?.body ?: data["body"] ?: ""
             val type = data["type"] ?: "general"
+            val rawTitle = notification?.title ?: data["title"] ?: "Vormex"
+            val title = normalizeNotificationTitle(rawTitle, type)
+            val body = data["body"] ?: notification?.body ?: ""
             
             Log.d(TAG, "Processing notification - Title: $title, Body: $body, Type: $type")
             
             if (body.isNotEmpty()) {
-                val channelId = getChannelForType(type)
-                showNotification(title, body, channelId, data)
-                Log.d(TAG, "Notification displayed successfully on channel: $channelId")
+                if (type.contains("message", ignoreCase = true)) {
+                    showChatMessageNotification(title, body, data)
+                    Log.d(TAG, "Chat notification displayed successfully")
+                } else {
+                    val channelId = getChannelForType(type)
+                    showNotification(title, body, channelId, data)
+                    Log.d(TAG, "Notification displayed successfully on channel: $channelId")
+                }
             } else {
                 Log.w(TAG, "Empty body in notification, skipping display")
             }
@@ -400,5 +407,45 @@ class VormexMessagingService : FirebaseMessagingService() {
         notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
         
         Log.d(TAG, "Notification posted with ID: ${System.currentTimeMillis().toInt()}")
+    }
+
+    private fun showChatMessageNotification(
+        title: String,
+        body: String,
+        data: Map<String, String>
+    ) {
+        if (MainActivity.isInForeground) {
+            Log.d(TAG, "Skipping FCM chat notification because app is in foreground")
+            return
+        }
+
+        val conversationId = data["conversationId"].orEmpty()
+        if (conversationId.isBlank()) {
+            showNotification(title, body, CHANNEL_ID_MESSAGES, data)
+            return
+        }
+
+        val senderName = data["senderName"]?.takeIf { it.isNotBlank() }
+            ?: title
+        val senderId = data["user_id"] ?: data["senderId"].orEmpty()
+        val senderImage = data["senderImage"]?.takeIf { it.isNotBlank() }
+
+        MessageNotificationManager.showMessageNotification(
+            context = this,
+            senderName = senderName,
+            messageContent = body,
+            senderImageUrl = senderImage,
+            conversationId = conversationId,
+            senderId = senderId
+        )
+    }
+
+    private fun normalizeNotificationTitle(title: String, type: String): String {
+        if (!type.contains("follow", ignoreCase = true)) {
+            return title
+        }
+
+        val normalized = title.replace(Regex("^[^\\p{L}\\p{N}]+\\s*"), "").trim()
+        return normalized.ifBlank { "New Follower" }
     }
 }

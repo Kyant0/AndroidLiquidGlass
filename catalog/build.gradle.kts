@@ -14,9 +14,11 @@ val releaseKeyAlias = secret("VORMEX_RELEASE_KEY_ALIAS")
 val releaseKeyPassword = secret("VORMEX_RELEASE_KEY_PASSWORD")
 val releaseApiBaseUrl = secret("VORMEX_RELEASE_API_BASE_URL") ?: "https://vormex-backend.onrender.com/api"
 val releaseSocketBaseUrl = secret("VORMEX_RELEASE_SOCKET_BASE_URL") ?: "https://vormex-backend.onrender.com"
-// Default debug builds to the hosted backend so local device setup is not required.
-val debugApiBaseUrl = secret("VORMEX_DEBUG_API_BASE_URL") ?: releaseApiBaseUrl
-val debugSocketBaseUrl = secret("VORMEX_DEBUG_SOCKET_BASE_URL") ?: releaseSocketBaseUrl
+// Physical devices can reach the host machine through adb reverse on localhost.
+val localDebugApiBaseUrl = "http://127.0.0.1:5000/api"
+val localDebugSocketBaseUrl = "http://127.0.0.1:5000"
+val debugApiBaseUrl = secret("VORMEX_DEBUG_API_BASE_URL") ?: localDebugApiBaseUrl
+val debugSocketBaseUrl = secret("VORMEX_DEBUG_SOCKET_BASE_URL") ?: localDebugSocketBaseUrl
 val hasReleaseSigning = listOf(
     releaseStoreFilePath,
     releaseStorePassword,

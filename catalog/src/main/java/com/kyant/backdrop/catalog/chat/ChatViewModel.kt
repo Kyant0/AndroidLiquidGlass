@@ -45,6 +45,7 @@ data class ChatUiState(
     val conversations: List<Conversation> = emptyList(),
     val messages: List<Message> = emptyList(),
     val selectedConversation: Conversation? = null,
+    val isResolvingConversationOpen: Boolean = false,
     val isLoadingConversations: Boolean = false,
     val isLoadingMessages: Boolean = false,
     val isLoadingMoreMessages: Boolean = false,
@@ -77,10 +78,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private var loadMessagesJob: Job? = null
     private var preloadJob: Job? = null
     private var typingIndicatorTimeoutJob: Job? = null
+    private var outgoingTypingStopJob: Job? = null
     private var hasLoadedConversations: Boolean = false
     private var conversationsLastLoadedAt: Long = 0L
     private var lastPreloadedUserId: String? = null
     private val conversationsCacheTtlMs: Long = 90_000L
+    private var isOutgoingTyping = false
+    private var outgoingTypingConversationId: String? = null
 
     private data class CachedConversationMessages(
         val messages: List<Message>,
@@ -108,6 +112,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             } else {
                 Log.w(TAG, "No token available, socket not connected")
             }
+            ChatSocketManager.currentUserId = userId
             _uiState.update { it.copy(currentUserId = userId) }
         }
         collectSocketEvents()
@@ -404,6 +409,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     fun selectConversation(conversation: Conversation?) {
+        stopOutgoingTyping()
         _uiState.value.selectedConversation?.let { ChatSocketManager.leaveChat(it.id) }
         clearTypingIndicator()
 
@@ -414,6 +420,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             _uiState.update {
                 it.copy(
                     selectedConversation = null,
+                    isResolvingConversationOpen = false,
                     messages = emptyList(),
                     messagesNextCursor = null,
                     hasMoreMessages = false,
@@ -435,6 +442,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         _uiState.update {
             it.copy(
                 selectedConversation = conversation,
+                isResolvingConversationOpen = false,
                 messages = freshInMemoryCache?.messages.orEmpty(),
                 messagesNextCursor = freshInMemoryCache?.nextCursor,
                 hasMoreMessages = freshInMemoryCache?.hasMore ?: false,
@@ -485,7 +493,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
             }
 
-            if (!hasFreshInMemoryCache && !hasFreshLocalSnapshot) {
+            val shouldLoadFromNetwork =
+                (!hasFreshInMemoryCache && !hasFreshLocalSnapshot) ||
+                    (_uiState.value.messages.isEmpty() && conversation.lastMessage != null)
+
+            if (shouldLoadFromNetwork) {
                 loadMessages(conversation.id)
             } else {
                 _uiState.update {
@@ -569,8 +581,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     fun loadMoreMessages() {
-        val conversationId = _uiState.value.selectedConversation?.id ?: return
-        val cursor = _uiState.value.messagesNextCursor ?: return
+        val state = _uiState.value
+        if (state.isLoadingMessages || state.isLoadingMoreMessages || !state.hasMoreMessages) return
+
+        val conversationId = state.selectedConversation?.id ?: return
+        val cursor = state.messagesNextCursor ?: return
         loadMessages(conversationId, cursor)
     }
 
@@ -818,7 +833,26 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     fun sendTyping(isTyping: Boolean) {
-        _uiState.value.selectedConversation?.let { ChatSocketManager.sendTyping(it.id, isTyping) }
+        val conversationId = _uiState.value.selectedConversation?.id ?: return
+
+        if (!isTyping) {
+            stopOutgoingTyping()
+            return
+        }
+
+        if (!isOutgoingTyping || outgoingTypingConversationId != conversationId) {
+            ChatSocketManager.sendTyping(conversationId, true)
+            isOutgoingTyping = true
+            outgoingTypingConversationId = conversationId
+        }
+
+        outgoingTypingStopJob?.cancel()
+        outgoingTypingStopJob = viewModelScope.launch {
+            delay(2_000)
+            if (_uiState.value.selectedConversation?.id == conversationId) {
+                stopOutgoingTyping(conversationId)
+            }
+        }
     }
 
     fun markAsRead() {
@@ -917,6 +951,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     fun openChatWithUser(userId: String) {
         viewModelScope.launch {
+            _uiState.update { it.copy(isResolvingConversationOpen = true, error = null) }
             val currentUserId = ensureCurrentUserId()
             val existingConversation = _uiState.value.conversations.firstOrNull { it.otherParticipant.id == userId }
                 ?: currentUserId?.let { cacheOwnerId ->
@@ -937,6 +972,14 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
                 if (_uiState.value.selectedConversation?.id != existingConversation.id) {
                     selectConversation(existingConversation)
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            selectedConversation = existingConversation,
+                            isResolvingConversationOpen = false,
+                            error = null
+                        )
+                    }
                 }
             }
 
@@ -952,12 +995,31 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     }
                     if (_uiState.value.selectedConversation?.id != conversation.id) {
                         selectConversation(conversation)
+                    } else {
+                        _uiState.update { state ->
+                            state.copy(
+                                selectedConversation = conversation,
+                                isResolvingConversationOpen = false,
+                                error = null
+                            )
+                        }
+                    }
+                }
+                .onFailure { error ->
+                    Log.e(TAG, "Failed to open chat with user $userId", error)
+                    _uiState.update {
+                        it.copy(
+                            isResolvingConversationOpen = false,
+                            error = error.message ?: "Failed to open chat"
+                        )
                     }
                 }
         }
     }
 
     fun openConversationById(conversationId: String) {
+        _uiState.update { it.copy(isResolvingConversationOpen = true, error = null) }
+
         _uiState.value.conversations.firstOrNull { it.id == conversationId }?.let { conversation ->
             selectConversation(conversation)
             return
@@ -974,6 +1036,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 _uiState.update { state ->
                     state.copy(
                         conversations = listOf(cachedConversation) + state.conversations.filterNot { it.id == cachedConversation.id },
+                        isResolvingConversationOpen = false,
                         error = null
                     )
                 }
@@ -988,14 +1051,27 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                     _uiState.update { state ->
                         state.copy(
                             conversations = listOf(conversation) + state.conversations.filterNot { it.id == conversation.id },
+                            selectedConversation = if (state.selectedConversation?.id == conversation.id) {
+                                conversation
+                            } else {
+                                state.selectedConversation
+                            },
+                            isResolvingConversationOpen = false,
                             error = null
                         )
                     }
-                    selectConversation(conversation)
+                    if (_uiState.value.selectedConversation?.id != conversation.id) {
+                        selectConversation(conversation)
+                    }
                 }
                 .onFailure { error ->
                     Log.e(TAG, "Failed to open conversation $conversationId", error)
-                    _uiState.update { it.copy(error = error.message ?: "Failed to open chat") }
+                    _uiState.update {
+                        it.copy(
+                            isResolvingConversationOpen = false,
+                            error = error.message ?: "Failed to open chat"
+                        )
+                    }
                 }
         }
     }
@@ -1072,6 +1148,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
         val userId = ApiClient.getCurrentUserId(context)
         if (!userId.isNullOrBlank()) {
+            ChatSocketManager.currentUserId = userId
             _uiState.update { it.copy(currentUserId = userId) }
         }
         return userId
@@ -1231,6 +1308,18 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         typingIndicatorTimeoutJob = null
     }
 
+    private fun stopOutgoingTyping(conversationId: String? = _uiState.value.selectedConversation?.id) {
+        outgoingTypingStopJob?.cancel()
+        outgoingTypingStopJob = null
+
+        if (isOutgoingTyping && !conversationId.isNullOrBlank()) {
+            ChatSocketManager.sendTyping(conversationId, false)
+        }
+
+        isOutgoingTyping = false
+        outgoingTypingConversationId = null
+    }
+
     private fun resolveThreadReadyState(
         messages: List<Message>,
         fromCache: Boolean
@@ -1261,6 +1350,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     override fun onCleared() {
+        stopOutgoingTyping()
         _uiState.value.selectedConversation?.let { ChatSocketManager.leaveChat(it.id) }
         clearTypingIndicator()
         super.onCleared()

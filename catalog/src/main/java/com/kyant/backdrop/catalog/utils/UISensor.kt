@@ -39,19 +39,38 @@ class UISensor(context: Context) {
         private set
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+    private val gameRotationVector = sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+    private val rotationVector = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
     private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    private val activeSensor = gameRotationVector ?: rotationVector ?: accelerometer
+    private val rotationMatrix = FloatArray(9)
+    private val orientationValues = FloatArray(3)
     private val listener = object : SensorEventListener {
 
         override fun onSensorChanged(event: SensorEvent?) {
             if (event == null) return
-            if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
-                val x = event.values[0]
-                val y = event.values[1]
-                val norm = sqrt(x * x + y * y + 9.81f * 9.81f)
+            when (event.sensor.type) {
+                Sensor.TYPE_GAME_ROTATION_VECTOR,
+                Sensor.TYPE_ROTATION_VECTOR -> {
+                    SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+                    SensorManager.getOrientation(rotationMatrix, orientationValues)
 
-                val alpha = 0.5f
-                gravityAngle = gravityAngle * (1f - alpha) + atan2(y, x) * (180f / PI).toFloat() * alpha
-                gravity = gravity * (1f - alpha) + Offset(x / norm, y / norm) * alpha
+                    val maxTiltRadians = (PI / 4.0).toFloat()
+                    val pitch = orientationValues[1]
+                    val roll = orientationValues[2]
+                    val normalizedX = (-roll / maxTiltRadians).coerceIn(-1f, 1f)
+                    val normalizedY = (-pitch / maxTiltRadians).coerceIn(-1f, 1f)
+
+                    applyMotion(normalizedX, normalizedY, alpha = 0.18f)
+                }
+
+                Sensor.TYPE_ACCELEROMETER -> {
+                    val x = event.values[0]
+                    val y = event.values[1]
+                    val norm = sqrt(x * x + y * y + 9.81f * 9.81f)
+
+                    applyMotion(x / norm, y / norm, alpha = 0.35f)
+                }
             }
         }
 
@@ -59,10 +78,22 @@ class UISensor(context: Context) {
     }
 
     fun start() {
-        sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_UI)
+        val sensor = activeSensor ?: return
+        val delay = when (sensor.type) {
+            Sensor.TYPE_GAME_ROTATION_VECTOR,
+            Sensor.TYPE_ROTATION_VECTOR -> SensorManager.SENSOR_DELAY_GAME
+
+            else -> SensorManager.SENSOR_DELAY_UI
+        }
+        sensorManager.registerListener(listener, sensor, delay)
     }
 
     fun stop() {
         sensorManager.unregisterListener(listener)
+    }
+
+    private fun applyMotion(x: Float, y: Float, alpha: Float) {
+        gravityAngle = gravityAngle * (1f - alpha) + atan2(y, x) * (180f / PI).toFloat() * alpha
+        gravity = gravity * (1f - alpha) + Offset(x, y) * alpha
     }
 }

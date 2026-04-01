@@ -29,6 +29,7 @@ import java.net.URI
  */
 object ChatSocketManager {
     private const val TAG = "ChatSocket"
+    private const val RECENT_MESSAGE_DEDUPE_LIMIT = 200
 
     private val SOCKET_URL: String
         get() = BuildConfig.SOCKET_BASE_URL
@@ -36,9 +37,12 @@ object ChatSocketManager {
     private var socket: Socket? = null
     private var currentToken: String? = null
     private var isConnecting = false
+    var currentUserId: String? = null
     
     // Track joined rooms to re-join on reconnect
     private val joinedRooms = mutableSetOf<String>()
+    private val recentlyProcessedMessageIds = ArrayDeque<String>()
+    private val recentMessageIdSet = mutableSetOf<String>()
     
     // Notification callback for showing local notifications
     private var notificationCallback: ((title: String, body: String, data: Map<String, String>) -> Unit)? = null
@@ -216,10 +220,7 @@ object ChatSocketManager {
                 val conversationId = parsed.optString("conversationId")
                 val message = parsed.optJSONObject("message")
                 if (message != null && conversationId.isNotEmpty()) {
-                    Log.d(TAG, "📩 Parsed from string: conv=$conversationId")
-                    _newMessageFlow.tryEmit(conversationId to message.toString())
-                    // Show notification if not viewing this conversation
-                    showMessageNotificationIfNeeded(conversationId, message)
+                    emitIncomingMessage(conversationId, message, "string")
                 }
                 return
             }
@@ -231,13 +232,38 @@ object ChatSocketManager {
             }
             Log.d(TAG, "📩 New message in conversation $conversationId: ${message.optString("content").take(50)}")
             if (conversationId.isNotEmpty()) {
-                val emitted = _newMessageFlow.tryEmit(conversationId to message.toString())
-                Log.d(TAG, "📩 Flow emit result: $emitted")
-                // Show notification if not viewing this conversation
-                showMessageNotificationIfNeeded(conversationId, message)
+                emitIncomingMessage(conversationId, message, "event")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error handling new message", e)
+        }
+    }
+
+    private fun emitIncomingMessage(conversationId: String, message: JSONObject, source: String) {
+        val messageId = message.optString("id")
+        if (messageId.isNotBlank() && !rememberIncomingMessageId(messageId)) {
+            Log.d(TAG, "📩 Ignoring duplicate incoming message $messageId from $source")
+            return
+        }
+
+        val emitted = _newMessageFlow.tryEmit(conversationId to message.toString())
+        Log.d(TAG, "📩 Flow emit result ($source): $emitted")
+        showMessageNotificationIfNeeded(conversationId, message)
+    }
+
+    private fun rememberIncomingMessageId(messageId: String): Boolean {
+        synchronized(recentMessageIdSet) {
+            if (!recentMessageIdSet.add(messageId)) {
+                return false
+            }
+
+            recentlyProcessedMessageIds.addLast(messageId)
+            while (recentlyProcessedMessageIds.size > RECENT_MESSAGE_DEDUPE_LIMIT) {
+                val removed = recentlyProcessedMessageIds.removeFirst()
+                recentMessageIdSet.remove(removed)
+            }
+
+            return true
         }
     }
     
@@ -251,7 +277,12 @@ object ChatSocketManager {
         val senderName = sender?.optString("name")?.takeIf { it.isNotBlank() }
             ?: sender?.optString("username")?.takeIf { it.isNotBlank() }
             ?: "Someone"
-        val senderId = sender?.optString("id") ?: ""
+        val senderId = sender?.optString("id")?.takeIf { it.isNotBlank() }
+            ?: message.optString("senderId")
+        if (!currentUserId.isNullOrBlank() && senderId == currentUserId) {
+            Log.d(TAG, "🔕 Skipping notification for self-sent message $conversationId")
+            return
+        }
         val senderImage = sender?.optString("profileImage")?.takeIf { it.isNotBlank() } ?: ""
 
         val contentType = message.optString("contentType", "text")
@@ -298,14 +329,11 @@ object ChatSocketManager {
                 }
                 Log.d(TAG, "💬 Message notification for conversation $conversationId")
                 if (conversationId.isNotEmpty()) {
-                    val emitted = _newMessageFlow.tryEmit(conversationId to message.toString())
-                    Log.d(TAG, "🔔 Flow emit result: $emitted")
-
                     // Merge top-level sender info into message if message.sender is missing
                     if (!message.has("sender") || message.isNull("sender")) {
                         obj.optJSONObject("sender")?.let { message.put("sender", it) }
                     }
-                    showMessageNotificationIfNeeded(conversationId, message)
+                    emitIncomingMessage(conversationId, message, "notification")
                 }
             }
         } catch (e: Exception) {

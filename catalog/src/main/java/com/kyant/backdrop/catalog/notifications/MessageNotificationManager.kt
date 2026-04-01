@@ -63,7 +63,7 @@ object MessageNotificationManager {
             downloadAndCircleCrop(senderImageUrl)
         } else null
 
-        val largeIcon = senderBitmap ?: getAppIconBitmap(context)
+        val largeIcon = senderBitmap ?: NotificationBranding.getAppLogoBitmap(context)
 
         val cached = CachedMessage(
             senderName = senderName,
@@ -149,9 +149,20 @@ object MessageNotificationManager {
     private fun showSummaryNotification(context: Context, nm: NotificationManager) {
         val totalMessages = conversationMessages.values.sumOf { it.size }
         val totalChats = conversationMessages.size
+        val summaryIntent = Intent(context, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra(VormexMessagingService.EXTRA_ACTION, VormexMessagingService.ACTION_CHAT)
+        }
+        val summaryPendingIntent = PendingIntent.getActivity(
+            context,
+            SUMMARY_NOTIFICATION_ID,
+            summaryIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
 
         val summary = NotificationCompat.Builder(context, VormexMessagingService.CHANNEL_ID_MESSAGES)
             .setSmallIcon(R.drawable.ic_notification)
+            .setLargeIcon(NotificationBranding.getAppLogoBitmap(context))
             .setContentTitle("Vormex")
             .setContentText("$totalMessages messages from $totalChats chats")
             .setStyle(
@@ -161,6 +172,7 @@ object MessageNotificationManager {
             )
             .setGroup(GROUP_KEY_MESSAGES)
             .setGroupSummary(true)
+            .setContentIntent(summaryPendingIntent)
             .setAutoCancel(true)
             .build()
 
@@ -204,21 +216,5 @@ object MessageNotificationManager {
 
         if (source != output) source.recycle()
         return output
-    }
-
-    private fun getAppIconBitmap(context: Context): Bitmap? {
-        return try {
-            val drawable = context.packageManager.getApplicationIcon(context.packageName)
-            val w = drawable.intrinsicWidth.coerceAtLeast(1)
-            val h = drawable.intrinsicHeight.coerceAtLeast(1)
-            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-            drawable.setBounds(0, 0, w, h)
-            drawable.draw(canvas)
-            bitmap
-        } catch (e: Exception) {
-            Log.w(TAG, "App icon bitmap failed: ${e.message}")
-            null
-        }
     }
 }

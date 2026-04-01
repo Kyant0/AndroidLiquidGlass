@@ -120,6 +120,7 @@ fun ChatTabContent(
     val lifecycleOwner = LocalLifecycleOwner.current
     
     val isInThread = uiState.selectedConversation != null
+    val isResolvingConversation = uiState.isResolvingConversationOpen && uiState.selectedConversation == null
     
     // Ensure socket stays connected when app resumes
     DisposableEffect(lifecycleOwner) {
@@ -172,6 +173,11 @@ fun ChatTabContent(
             isGlassTheme = isGlassTheme,
             viewModel = viewModel,
             onNavigateToProfile = onNavigateToProfile
+        )
+    } else if (isResolvingConversation) {
+        ChatConversationOpeningState(
+            contentColor = contentColor,
+            accentColor = accentColor
         )
     } else {
         ChatListScreen(
@@ -464,6 +470,12 @@ private fun ChatInboxEmptyState(
     }
 }
 
+private data class LoadMoreAnchor(
+    val firstVisibleIndex: Int,
+    val firstVisibleOffset: Int,
+    val previousMessageCount: Int
+)
+
 @Composable
 private fun ChatThreadScreen(
     backdrop: LayerBackdrop,
@@ -480,6 +492,8 @@ private fun ChatThreadScreen(
     val listState = rememberLazyListState()
     val lastMessageId = uiState.messages.lastOrNull()?.id
     val latestOwnMessageId = uiState.messages.lastOrNull { it.senderId == uiState.currentUserId }?.id
+    var pendingLoadMoreAnchor by remember(conv.id) { mutableStateOf<LoadMoreAnchor?>(null) }
+    var initialBottomScrollDone by remember(conv.id) { mutableStateOf(false) }
     val connectionStatus = when {
         uiState.typingUserId != null -> "typing..."
         !uiState.socketConnected -> "reconnecting..."
@@ -502,6 +516,7 @@ private fun ChatThreadScreen(
     } else {
         uiState.messages
     }
+    val showingFullThread = !isSearchMode || searchQuery.isBlank()
     
     // Load AI suggestions when messages change (after receiving a new message)
     LaunchedEffect(uiState.messages.lastOrNull()?.id) {
@@ -522,9 +537,10 @@ private fun ChatThreadScreen(
         viewModel.markAsRead()
     }
 
-    LaunchedEffect(conv.id, uiState.messages.size) {
-        if (uiState.messages.isNotEmpty() && listState.layoutInfo.totalItemsCount == 0) {
+    LaunchedEffect(conv.id, uiState.messages.size, uiState.isLoadingMoreMessages) {
+        if (!initialBottomScrollDone && uiState.messages.isNotEmpty() && !uiState.isLoadingMoreMessages) {
             listState.scrollToItem(uiState.messages.lastIndex)
+            initialBottomScrollDone = true
         }
     }
 
@@ -538,11 +554,61 @@ private fun ChatThreadScreen(
         }
     }
 
-    LaunchedEffect(listState, conv.id) {
+    LaunchedEffect(conv.id, uiState.messages.size, uiState.isLoadingMoreMessages) {
+        val anchor = pendingLoadMoreAnchor ?: return@LaunchedEffect
+        if (uiState.isLoadingMoreMessages) return@LaunchedEffect
+
+        val addedCount = uiState.messages.size - anchor.previousMessageCount
+        if (addedCount > 0 && uiState.messages.isNotEmpty()) {
+            val targetIndex = (anchor.firstVisibleIndex + addedCount)
+                .coerceAtMost(uiState.messages.lastIndex)
+            listState.scrollToItem(targetIndex, anchor.firstVisibleOffset)
+        }
+
+        pendingLoadMoreAnchor = null
+    }
+
+    LaunchedEffect(
+        listState,
+        conv.id,
+        showingFullThread,
+        uiState.hasMoreMessages,
+        uiState.isLoadingMessages,
+        uiState.isLoadingMoreMessages,
+        uiState.messages.size
+    ) {
+        if (!showingFullThread) return@LaunchedEffect
+
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .distinctUntilChanged()
+            .collect { firstVisibleIndex ->
+                val shouldLoadMore =
+                    uiState.hasMoreMessages &&
+                        !uiState.isLoadingMessages &&
+                        !uiState.isLoadingMoreMessages &&
+                        uiState.messages.isNotEmpty() &&
+                        firstVisibleIndex <= 2
+
+                if (shouldLoadMore && pendingLoadMoreAnchor == null) {
+                    pendingLoadMoreAnchor = LoadMoreAnchor(
+                        firstVisibleIndex = listState.firstVisibleItemIndex,
+                        firstVisibleOffset = listState.firstVisibleItemScrollOffset,
+                        previousMessageCount = uiState.messages.size
+                    )
+                    viewModel.loadMoreMessages()
+                }
+            }
+    }
+
+    LaunchedEffect(listState, conv.id, uiState.messages.size) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .collect { lastVisibleIndex ->
-                if (lastVisibleIndex != null && lastVisibleIndex >= uiState.messages.lastIndex - 1) {
+                if (
+                    lastVisibleIndex != null &&
+                    uiState.messages.isNotEmpty() &&
+                    lastVisibleIndex >= uiState.messages.lastIndex - 1
+                ) {
                     viewModel.markAsRead()
                 }
             }
@@ -722,6 +788,16 @@ private fun ChatThreadScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = 8.dp)
                         ) {
+                            if (uiState.isLoadingMoreMessages && showingFullThread) {
+                                item(key = "loading-more-history") {
+                                    ChatSyncStatusPill(
+                                        text = "Loading older messages...",
+                                        contentColor = contentColor,
+                                        accentColor = accentColor
+                                    )
+                                }
+                            }
+
                             items(displayedMessages, key = { it.id }) { msg ->
                                 val isFromMe = msg.senderId == uiState.currentUserId
                                 val deliveryStateText = if (isFromMe && msg.id == latestOwnMessageId) {
@@ -931,6 +1007,22 @@ private fun ChatThreadScreen(
         
 
     } // End of Box
+}
+
+@Composable
+private fun ChatConversationOpeningState(
+    contentColor: Color,
+    accentColor: Color
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        ChatThreadLoadingState(
+            contentColor = contentColor,
+            accentColor = accentColor
+        )
+    }
 }
 
 @Composable

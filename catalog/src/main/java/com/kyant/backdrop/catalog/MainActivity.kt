@@ -20,7 +20,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import com.kyant.backdrop.catalog.network.ChatSocketManager
-import com.kyant.backdrop.catalog.notifications.BatteryOptimizationHelper
 import com.kyant.backdrop.catalog.notifications.MessageNotificationManager
 import com.kyant.backdrop.catalog.notifications.PushTokenRegistrar
 import com.kyant.backdrop.catalog.notifications.VormexMessagingService
@@ -45,6 +44,8 @@ class MainActivity : ComponentActivity() {
     
     companion object {
         private const val TAG = "MainActivity"
+        @Volatile
+        var isInForeground: Boolean = false
     }
     
     // Deep link state that can be consumed by composables
@@ -57,7 +58,6 @@ class MainActivity : ComponentActivity() {
         if (isGranted) {
             Log.d(TAG, "Notification permission granted")
             initializeFirebaseMessaging()
-            requestBatteryOptimizationExemption()
         } else {
             Log.d(TAG, "Notification permission denied")
         }
@@ -112,6 +112,16 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         handleIntent(intent)
     }
+
+    override fun onStart() {
+        super.onStart()
+        isInForeground = true
+    }
+
+    override fun onStop() {
+        isInForeground = false
+        super.onStop()
+    }
     
     private fun handleIntent(intent: Intent?) {
         intent ?: return
@@ -159,7 +169,6 @@ class MainActivity : ComponentActivity() {
                 ) == PackageManager.PERMISSION_GRANTED -> {
                     // Permission already granted
                     initializeFirebaseMessaging()
-                    requestBatteryOptimizationExemption()
                 }
                 shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
                     // TODO: Show UI explaining why notifications are important
@@ -172,20 +181,9 @@ class MainActivity : ComponentActivity() {
         } else {
             // For Android 12 and below, no runtime permission needed
             initializeFirebaseMessaging()
-            requestBatteryOptimizationExemption()
         }
     }
-    
-    private fun requestBatteryOptimizationExemption() {
-        // Request battery optimization exemption for reliable background notifications
-        if (BatteryOptimizationHelper.shouldShowBatteryPrompt(this)) {
-            // Delay slightly to not overwhelm the user with permission dialogs
-            window.decorView.postDelayed({
-                BatteryOptimizationHelper.requestBatteryOptimizationExemption(this)
-            }, 2000)
-        }
-    }
-    
+
     private fun initializeFirebaseMessaging() {
         try {
             PushTokenRegistrar.syncCurrentToken(this)
@@ -208,6 +206,11 @@ class MainActivity : ComponentActivity() {
         VormexMessagingService.createNotificationChannels(this)
 
         ChatSocketManager.setNotificationCallback { senderName, messageContent, data ->
+            if (!isInForeground) {
+                Log.d(TAG, "🔕 Skipping socket notification while app is backgrounded")
+                return@setNotificationCallback
+            }
+
             Log.d(TAG, "🔔 Local notification: $senderName - $messageContent")
             MessageNotificationManager.showMessageNotification(
                 context = this,
