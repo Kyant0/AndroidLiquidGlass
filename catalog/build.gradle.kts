@@ -53,12 +53,15 @@ android {
         androidResources.localeFilters += arrayOf("en")
         buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
         buildConfigField("String", "SOCKET_BASE_URL", "\"$releaseSocketBaseUrl\"")
+        // Release must not allow HTTP; debug needs cleartext for local dev (e.g. adb reverse to localhost).
+        manifestPlaceholders["usesCleartextTraffic"] = "false"
     }
 
     buildTypes {
         debug {
             buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
             buildConfigField("String", "SOCKET_BASE_URL", "\"$debugSocketBaseUrl\"")
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
         release {
             isMinifyEnabled = true

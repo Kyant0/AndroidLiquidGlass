@@ -56,9 +56,11 @@ object ApiClient {
         install(ContentNegotiation) {
             json(json)
         }
-        install(Logging) {
-            logger = Logger.ANDROID
-            level = LogLevel.BODY
+        if (BuildConfig.DEBUG) {
+            install(Logging) {
+                logger = Logger.ANDROID
+                level = LogLevel.BODY
+            }
         }
         install(HttpTimeout) {
             requestTimeoutMillis = 180000 // 3 minutes for large uploads

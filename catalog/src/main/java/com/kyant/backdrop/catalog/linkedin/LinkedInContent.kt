@@ -107,6 +107,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -811,9 +812,12 @@ fun LinkedInContent(
                         contentColor = contentColor,
                         accentColor = accentColor,
                         userInitials = uiState.currentUser?.name?.firstOrNull()?.toString() ?: "U",
+                        loginStreak = uiState.loginStreak,
+                        isStreakAtRisk = uiState.isStreakAtRisk,
                         hasUnreadNotifications = notificationUnreadCount > 0,
                         unreadNotificationCount = notificationUnreadCount,
                         hasUnreadMessages = chatState.unreadCount > 0,
+                        onStreakClick = { showStreakDetailsScreen = true },
                         onNotificationsClick = {
                             showNotificationsInbox = true
                         },
@@ -2220,9 +2224,12 @@ private fun LinkedInTopBar(
     contentColor: Color,
     accentColor: Color,
     userInitials: String = "U",
+    loginStreak: Int = 0,
+    isStreakAtRisk: Boolean = false,
     hasUnreadNotifications: Boolean = false,
     unreadNotificationCount: Int = 0,
     hasUnreadMessages: Boolean = false,
+    onStreakClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onMessagesClick: () -> Unit = {}
 ) {
@@ -2230,82 +2237,113 @@ private fun LinkedInTopBar(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left spacer for centering
-        Spacer(Modifier.width(92.dp))
-        
-        // Centered app name with solid color
-        BasicText(
-            "vormeX",
-            style = TextStyle(
-                color = Color.Black,
-                fontSize = 32.sp,
-                fontFamily = PacificoFontFamily,
-                fontWeight = FontWeight.Normal
-            )
-        )
-
-        // Right side icons
-        Row(
-            verticalAlignment = Alignment.CenterVertically
+        // Left: login streak (tappable → streak details)
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.CenterStart
         ) {
-            // Notification icon
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clickable { onNotificationsClick() },
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier
+                    .clickable(onClick = onStreakClick)
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                NotificationBellIcon(
-                    color = contentColor,
-                    size = 22.dp
+                BasicText(
+                    "🔥",
+                    style = TextStyle(fontSize = 18.sp)
                 )
-                if (hasUnreadNotifications) {
-                    Box(
-                        Modifier
-                            .align(Alignment.TopEnd)
-                            .offset(x = 4.dp, y = 4.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(Color(0xFFFF3B30))
-                            .padding(horizontal = 4.dp, vertical = 1.dp)
-                    ) {
-                        BasicText(
-                            if (unreadNotificationCount > 9) "9+" else unreadNotificationCount.toString(),
-                            style = TextStyle(
-                                color = Color.White,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
+                BasicText(
+                    loginStreak.coerceAtLeast(0).toString(),
+                    style = TextStyle(
+                        color = if (isStreakAtRisk) Color(0xFFFF9500) else contentColor,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+            }
+        }
+
+        // Center: vormeX
+        Box(
+            Modifier.weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            BasicText(
+                "vormeX",
+                style = TextStyle(
+                    color = contentColor,
+                    fontSize = 32.sp,
+                    fontFamily = PacificoFontFamily,
+                    fontWeight = FontWeight.Normal,
+                    textAlign = TextAlign.Center
+                )
+            )
+        }
+
+        // Right: notification + message (vector icons)
+        Box(
+            Modifier.weight(1f),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clickable { onNotificationsClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    NotificationBellIcon(
+                        color = contentColor,
+                        size = 22.dp
+                    )
+                    if (hasUnreadNotifications) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 4.dp, y = 4.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color(0xFFFF3B30))
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            BasicText(
+                                if (unreadNotificationCount > 9) "9+" else unreadNotificationCount.toString(),
+                                style = TextStyle(
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             )
-                        )
+                        }
                     }
                 }
-            }
-            
-            Spacer(Modifier.width(8.dp))
 
-            // Messages icon with unread dot
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clickable { onMessagesClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                HeaderMessageIcon(
-                    color = contentColor,
-                    size = 22.dp
-                )
-                // Unread indicator dot
-                if (hasUnreadMessages) {
-                    Box(
-                        Modifier
-                            .align(Alignment.TopEnd)
-                            .offset(x = 4.dp, y = 4.dp)
-                            .size(10.dp)
-                            .background(Color(0xFFFF3B30), CircleShape)
-                            .border(1.5.dp, Color.White, CircleShape)
+                Spacer(Modifier.width(8.dp))
+
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clickable { onMessagesClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    HeaderMessageIcon(
+                        color = contentColor,
+                        size = 22.dp
                     )
+                    if (hasUnreadMessages) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 4.dp, y = 4.dp)
+                                .size(10.dp)
+                                .background(Color(0xFFFF3B30), CircleShape)
+                                .border(1.5.dp, Color.White, CircleShape)
+                        )
+                    }
                 }
             }
         }
