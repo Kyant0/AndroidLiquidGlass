@@ -65,7 +65,8 @@ fun PeopleYouKnowContent(
     isLightTheme: Boolean,
     uiState: FindPeopleUiState,
     viewModel: FindPeopleViewModel,
-    onNavigateToProfile: (String) -> Unit
+    onNavigateToProfile: (String) -> Unit,
+    reduceAnimations: Boolean = false
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -202,7 +203,8 @@ fun PeopleYouKnowContent(
                         isLightTheme = isLightTheme,
                         isActionInProgress = uiState.connectionActionInProgress.contains(person.id),
                         onConnect = { viewModel.sendConnectionRequest(person.id) },
-                        onCardClick = { onNavigateToProfile(person.id) }
+                        onCardClick = { onNavigateToProfile(person.id) },
+                        reduceAnimations = reduceAnimations
                     )
                 }
             }

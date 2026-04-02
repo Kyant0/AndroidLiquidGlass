@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.FlingBehavior
+import androidx.compose.foundation.gestures.ScrollableDefaults
 import androidx.compose.foundation.gestures.ScrollScope
 import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.animateDecay
@@ -201,29 +202,23 @@ private fun shimmerBrush(isLightTheme: Boolean): Brush {
     )
 }
 
-// Skeleton loading card for posts
+// Skeleton loading card for posts — avoid full glass blur on placeholders (much cheaper GPU work).
 @Composable
 private fun PostSkeletonCard(
-    backdrop: LayerBackdrop,
+    shimmerBrush: Brush,
     isLightTheme: Boolean
 ) {
-    val shimmer = shimmerBrush(isLightTheme)
-    
+    val surfaceColor =
+        if (isLightTheme) Color.White.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.08f)
+    val borderColor =
+        if (isLightTheme) Color.Black.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.12f)
+
     Box(
         Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(24f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(16f.dp.toPx())
-                    lens(8f.dp.toPx(), 16f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.12f))
-                }
-            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(surfaceColor)
+            .border(1.dp, borderColor, RoundedCornerShape(24.dp))
             .padding(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -234,7 +229,7 @@ private fun PostSkeletonCard(
                     Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(shimmer)
+                        .background(shimmerBrush)
                 )
                 Spacer(Modifier.width(8.dp))
                 Column {
@@ -244,7 +239,7 @@ private fun PostSkeletonCard(
                             .width(120.dp)
                             .height(14.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(shimmer)
+                            .background(shimmerBrush)
                     )
                     Spacer(Modifier.height(6.dp))
                     // Headline skeleton
@@ -253,7 +248,7 @@ private fun PostSkeletonCard(
                             .width(180.dp)
                             .height(10.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(shimmer)
+                            .background(shimmerBrush)
                     )
                     Spacer(Modifier.height(4.dp))
                     // Time skeleton
@@ -262,7 +257,7 @@ private fun PostSkeletonCard(
                             .width(60.dp)
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(shimmer)
+                            .background(shimmerBrush)
                     )
                 }
             }
@@ -273,21 +268,21 @@ private fun PostSkeletonCard(
                     .fillMaxWidth()
                     .height(14.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(shimmer)
+                    .background(shimmerBrush)
             )
             Box(
                 Modifier
                     .fillMaxWidth(0.9f)
                     .height(14.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(shimmer)
+                    .background(shimmerBrush)
             )
             Box(
                 Modifier
                     .fillMaxWidth(0.7f)
                     .height(14.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(shimmer)
+                    .background(shimmerBrush)
             )
             
             // Image skeleton
@@ -296,7 +291,7 @@ private fun PostSkeletonCard(
                     .fillMaxWidth()
                     .height(180.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(shimmer)
+                    .background(shimmerBrush)
             )
             
             // Stats skeleton
@@ -309,14 +304,14 @@ private fun PostSkeletonCard(
                         .width(60.dp)
                         .height(12.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(shimmer)
+                        .background(shimmerBrush)
                 )
                 Box(
                     Modifier
                         .width(80.dp)
                         .height(12.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(shimmer)
+                        .background(shimmerBrush)
                 )
             }
             
@@ -339,7 +334,7 @@ private fun PostSkeletonCard(
                             .width(60.dp)
                             .height(24.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(shimmer)
+                            .background(shimmerBrush)
                     )
                 }
             }
@@ -943,7 +938,8 @@ fun LinkedInContent(
                                 retentionState = retentionState,
                                 onWeeklyGoalsClick = { showWeeklyGoalsScreen = true },
                                 onStreakDetailsClick = { showStreakDetailsScreen = true },
-                                onTopNetworkersClick = { showTopNetworkersScreen = true }
+                                onTopNetworkersClick = { showTopNetworkersScreen = true },
+                                reduceAnimations = reduceAnimations
                             )
                             
                             // Share modal
@@ -1036,7 +1032,8 @@ fun LinkedInContent(
                             contentColor = contentColor,
                             accentColor = accentColor,
                             findPeopleViewModel = findPeopleViewModel,
-                            onNavigateToProfile = { userId -> viewingProfileUserId = userId }
+                            onNavigateToProfile = { userId -> viewingProfileUserId = userId },
+                            reduceAnimations = reduceAnimations
                         )
                         2 -> com.kyant.backdrop.catalog.linkedin.posts.CreatePostScreen(
                             backdrop = backdrop,
@@ -2362,7 +2359,8 @@ private fun FeedScreen(
     retentionState: RetentionUiState? = null,
     onWeeklyGoalsClick: () -> Unit = {},
     onStreakDetailsClick: () -> Unit = {},
-    onTopNetworkersClick: () -> Unit = {}
+    onTopNetworkersClick: () -> Unit = {},
+    reduceAnimations: Boolean = false
 ) {
     val listState = rememberLazyListState()
     val context = LocalContext.current
@@ -2370,6 +2368,8 @@ private fun FeedScreen(
     val hapticFeedback = LocalHapticFeedback.current
     var isRefreshing by remember { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
+    // Single shimmer animation shared by all skeleton rows (avoids 3× infinite transitions).
+    val skeletonShimmer = shimmerBrush(isLightTheme)
     
     // Widget positions for distributing engagement widgets in feed
     // Random positions within ranges: ensures varied feed experience on each app open
@@ -2423,10 +2423,10 @@ private fun FeedScreen(
             isRefreshing = true
                 onRefresh()
                 // Reset after a short delay (ViewModel will update the data)
-                kotlinx.coroutines.MainScope().launch {
-                    kotlinx.coroutines.delay(1500)
+                scope.launch {
+                    delay(1500)
                     isRefreshing = false
-            }
+                }
         },
         modifier = Modifier.fillMaxSize(),
         state = pullToRefreshState,
@@ -2445,7 +2445,7 @@ private fun FeedScreen(
             modifier = Modifier
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            flingBehavior = smoothFlingBehavior
+            flingBehavior = if (reduceAnimations) ScrollableDefaults.flingBehavior() else smoothFlingBehavior
         ) {
             item { Spacer(Modifier.height(4.dp)) }
         
@@ -2538,9 +2538,9 @@ private fun FeedScreen(
 
         // Loading state - Skeleton loading
         if (isLoading && posts.isEmpty()) {
-            items(3) {
+            items(count = 3, key = { "feed_skeleton_$it" }) {
                 PostSkeletonCard(
-                    backdrop = backdrop,
+                    shimmerBrush = skeletonShimmer,
                     isLightTheme = isLightTheme
                 )
             }
@@ -2675,7 +2675,8 @@ private fun FeedScreen(
                     onVotePoll = onVotePoll,
                     onProfileClick = { onProfileClick(post.author.id) },
                     onMentionClick = { username -> onProfileClick(username) },
-                    onMenuAction = onMenuAction
+                    onMenuAction = onMenuAction,
+                    reduceAnimations = reduceAnimations
                 )
             }
         }
@@ -6164,7 +6165,8 @@ private fun ApiPostCard(
     onVotePoll: (String, String) -> Unit = { _, _ -> },
     onProfileClick: () -> Unit = {},
     onMentionClick: (String) -> Unit = {},
-    onMenuAction: (String, String) -> Unit = { _, _ -> }
+    onMenuAction: (String, String) -> Unit = { _, _ -> },
+    reduceAnimations: Boolean = false
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showImageViewer by remember { mutableStateOf(false) }
@@ -6205,37 +6207,57 @@ private fun ApiPostCard(
     } else {
         Color.Black.copy(alpha = 0.08f)
     }
+    val imageCrossfadeMs = if (reduceAnimations) 0 else 300
     
     Box(
         Modifier
             .fillMaxWidth()
             .clip(containerShape)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(0f.dp) },
-                effects = {
-                    vibrancy()
+            .then(
+                if (reduceAnimations) {
                     if (useCrystalPureGlass) {
-                        lens(16f.dp.toPx(), 32f.dp.toPx())
+                        Modifier.background(Color.White.copy(alpha = 0.08f), containerShape)
                     } else {
-                        blur(18f.dp.toPx())
-                        lens(8f.dp.toPx(), 16f.dp.toPx())
-                    }
-                },
-                onDrawSurface = {
-                    if (useCrystalPureGlass) {
-                        drawRect(Color.White.copy(alpha = 0.06f))
-                    } else {
-                        drawRect(
-                            Brush.verticalGradient(
+                        Modifier.background(
+                            brush = Brush.verticalGradient(
                                 listOf(
-                                    Color.White.copy(alpha = 0.16f),
+                                    Color.White.copy(alpha = 0.14f),
                                     Color.White.copy(alpha = 0.08f),
-                                    accentColor.copy(alpha = 0.05f)
+                                    accentColor.copy(alpha = 0.04f)
                                 )
-                            )
+                            ),
+                            shape = containerShape
                         )
                     }
+                } else {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(0f.dp) },
+                        effects = {
+                            vibrancy()
+                            if (useCrystalPureGlass) {
+                                lens(16f.dp.toPx(), 32f.dp.toPx())
+                            } else {
+                                blur(18f.dp.toPx())
+                                lens(8f.dp.toPx(), 16f.dp.toPx())
+                            }
+                        },
+                        onDrawSurface = {
+                            if (useCrystalPureGlass) {
+                                drawRect(Color.White.copy(alpha = 0.06f))
+                            } else {
+                                drawRect(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            Color.White.copy(alpha = 0.16f),
+                                            Color.White.copy(alpha = 0.08f),
+                                            accentColor.copy(alpha = 0.05f)
+                                        )
+                                    )
+                                )
+                            }
+                        }
+                    )
                 }
             )
             // Only left/right strokes — a full .border() also draws top+bottom, so when cards
@@ -6309,7 +6331,7 @@ private fun ApiPostCard(
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
                                         .data(profileImageUrl)
-                                        .crossfade(true)
+                                        .crossfade(imageCrossfadeMs)
                                         .build(),
                                     contentDescription = "Profile picture of $authorName",
                                     contentScale = ContentScale.Crop,
@@ -6446,7 +6468,8 @@ private fun ApiPostCard(
                     articleReadTime = post.articleReadTime,
                     contentColor = contentColor,
                     accentColor = accentColor,
-                    backdrop = backdrop
+                    backdrop = backdrop,
+                    reduceAnimations = reduceAnimations
                 )
             }
 
@@ -6460,7 +6483,8 @@ private fun ApiPostCard(
                     celebrationBadge = post.celebrationBadge,
                     contentColor = contentColor,
                     accentColor = accentColor,
-                    backdrop = backdrop
+                    backdrop = backdrop,
+                    reduceAnimations = reduceAnimations
                 )
             }
 
@@ -6511,6 +6535,7 @@ private fun ApiPostCard(
                 ) {
                     ApiImagePostGrid(
                         images = post.mediaUrls,
+                        reduceAnimations = reduceAnimations,
                         onImageClick = { index ->
                             selectedImageIndex = index
                             showImageViewer = true
@@ -6529,6 +6554,7 @@ private fun ApiPostCard(
                         linkImage = post.linkImage,
                         contentColor = contentColor,
                         accentColor = accentColor,
+                        reduceAnimations = reduceAnimations,
                         onClick = {
                             runCatching {
                                 context.startActivity(
@@ -6729,34 +6755,49 @@ private fun ApiArticleCard(
     articleReadTime: Int?,
     contentColor: Color,
     accentColor: Color,
-    backdrop: LayerBackdrop
+    backdrop: LayerBackdrop,
+    reduceAnimations: Boolean = false
 ) {
     val context = LocalContext.current
-    Column(
-        modifier = Modifier
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(14f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(18f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(
-                        Brush.verticalGradient(
-                            listOf(
-                                accentColor.copy(alpha = 0.14f),
-                                Color.White.copy(alpha = 0.07f)
+    val cardModifier = Modifier
+        .padding(horizontal = 12.dp, vertical = 8.dp)
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(14.dp))
+        .then(
+            if (reduceAnimations) {
+                Modifier.background(
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            accentColor.copy(alpha = 0.12f),
+                            Color.White.copy(alpha = 0.06f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                )
+            } else {
+                Modifier.drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { RoundedRectangle(14f.dp) },
+                    effects = {
+                        vibrancy()
+                        blur(18f.dp.toPx())
+                    },
+                    onDrawSurface = {
+                        drawRect(
+                            Brush.verticalGradient(
+                                listOf(
+                                    accentColor.copy(alpha = 0.14f),
+                                    Color.White.copy(alpha = 0.07f)
+                                )
                             )
                         )
-                    )
-                }
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(14.dp))
-    ) {
+                    }
+                )
+            }
+        )
+        .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(14.dp))
+
+    Column(modifier = cardModifier) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -6767,7 +6808,7 @@ private fun ApiArticleCard(
                 AsyncImage(
                     model = ImageRequest.Builder(context)
                         .data(articleCoverImage)
-                        .crossfade(400)
+                        .crossfade(if (reduceAnimations) 0 else 400)
                         .build(),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
@@ -6863,11 +6904,12 @@ private fun ApiCelebrationHero(
     celebrationBadge: String?,
     contentColor: Color,
     accentColor: Color,
-    backdrop: LayerBackdrop
+    backdrop: LayerBackdrop,
+    reduceAnimations: Boolean = false
 ) {
     val context = LocalContext.current
     val pulse = rememberInfiniteTransition(label = "celebratePulse")
-    val scale by pulse.animateFloat(
+    val pulseScale by pulse.animateFloat(
         initialValue = 0.985f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
@@ -6876,31 +6918,46 @@ private fun ApiCelebrationHero(
         ),
         label = "celebrateScale"
     )
+    val scale = if (reduceAnimations) 1f else pulseScale
+    val heroSurface = if (reduceAnimations) {
+        Modifier.background(
+            brush = Brush.linearGradient(
+                listOf(
+                    accentColor.copy(alpha = 0.18f),
+                    Color(0xFFFFD54F).copy(alpha = 0.06f),
+                    Color.White.copy(alpha = 0.05f)
+                )
+            ),
+            shape = RoundedCornerShape(16.dp)
+        )
+    } else {
+        Modifier.drawBackdrop(
+            backdrop = backdrop,
+            shape = { RoundedRectangle(16f.dp) },
+            effects = {
+                vibrancy()
+                blur(20f.dp.toPx())
+            },
+            onDrawSurface = {
+                drawRect(
+                    Brush.linearGradient(
+                        listOf(
+                            accentColor.copy(alpha = 0.22f),
+                            Color(0xFFFFD54F).copy(alpha = 0.08f),
+                            Color.White.copy(alpha = 0.06f)
+                        )
+                    )
+                )
+            }
+        )
+    }
     Column(
         modifier = Modifier
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .fillMaxWidth()
             .scale(scale)
             .clip(RoundedCornerShape(16.dp))
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(20f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(
-                        Brush.linearGradient(
-                            listOf(
-                                accentColor.copy(alpha = 0.22f),
-                                Color(0xFFFFD54F).copy(alpha = 0.08f),
-                                Color.White.copy(alpha = 0.06f)
-                            )
-                        )
-                    )
-                }
-            )
+            .then(heroSurface)
             .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(16.dp))
     ) {
         Row(
@@ -6942,7 +6999,7 @@ private fun ApiCelebrationHero(
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(celebrationGifUrl)
-                    .crossfade(320)
+                    .crossfade(if (reduceAnimations) 0 else 320)
                     .build(),
                 contentDescription = "Celebration animation",
                 modifier = Modifier
@@ -6965,6 +7022,7 @@ private fun ApiLinkPreview(
     linkImage: String?,
     contentColor: Color,
     accentColor: Color,
+    reduceAnimations: Boolean = false,
     onClick: () -> Unit
 ) {
     if (url.isNullOrBlank()) return
@@ -6979,19 +7037,27 @@ private fun ApiLinkPreview(
         ),
         label = "shimmer"
     )
+    val linkBg = if (reduceAnimations) {
+        Brush.linearGradient(
+            listOf(
+                Color.White.copy(alpha = 0.1f),
+                accentColor.copy(alpha = 0.08f)
+            )
+        )
+    } else {
+        Brush.linearGradient(
+            listOf(
+                Color.White.copy(alpha = 0.08f + 0.04f * shimmerShift),
+                accentColor.copy(alpha = 0.06f + 0.05f * (1f - shimmerShift))
+            )
+        )
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(4.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.08f + 0.04f * shimmerShift),
-                        accentColor.copy(alpha = 0.06f + 0.05f * (1f - shimmerShift))
-                    )
-                )
-            )
+            .background(linkBg)
             .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
             .clickable(onClick = onClick)
     ) {
@@ -7004,7 +7070,7 @@ private fun ApiLinkPreview(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(linkImage)
-                        .crossfade(400)
+                        .crossfade(if (reduceAnimations) 0 else 400)
                         .build(),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
@@ -7312,8 +7378,10 @@ private fun rememberRelativeTimeLabel(dateString: String) = produceState(
 @Composable
 private fun ApiImagePostGrid(
     images: List<String>,
+    reduceAnimations: Boolean = false,
     onImageClick: (Int) -> Unit
 ) {
+    val crossfadeMs = if (reduceAnimations) 0 else 300
     val spacing = 3.dp
     val displayImages = images.take(9)
     val extraCount = (images.size - 9).coerceAtLeast(0)
@@ -7329,7 +7397,7 @@ private fun ApiImagePostGrid(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(images[0])
-                        .crossfade(true)
+                        .crossfade(crossfadeMs)
                         .build(),
                     contentDescription = "Post image 1",
                     contentScale = ContentScale.FillWidth,
@@ -7348,7 +7416,7 @@ private fun ApiImagePostGrid(
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(url)
-                                .crossfade(true)
+                                .crossfade(crossfadeMs)
                                 .build(),
                             contentDescription = "Post image ${index + 1}",
                             contentScale = ContentScale.Crop,
@@ -7371,7 +7439,7 @@ private fun ApiImagePostGrid(
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(images[0])
-                            .crossfade(true)
+                            .crossfade(crossfadeMs)
                             .build(),
                         contentDescription = "Post image 1",
                         contentScale = ContentScale.Crop,
@@ -7389,7 +7457,7 @@ private fun ApiImagePostGrid(
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(images[1])
-                                .crossfade(true)
+                                .crossfade(crossfadeMs)
                                 .build(),
                             contentDescription = "Post image 2",
                             contentScale = ContentScale.Crop,
@@ -7401,7 +7469,7 @@ private fun ApiImagePostGrid(
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(images[2])
-                                .crossfade(true)
+                                .crossfade(crossfadeMs)
                                 .build(),
                             contentDescription = "Post image 3",
                             contentScale = ContentScale.Crop,
@@ -7427,7 +7495,7 @@ private fun ApiImagePostGrid(
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalContext.current)
                                     .data(images[i])
-                                    .crossfade(true)
+                                    .crossfade(crossfadeMs)
                                     .build(),
                                 contentDescription = "Post image ${i + 1}",
                                 contentScale = ContentScale.Crop,
@@ -7446,7 +7514,7 @@ private fun ApiImagePostGrid(
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalContext.current)
                                     .data(images[i])
-                                    .crossfade(true)
+                                    .crossfade(crossfadeMs)
                                     .build(),
                                 contentDescription = "Post image ${i + 1}",
                                 contentScale = ContentScale.Crop,
@@ -7472,7 +7540,7 @@ private fun ApiImagePostGrid(
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(displayImages[0])
-                                .crossfade(true)
+                                .crossfade(crossfadeMs)
                                 .build(),
                             contentDescription = "Post image 1",
                             contentScale = ContentScale.Crop,
@@ -7489,7 +7557,7 @@ private fun ApiImagePostGrid(
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
                                         .data(displayImages[1])
-                                        .crossfade(true)
+                                        .crossfade(crossfadeMs)
                                         .build(),
                                     contentDescription = "Post image 2",
                                     contentScale = ContentScale.Crop,
@@ -7503,7 +7571,7 @@ private fun ApiImagePostGrid(
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
                                         .data(displayImages[2])
-                                        .crossfade(true)
+                                        .crossfade(crossfadeMs)
                                         .build(),
                                     contentDescription = "Post image 3",
                                     contentScale = ContentScale.Crop,
@@ -7535,7 +7603,7 @@ private fun ApiImagePostGrid(
                                         AsyncImage(
                                             model = ImageRequest.Builder(LocalContext.current)
                                                 .data(url)
-                                                .crossfade(true)
+                                                .crossfade(crossfadeMs)
                                                 .build(),
                                             contentDescription = "Post image ${imageIndex + 1}",
                                             contentScale = ContentScale.Crop,

@@ -108,7 +108,8 @@ fun FindPeopleScreenNew(
     contentColor: Color,
     accentColor: Color,
     findPeopleViewModel: FindPeopleViewModel,
-    onNavigateToProfile: (String) -> Unit = {}
+    onNavigateToProfile: (String) -> Unit = {},
+    reduceAnimations: Boolean = false
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -121,6 +122,8 @@ fun FindPeopleScreenNew(
     val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
     val isGlassTheme = themeMode == "glass"
     val isLightTheme = !isSystemInDarkTheme()
+    // One shimmer for all Find skeletons (avoids N× infinite transitions).
+    val listShimmerBrush = findPeopleShimmerBrush(isLightTheme)
     
     // Scroll state for collapsing header
     val scrollState = rememberScrollState()
@@ -243,7 +246,8 @@ fun FindPeopleScreenNew(
                     isLightTheme = isLightTheme,
                     uiState = uiState,
                     viewModel = findPeopleViewModel,
-                    onNavigateToProfile = navigateToProfile
+                    onNavigateToProfile = navigateToProfile,
+                    reduceAnimations = reduceAnimations
                 )
 
                 FindPeopleTab.SMART_MATCHES -> SmartMatchesContent(
@@ -252,6 +256,8 @@ fun FindPeopleScreenNew(
                     accentColor = accentColor,
                     isGlassTheme = isGlassTheme,
                     isLightTheme = isLightTheme,
+                    listShimmerBrush = listShimmerBrush,
+                    reduceAnimations = reduceAnimations,
                     matches = uiState.smartMatches,
                     isLoading = uiState.isLoadingSmartMatches,
                     error = uiState.smartMatchError,
@@ -268,6 +274,8 @@ fun FindPeopleScreenNew(
                 accentColor = accentColor,
                 isGlassTheme = isGlassTheme,
                 isLightTheme = isLightTheme,
+                listShimmerBrush = listShimmerBrush,
+                reduceAnimations = reduceAnimations,
                 people = uiState.allPeople,
                 isLoading = uiState.isLoadingAllPeople,
                 error = uiState.allPeopleError,
@@ -298,6 +306,8 @@ fun FindPeopleScreenNew(
                 accentColor = accentColor,
                 isGlassTheme = isGlassTheme,
                 isLightTheme = isLightTheme,
+                listShimmerBrush = listShimmerBrush,
+                reduceAnimations = reduceAnimations,
                 people = uiState.suggestions,
                 isLoading = uiState.isLoadingSuggestions,
                 error = uiState.suggestionsError,
@@ -314,6 +324,8 @@ fun FindPeopleScreenNew(
                 accentColor = accentColor,
                 isGlassTheme = isGlassTheme,
                 isLightTheme = isLightTheme,
+                listShimmerBrush = listShimmerBrush,
+                reduceAnimations = reduceAnimations,
                 people = uiState.sameCampusPeople,
                 isLoading = uiState.isLoadingSameCampus,
                 error = uiState.sameCampusError,
@@ -335,6 +347,8 @@ fun FindPeopleScreenNew(
                 contentColor = contentColor,
                 accentColor = accentColor,
                 isLightTheme = isLightTheme,
+                listShimmerBrush = listShimmerBrush,
+                reduceAnimations = reduceAnimations,
                 nearbyPeople = uiState.nearbyPeople,
                 isLoading = uiState.isLoadingNearby,
                 error = uiState.nearbyError,
@@ -608,12 +622,40 @@ private fun findPeopleShimmerBrush(isLightTheme: Boolean): Brush {
     )
 }
 
+/** Glass blur is expensive; use a flat surface when [reduceAnimations] is enabled. */
+private fun Modifier.findPeopleGlassSurface(
+    backdrop: LayerBackdrop,
+    cornerDp: Float,
+    blurDp: Float,
+    isLightTheme: Boolean,
+    reduceAnimations: Boolean,
+    onDrawSurfaceColor: Color = Color.White.copy(alpha = 0.1f)
+): Modifier {
+    val shape = RoundedCornerShape(cornerDp.dp)
+    return this.clip(shape).then(
+        if (reduceAnimations) {
+            Modifier.background(
+                if (isLightTheme) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.09f)
+            )
+        } else {
+            Modifier.drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(cornerDp.dp) },
+                effects = {
+                    vibrancy()
+                    blur(blurDp.dp.toPx())
+                },
+                onDrawSurface = { drawRect(onDrawSurfaceColor) }
+            )
+        }
+    )
+}
+
 @Composable
 private fun PersonCardSkeleton(
-    backdrop: LayerBackdrop,
+    shimmerBrush: Brush,
     isLightTheme: Boolean
 ) {
-    val shimmer = findPeopleShimmerBrush(isLightTheme)
     
     Box(
         Modifier
@@ -629,7 +671,7 @@ private fun PersonCardSkeleton(
                     Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(shimmer)
+                        .background(shimmerBrush)
                 )
                 
                 Spacer(Modifier.width(8.dp))
@@ -640,7 +682,7 @@ private fun PersonCardSkeleton(
                             .width(100.dp)
                             .height(14.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(shimmer)
+                            .background(shimmerBrush)
                     )
                     Spacer(Modifier.height(4.dp))
                     Box(
@@ -648,7 +690,7 @@ private fun PersonCardSkeleton(
                             .width(70.dp)
                             .height(10.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(shimmer)
+                            .background(shimmerBrush)
                     )
                 }
             }
@@ -659,7 +701,7 @@ private fun PersonCardSkeleton(
                     .fillMaxWidth(0.9f)
                     .height(12.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(shimmer)
+                    .background(shimmerBrush)
             )
             
             // Skills row
@@ -670,7 +712,7 @@ private fun PersonCardSkeleton(
                             .width(50.dp)
                             .height(20.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(shimmer)
+                            .background(shimmerBrush)
                     )
                 }
             }
@@ -681,7 +723,7 @@ private fun PersonCardSkeleton(
                     .fillMaxWidth()
                     .height(32.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(shimmer)
+                    .background(shimmerBrush)
             )
         }
     }
@@ -689,11 +731,9 @@ private fun PersonCardSkeleton(
 
 @Composable
 private fun SmartMatchCardSkeleton(
-    backdrop: LayerBackdrop,
+    shimmerBrush: Brush,
     isLightTheme: Boolean
 ) {
-    val shimmer = findPeopleShimmerBrush(isLightTheme)
-    
     Box(
         Modifier
             .fillMaxWidth()
@@ -707,7 +747,7 @@ private fun SmartMatchCardSkeleton(
                 Modifier
                     .size(52.dp)
                     .clip(CircleShape)
-                    .background(shimmer)
+                    .background(shimmerBrush)
             )
             
             Spacer(Modifier.width(10.dp))
@@ -720,7 +760,7 @@ private fun SmartMatchCardSkeleton(
                             .width(100.dp)
                             .height(14.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(shimmer)
+                            .background(shimmerBrush)
                     )
                     Spacer(Modifier.width(8.dp))
                     Box(
@@ -728,7 +768,7 @@ private fun SmartMatchCardSkeleton(
                             .width(35.dp)
                             .height(18.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(shimmer)
+                            .background(shimmerBrush)
                     )
                 }
                 
@@ -740,7 +780,7 @@ private fun SmartMatchCardSkeleton(
                         .fillMaxWidth(0.7f)
                         .height(12.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(shimmer)
+                        .background(shimmerBrush)
                 )
                 
                 Spacer(Modifier.height(6.dp))
@@ -753,7 +793,7 @@ private fun SmartMatchCardSkeleton(
                                 .width(60.dp)
                                 .height(18.dp)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(shimmer)
+                                .background(shimmerBrush)
                         )
                     }
                 }
@@ -767,7 +807,7 @@ private fun SmartMatchCardSkeleton(
                     .width(50.dp)
                     .height(28.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(shimmer)
+                    .background(shimmerBrush)
             )
         }
     }
@@ -786,24 +826,34 @@ fun PersonCard(
     isLightTheme: Boolean = true,
     isActionInProgress: Boolean = false,
     onConnect: () -> Unit = {},
-    onCardClick: () -> Unit = {}
+    onCardClick: () -> Unit = {},
+    reduceAnimations: Boolean = false
 ) {
+    val imageCrossfadeMs = if (reduceAnimations) 0 else 300
     Box(
         Modifier
             .fillMaxWidth()
             .then(
                 if (isGlassTheme) {
-                    Modifier
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(16f.dp) },
-                            effects = {
-                                vibrancy()
-                            },
-                            onDrawSurface = {
-                                drawRect(if (isLightTheme) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.08f))
-                            }
-                        )
+                    if (reduceAnimations) {
+                        Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                if (isLightTheme) Color.White.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.08f)
+                            )
+                    } else {
+                        Modifier
+                            .drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedRectangle(16f.dp) },
+                                effects = {
+                                    vibrancy()
+                                },
+                                onDrawSurface = {
+                                    drawRect(if (isLightTheme) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.08f))
+                                }
+                            )
+                    }
                 } else {
                     Modifier
                         .clip(RoundedCornerShape(16.dp))
@@ -831,7 +881,7 @@ fun PersonCard(
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(person.profileImage)
-                                .crossfade(true)
+                                .crossfade(imageCrossfadeMs)
                                 .build(),
                             contentDescription = "Profile",
                             contentScale = ContentScale.Crop,
@@ -1040,8 +1090,10 @@ fun SmartMatchCard(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
-    onViewClick: () -> Unit = {}
+    onViewClick: () -> Unit = {},
+    reduceAnimations: Boolean = false
 ) {
+    val imageCrossfadeMs = if (reduceAnimations) 0 else 300
     val percentageColor = when {
         match.matchPercentage >= 60 -> Color(0xFF22C55E) // Green
         match.matchPercentage >= 35 -> Color(0xFF3B82F6) // Blue
@@ -1069,7 +1121,7 @@ fun SmartMatchCard(
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(match.user.profileImage)
-                            .crossfade(true)
+                            .crossfade(imageCrossfadeMs)
                             .build(),
                         contentDescription = "Profile",
                         contentScale = ContentScale.Crop,
@@ -1184,6 +1236,8 @@ private fun SmartMatchesContent(
     accentColor: Color,
     isGlassTheme: Boolean,
     isLightTheme: Boolean,
+    listShimmerBrush: Brush,
+    reduceAnimations: Boolean,
     matches: List<SmartMatch>,
     isLoading: Boolean,
     error: String?,
@@ -1241,8 +1295,8 @@ private fun SmartMatchesContent(
         ) {
             when {
                 isLoading -> {
-                    items(4) {
-                        SmartMatchCardSkeleton(backdrop, isLightTheme)
+                    items(count = 4, key = { "smart_match_sk_$it" }) {
+                        SmartMatchCardSkeleton(listShimmerBrush, isLightTheme)
                     }
                 }
                 error != null -> {
@@ -1252,6 +1306,7 @@ private fun SmartMatchesContent(
                             backdrop = backdrop,
                             contentColor = contentColor,
                             accentColor = accentColor,
+                            reduceAnimations = reduceAnimations,
                             onRetry = onRetry,
                             onDismiss = onDismissError
                         )
@@ -1275,6 +1330,7 @@ private fun SmartMatchesContent(
                             backdrop = backdrop,
                             contentColor = contentColor,
                             accentColor = accentColor,
+                            reduceAnimations = reduceAnimations,
                             onViewClick = { onNavigateToProfile(match.user.id) }
                         )
                     }
@@ -1291,6 +1347,8 @@ private fun AllPeopleContent(
     accentColor: Color,
     isGlassTheme: Boolean,
     isLightTheme: Boolean,
+    listShimmerBrush: Brush,
+    reduceAnimations: Boolean,
     people: List<PersonInfo>,
     isLoading: Boolean,
     error: String?,
@@ -1321,16 +1379,13 @@ private fun AllPeopleContent(
         Box(
             Modifier
                 .fillMaxWidth()
-                .drawBackdrop(
+                .findPeopleGlassSurface(
                     backdrop = backdrop,
-                    shape = { RoundedRectangle(16f.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(8f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(Color.White.copy(alpha = 0.1f))
-                    }
+                    cornerDp = 16f,
+                    blurDp = 8f,
+                    isLightTheme = isLightTheme,
+                    reduceAnimations = reduceAnimations,
+                    onDrawSurfaceColor = Color.White.copy(alpha = 0.1f)
                 )
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
@@ -1503,8 +1558,8 @@ private fun AllPeopleContent(
                     contentPadding = PaddingValues(bottom = 88.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(8) {
-                        PersonCardSkeleton(backdrop, isLightTheme)
+                    items(count = 8, key = { "all_people_sk_$it" }) {
+                        PersonCardSkeleton(listShimmerBrush, isLightTheme)
                     }
                 }
             }
@@ -1514,6 +1569,7 @@ private fun AllPeopleContent(
                     backdrop = backdrop,
                     contentColor = contentColor,
                     accentColor = accentColor,
+                    reduceAnimations = reduceAnimations,
                     onRetry = onRetry,
                     onDismiss = onDismissError
                 )
@@ -1551,7 +1607,8 @@ private fun AllPeopleContent(
                             isLightTheme = isLightTheme,
                             isActionInProgress = connectionActionInProgress.contains(person.id),
                             onConnect = { onConnect(person.id) },
-                            onCardClick = { onNavigateToProfile(person.id) }
+                            onCardClick = { onNavigateToProfile(person.id) },
+                            reduceAnimations = reduceAnimations
                         )
                     }
                     
@@ -1732,6 +1789,8 @@ private fun ForYouContent(
     accentColor: Color,
     isGlassTheme: Boolean,
     isLightTheme: Boolean,
+    listShimmerBrush: Brush,
+    reduceAnimations: Boolean,
     people: List<PersonInfo>,
     isLoading: Boolean,
     error: String?,
@@ -1747,6 +1806,8 @@ private fun ForYouContent(
         accentColor = accentColor,
         isGlassTheme = isGlassTheme,
         isLightTheme = isLightTheme,
+        listShimmerBrush = listShimmerBrush,
+        reduceAnimations = reduceAnimations,
         people = people,
         isLoading = isLoading,
         error = error,
@@ -1768,6 +1829,8 @@ private fun SameCampusContent(
     accentColor: Color,
     isGlassTheme: Boolean,
     isLightTheme: Boolean,
+    listShimmerBrush: Brush,
+    reduceAnimations: Boolean,
     people: List<PersonInfo>,
     isLoading: Boolean,
     error: String?,
@@ -1794,7 +1857,9 @@ private fun SameCampusContent(
             collegeSuggestions = collegeSuggestions,
             isSearchingColleges = isSearchingColleges,
             onSaveCollege = onSaveCollege,
-            onCollegeSearch = onCollegeSearch
+            onCollegeSearch = onCollegeSearch,
+            isLightTheme = isLightTheme,
+            reduceAnimations = reduceAnimations
         )
     } else {
         // Show results with college name header
@@ -1805,17 +1870,13 @@ private fun SameCampusContent(
                     Modifier
                         .fillMaxWidth()
                         .padding(bottom = 12.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .drawBackdrop(
+                        .findPeopleGlassSurface(
                             backdrop = backdrop,
-                            shape = { RoundedRectangle(12f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(12f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(if (isLightTheme) Color.White.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.1f))
-                            }
+                            cornerDp = 12f,
+                            blurDp = 12f,
+                            isLightTheme = isLightTheme,
+                            reduceAnimations = reduceAnimations,
+                            onDrawSurfaceColor = if (isLightTheme) Color.White.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.1f)
                         )
                         .padding(12.dp)
                 ) {
@@ -1846,6 +1907,8 @@ private fun SameCampusContent(
                 accentColor = accentColor,
                 isGlassTheme = isGlassTheme,
                 isLightTheme = isLightTheme,
+                listShimmerBrush = listShimmerBrush,
+                reduceAnimations = reduceAnimations,
                     people = people,
                     isLoading = isLoading,
                     error = error,
@@ -1872,7 +1935,9 @@ private fun CollegeInputForm(
     collegeSuggestions: List<CollegeInfo>,
     isSearchingColleges: Boolean,
     onSaveCollege: (String) -> Unit,
-    onCollegeSearch: (String) -> Unit
+    onCollegeSearch: (String) -> Unit,
+    isLightTheme: Boolean,
+    reduceAnimations: Boolean
 ) {
     var collegeName by remember { mutableStateOf("") }
     val isValid = collegeName.trim().length >= 3
@@ -1923,17 +1988,13 @@ private fun CollegeInputForm(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .drawBackdrop(
+                        .findPeopleGlassSurface(
                             backdrop = backdrop,
-                            shape = { RoundedRectangle(12f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(12f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color.White.copy(alpha = 0.1f))
-                            }
+                            cornerDp = 12f,
+                            blurDp = 12f,
+                            isLightTheme = isLightTheme,
+                            reduceAnimations = reduceAnimations,
+                            onDrawSurfaceColor = Color.White.copy(alpha = 0.1f)
                         )
                         .padding(16.dp)
                 ) {
@@ -1977,17 +2038,13 @@ private fun CollegeInputForm(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .drawBackdrop(
+                            .findPeopleGlassSurface(
                                 backdrop = backdrop,
-                                shape = { RoundedRectangle(12f.dp) },
-                                effects = {
-                                    vibrancy()
-                                    blur(12f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(Color.White.copy(alpha = 0.15f))
-                                }
+                                cornerDp = 12f,
+                                blurDp = 12f,
+                                isLightTheme = isLightTheme,
+                                reduceAnimations = reduceAnimations,
+                                onDrawSurfaceColor = Color.White.copy(alpha = 0.15f)
                             )
                     ) {
                         Column(Modifier.padding(8.dp)) {
@@ -2079,6 +2136,8 @@ private fun PeopleGridContent(
     accentColor: Color,
     isGlassTheme: Boolean,
     isLightTheme: Boolean,
+    listShimmerBrush: Brush,
+    reduceAnimations: Boolean,
     people: List<PersonInfo>,
     isLoading: Boolean,
     error: String?,
@@ -2109,8 +2168,8 @@ private fun PeopleGridContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(6) {
-                    PersonCardSkeleton(backdrop, isLightTheme)
+                items(count = 6, key = { "people_grid_sk_$it" }) {
+                    PersonCardSkeleton(listShimmerBrush, isLightTheme)
                 }
             }
         }
@@ -2120,6 +2179,7 @@ private fun PeopleGridContent(
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
+                reduceAnimations = reduceAnimations,
                 onRetry = onRetry,
                 onDismiss = onDismissError
             )
@@ -2150,7 +2210,7 @@ private fun PeopleGridContent(
                     contentPadding = PaddingValues(bottom = 80.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(people) { person ->
+                    items(items = people, key = { it.id }) { person ->
                         PersonCard(
                             person = person,
                             backdrop = backdrop,
@@ -2160,7 +2220,8 @@ private fun PeopleGridContent(
                             isLightTheme = isLightTheme,
                             isActionInProgress = connectionActionInProgress.contains(person.id),
                             onConnect = { onConnect(person.id) },
-                            onCardClick = { onNavigateToProfile(person.id) }
+                            onCardClick = { onNavigateToProfile(person.id) },
+                            reduceAnimations = reduceAnimations
                         )
                     }
                 }
@@ -2178,6 +2239,8 @@ private fun NearbyContent(
     contentColor: Color,
     accentColor: Color,
     isLightTheme: Boolean,
+    listShimmerBrush: Brush,
+    reduceAnimations: Boolean,
     nearbyPeople: List<NearbyUser>,
     isLoading: Boolean,
     error: String?,
@@ -2260,21 +2323,35 @@ private fun NearbyContent(
                 Modifier
                     .fillMaxWidth()
                     .height(400.dp)
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(24f.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(16f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(
+                    .clip(RoundedCornerShape(24.dp))
+                    .then(
+                        if (reduceAnimations) {
+                            Modifier.background(
                                 Brush.verticalGradient(
                                     listOf(
-                                        accentColor.copy(alpha = 0.15f),
+                                        accentColor.copy(alpha = 0.12f),
                                         Color.Transparent
                                     )
                                 )
+                            )
+                        } else {
+                            Modifier.drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedRectangle(24f.dp) },
+                                effects = {
+                                    vibrancy()
+                                    blur(16f.dp.toPx())
+                                },
+                                onDrawSurface = {
+                                    drawRect(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                accentColor.copy(alpha = 0.15f),
+                                                Color.Transparent
+                                            )
+                                        )
+                                    )
+                                }
                             )
                         }
                     )
@@ -2365,16 +2442,13 @@ private fun NearbyContent(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .drawBackdrop(
+                    .findPeopleGlassSurface(
                         backdrop = backdrop,
-                        shape = { RoundedRectangle(20f.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(12f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(if (isLightTheme) Color.White.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.1f))
-                        }
+                        cornerDp = 20f,
+                        blurDp = 12f,
+                        isLightTheme = isLightTheme,
+                        reduceAnimations = reduceAnimations,
+                        onDrawSurfaceColor = if (isLightTheme) Color.White.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.1f)
                     )
                     .padding(16.dp)
             ) {
@@ -2478,6 +2552,8 @@ private fun NearbyContent(
                     selectedRadius = selectedRadius,
                     backdrop = backdrop,
                     accentColor = accentColor,
+                    isLightTheme = isLightTheme,
+                    reduceAnimations = reduceAnimations,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(280.dp)
@@ -2494,7 +2570,9 @@ private fun NearbyContent(
                         repeat(4) { index ->
                             AnimatedNearbyCardSkeleton(
                                 backdrop = backdrop,
+                                listShimmerBrush = listShimmerBrush,
                                 isLightTheme = isLightTheme,
+                                reduceAnimations = reduceAnimations,
                                 delay = index * 100
                             )
                         }
@@ -2506,6 +2584,7 @@ private fun NearbyContent(
                         backdrop = backdrop,
                         contentColor = contentColor,
                         accentColor = accentColor,
+                        reduceAnimations = reduceAnimations,
                         onRetry = onRefresh
                     )
                 }
@@ -2514,6 +2593,8 @@ private fun NearbyContent(
                         backdrop = backdrop,
                         contentColor = contentColor,
                         accentColor = accentColor,
+                        isLightTheme = isLightTheme,
+                        reduceAnimations = reduceAnimations,
                         selectedRadius = selectedRadius
                     )
                 }
@@ -2551,6 +2632,7 @@ private fun NearbyContent(
                             accentColor = accentColor,
                             isLightTheme = isLightTheme,
                             index = index,
+                            reduceAnimations = reduceAnimations,
                             onCardClick = { onNavigateToProfile(user.id) }
                         )
                         Spacer(Modifier.height(10.dp))
@@ -2572,19 +2654,24 @@ private fun AnimatedNearbyPersonCard(
     accentColor: Color,
     isLightTheme: Boolean,
     index: Int,
+    reduceAnimations: Boolean,
     onCardClick: () -> Unit
 ) {
     // Simple fade-in, no bouncing
-    var visible by remember { mutableStateOf(false) }
+    var visible by remember { mutableStateOf(reduceAnimations) }
     
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(index * 50L)
+        if (!reduceAnimations) {
+            kotlinx.coroutines.delay(index * 50L)
+        }
         visible = true
     }
     
     AnimatedVisibility(
         visible = visible,
-        enter = androidx.compose.animation.fadeIn(animationSpec = tween(200))
+        enter = androidx.compose.animation.fadeIn(
+            animationSpec = tween(if (reduceAnimations) 0 else 200)
+        )
     ) {
         NearbyPersonCard(
             user = user,
@@ -2592,6 +2679,7 @@ private fun AnimatedNearbyPersonCard(
             contentColor = contentColor,
             accentColor = accentColor,
             isLightTheme = isLightTheme,
+            reduceAnimations = reduceAnimations,
             onCardClick = onCardClick
         )
     }
@@ -2603,22 +2691,21 @@ private fun NearbyEmptyState(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    isLightTheme: Boolean,
+    reduceAnimations: Boolean,
     selectedRadius: Int
 ) {
     Box(
         Modifier
             .fillMaxWidth()
             .padding(vertical = 40.dp)
-            .drawBackdrop(
+            .findPeopleGlassSurface(
                 backdrop = backdrop,
-                shape = { RoundedRectangle(24f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(12f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.08f))
-                }
+                cornerDp = 24f,
+                blurDp = 12f,
+                isLightTheme = isLightTheme,
+                reduceAnimations = reduceAnimations,
+                onDrawSurfaceColor = Color.White.copy(alpha = 0.08f)
             )
             .padding(32.dp),
         contentAlignment = Alignment.Center
@@ -2648,7 +2735,9 @@ private fun NearbyEmptyState(
 @Composable
 private fun AnimatedNearbyCardSkeleton(
     backdrop: LayerBackdrop,
+    listShimmerBrush: Brush,
     isLightTheme: Boolean,
+    reduceAnimations: Boolean,
     delay: Int
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
@@ -2656,26 +2745,36 @@ private fun AnimatedNearbyCardSkeleton(
         initialValue = -200f,
         targetValue = 400f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200, delayMillis = delay, easing = LinearEasing),
+            animation = tween(1200, delayMillis = if (reduceAnimations) 0 else delay, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "shimmerOffset"
     )
+    val lineBrush = if (reduceAnimations) {
+        listShimmerBrush
+    } else {
+        Brush.linearGradient(
+            colors = listOf(
+                Color.Gray.copy(alpha = 0.2f),
+                Color.Gray.copy(alpha = 0.4f),
+                Color.Gray.copy(alpha = 0.2f)
+            ),
+            start = Offset(shimmerOffset, 0f),
+            end = Offset(shimmerOffset + 200f, 0f)
+        )
+    }
     
     Box(
         Modifier
             .fillMaxWidth()
             .height(90.dp)
-            .drawBackdrop(
+            .findPeopleGlassSurface(
                 backdrop = backdrop,
-                shape = { RoundedRectangle(16f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(8f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(if (isLightTheme) Color.White.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.08f))
-                }
+                cornerDp = 16f,
+                blurDp = 8f,
+                isLightTheme = isLightTheme,
+                reduceAnimations = reduceAnimations,
+                onDrawSurfaceColor = if (isLightTheme) Color.White.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.08f)
             )
             .padding(16.dp)
     ) {
@@ -2685,17 +2784,7 @@ private fun AnimatedNearbyCardSkeleton(
                 Modifier
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                Color.Gray.copy(alpha = 0.2f),
-                                Color.Gray.copy(alpha = 0.4f),
-                                Color.Gray.copy(alpha = 0.2f)
-                            ),
-                            start = Offset(shimmerOffset, 0f),
-                            end = Offset(shimmerOffset + 200f, 0f)
-                        )
-                    )
+                    .background(lineBrush)
             )
             Spacer(Modifier.width(12.dp))
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2704,34 +2793,14 @@ private fun AnimatedNearbyCardSkeleton(
                         .width(120.dp)
                         .height(14.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    Color.Gray.copy(alpha = 0.2f),
-                                    Color.Gray.copy(alpha = 0.4f),
-                                    Color.Gray.copy(alpha = 0.2f)
-                                ),
-                                start = Offset(shimmerOffset, 0f),
-                                end = Offset(shimmerOffset + 200f, 0f)
-                            )
-                        )
+                        .background(lineBrush)
                 )
                 Box(
                     Modifier
                         .width(80.dp)
                         .height(12.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    Color.Gray.copy(alpha = 0.15f),
-                                    Color.Gray.copy(alpha = 0.3f),
-                                    Color.Gray.copy(alpha = 0.15f)
-                                ),
-                                start = Offset(shimmerOffset, 0f),
-                                end = Offset(shimmerOffset + 200f, 0f)
-                            )
-                        )
+                        .background(lineBrush)
                 )
             }
         }
@@ -2749,6 +2818,8 @@ private fun NearbyMapView(
     selectedRadius: Int,
     backdrop: LayerBackdrop,
     accentColor: Color,
+    isLightTheme: Boolean,
+    reduceAnimations: Boolean,
     modifier: Modifier = Modifier
 ) {
     val mapHtml = remember(currentLat, currentLng, nearbyPeople, selectedRadius) {
@@ -2757,16 +2828,13 @@ private fun NearbyMapView(
     
     Box(
         modifier
-            .drawBackdrop(
+            .findPeopleGlassSurface(
                 backdrop = backdrop,
-                shape = { RoundedRectangle(20f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.08f))
-                }
+                cornerDp = 20f,
+                blurDp = 10f,
+                isLightTheme = isLightTheme,
+                reduceAnimations = reduceAnimations,
+                onDrawSurfaceColor = Color.White.copy(alpha = 0.08f)
             )
     ) {
         AndroidView(
@@ -2897,21 +2965,20 @@ private fun NearbyPersonCard(
     contentColor: Color,
     accentColor: Color,
     isLightTheme: Boolean,
+    reduceAnimations: Boolean,
     onCardClick: () -> Unit = {}
 ) {
+    val imageCrossfadeMs = if (reduceAnimations) 0 else 300
     Box(
         Modifier
             .fillMaxWidth()
-            .drawBackdrop(
+            .findPeopleGlassSurface(
                 backdrop = backdrop,
-                shape = { RoundedRectangle(20f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(12f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(if (isLightTheme) Color.White.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.1f))
-                }
+                cornerDp = 20f,
+                blurDp = 12f,
+                isLightTheme = isLightTheme,
+                reduceAnimations = reduceAnimations,
+                onDrawSurfaceColor = if (isLightTheme) Color.White.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.1f)
             )
             .clickable(onClick = onCardClick)
             .padding(16.dp)
@@ -2940,7 +3007,7 @@ private fun NearbyPersonCard(
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(user.profileImage)
-                                .crossfade(true)
+                                .crossfade(imageCrossfadeMs)
                                 .build(),
                             contentDescription = "Profile",
                             contentScale = ContentScale.Crop,
@@ -3079,23 +3146,20 @@ private fun NearbyPersonCard(
 @Composable
 private fun NearbyPersonCardSkeleton(
     backdrop: LayerBackdrop,
-    isLightTheme: Boolean
+    shimmerBrush: Brush,
+    isLightTheme: Boolean,
+    reduceAnimations: Boolean
 ) {
-    val shimmer = findPeopleShimmerBrush(isLightTheme)
-    
     Box(
         Modifier
             .fillMaxWidth()
-            .drawBackdrop(
+            .findPeopleGlassSurface(
                 backdrop = backdrop,
-                shape = { RoundedRectangle(20f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(12f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.1f))
-                }
+                cornerDp = 20f,
+                blurDp = 12f,
+                isLightTheme = isLightTheme,
+                reduceAnimations = reduceAnimations,
+                onDrawSurfaceColor = Color.White.copy(alpha = 0.1f)
             )
             .padding(16.dp)
     ) {
@@ -3104,7 +3168,7 @@ private fun NearbyPersonCardSkeleton(
                 Modifier
                     .size(52.dp)
                     .clip(CircleShape)
-                    .background(shimmer)
+                    .background(shimmerBrush)
             )
             
             Spacer(Modifier.width(12.dp))
@@ -3115,7 +3179,7 @@ private fun NearbyPersonCardSkeleton(
                         .width(100.dp)
                         .height(14.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(shimmer)
+                        .background(shimmerBrush)
                 )
                 Spacer(Modifier.height(6.dp))
                 Box(
@@ -3123,7 +3187,7 @@ private fun NearbyPersonCardSkeleton(
                         .width(150.dp)
                         .height(12.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(shimmer)
+                        .background(shimmerBrush)
                 )
             }
             
@@ -3132,7 +3196,7 @@ private fun NearbyPersonCardSkeleton(
                     .width(50.dp)
                     .height(24.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(shimmer)
+                    .background(shimmerBrush)
             )
         }
     }
@@ -3190,17 +3254,25 @@ private fun ErrorState(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
+    reduceAnimations: Boolean = false,
     onRetry: () -> Unit,
     onDismiss: () -> Unit = {}
 ) {
     Box(
         Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(16f.dp) },
-                effects = { blur(8f.dp.toPx()) },
-                onDrawSurface = { drawRect(Color.Red.copy(alpha = 0.1f)) }
+            .clip(RoundedCornerShape(16.dp))
+            .then(
+                if (reduceAnimations) {
+                    Modifier.background(Color.Red.copy(alpha = 0.12f))
+                } else {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(16f.dp) },
+                        effects = { blur(8f.dp.toPx()) },
+                        onDrawSurface = { drawRect(Color.Red.copy(alpha = 0.1f)) }
+                    )
+                }
             )
             .padding(24.dp),
         contentAlignment = Alignment.Center
