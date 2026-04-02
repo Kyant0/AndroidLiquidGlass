@@ -1,57 +1,52 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.multiplatform)
+    id("com.android.kotlin.multiplatform.library")
+    alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose)
     id("com.vanniktech.maven.publish")
 }
 
-android {
-    namespace = "com.kyant.backdrop"
-    compileSdk {
-        version = release(36)
-    }
-    buildToolsVersion = "36.1.0"
-
-    defaultConfig {
+@OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+kotlin {
+    androidLibrary {
+        namespace = "com.kyant.backdrop"
+        compileSdk = 36
         minSdk = 21
-        consumerProguardFiles("consumer-rules.pro")
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        compilerOptions {
+            jvmTarget = JvmTarget.JVM_11
         }
     }
-    buildFeatures {
-        compose = true
+    wasmJs {
+        browser()
     }
-}
 
-kotlin {
-    jvmToolchain(21)
     compilerOptions {
         freeCompilerArgs.addAll(
             "-Xcontext-parameters"
         )
     }
-}
 
-dependencies {
-    implementation(libs.androidx.compose.foundation)
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.kyant.shapes)
+    sourceSets {
+        commonMain.dependencies {
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.ui)
+            implementation(libs.kyant.shapes)
+        }
+    }
 }
 
 mavenPublishing {
     publishToMavenCentral()
     signAllPublications()
 
-    coordinates("io.github.kyant0", "backdrop", "1.0.6")
+    coordinates("io.github.kyant0", "backdrop", "1.0.7")
 
     pom {
         name.set("Backdrop")
-        description.set("Jetpack Compose blur and Liquid Glass effects")
+        description.set("Compose Multiplatform blur and Liquid Glass effects")
         inceptionYear.set("2025")
         url.set("https://github.com/Kyant0/AndroidLiquidGlass")
         licenses {
