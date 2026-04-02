@@ -25,6 +25,9 @@ import com.kyant.backdrop.catalog.network.models.StoryGroup
 import com.kyant.backdrop.catalog.network.models.User
 import com.kyant.backdrop.catalog.network.models.Connection
 import com.kyant.backdrop.catalog.notifications.PushTokenRegistrar
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -116,8 +119,8 @@ private fun Post.withSanitizedPoll(): Post =
  * Realtime [post:created] may arrive before the HTTP response; without this the feed
  * can contain duplicate ids and [LazyColumn] crashes (duplicate keys).
  */
-private fun prependCreatedPost(post: Post, currentPosts: List<Post>): List<Post> =
-    listOf(post) + currentPosts.filterNot { it.id == post.id }
+private fun prependCreatedPost(post: Post, currentPosts: ImmutableList<Post>): ImmutableList<Post> =
+    (listOf(post) + currentPosts.filterNot { it.id == post.id }).toImmutableList()
 
 // Helper to convert FullPost to Post for FeedUiState compatibility
 private fun FullPost.toPost(): Post = Post(
@@ -201,7 +204,7 @@ data class FeedUiState(
     val isGoogleLoading: Boolean = false,
     val authScreen: AuthScreen = AuthScreen.LOGIN,
     val pendingReferralCode: String? = null,
-    val posts: List<Post> = emptyList(),
+    val posts: ImmutableList<Post> = persistentListOf(),
     val storyGroups: List<StoryGroup> = emptyList(),
     val myStories: List<Story> = emptyList(),
     val error: String? = null,
@@ -281,7 +284,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             PostSocketManager.postCreatedFlow.collectLatest { post ->
                 val safe = post.withSanitizedPoll()
                 _uiState.value = _uiState.value.copy(
-                    posts = listOf(safe) + _uiState.value.posts.filterNot { it.id == safe.id }
+                    posts = (listOf(safe) + _uiState.value.posts.filterNot { it.id == safe.id }).toImmutableList()
                 )
             }
         }
@@ -298,7 +301,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         } else {
                             post
                         }
-                    }
+                    }.toImmutableList()
                 )
             }
         }
@@ -308,7 +311,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                 _uiState.value = _uiState.value.copy(
                     posts = _uiState.value.posts.map { post ->
                         if (post.id == event.postId) post.copy(sharesCount = event.sharesCount) else post
-                    }
+                    }.toImmutableList()
                 )
             }
         }
@@ -317,7 +320,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             PostSocketManager.commentCreatedFlow.collectLatest { event ->
                 val updatedPosts = _uiState.value.posts.map { post ->
                     if (post.id == event.postId) post.copy(commentsCount = event.commentsCount) else post
-                }
+                }.toImmutableList()
                 val selectedPostId = _uiState.value.selectedPostId
                 val updatedComments =
                     if (selectedPostId == event.postId && event.comment != null) {
@@ -352,7 +355,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             PostSocketManager.commentDeletedFlow.collectLatest { event ->
                 val updatedPosts = _uiState.value.posts.map { post ->
                     if (post.id == event.postId) post.copy(commentsCount = event.commentsCount) else post
-                }
+                }.toImmutableList()
                 val updatedComments =
                     if (_uiState.value.selectedPostId == event.postId) {
                         removeComment(_uiState.value.comments, event.commentId)
@@ -384,7 +387,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         } else {
                             post
                         }
-                    }
+                    }.toImmutableList()
                 )
             }
         }
@@ -716,7 +719,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         .map { it.withSanitizedPoll() }
                     lastFeedLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
-                        posts = diversifiedPosts,
+                        posts = diversifiedPosts.toImmutableList(),
                         nextCursor = response.nextCursor,
                         hasMore = response.hasMore,
                         isLoading = false
@@ -1424,7 +1427,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     val diversifiedNewPosts = diversifyFeed(response.posts, _uiState.value.currentUserId)
                         .map { it.withSanitizedPoll() }
                     _uiState.value = _uiState.value.copy(
-                        posts = _uiState.value.posts + diversifiedNewPosts,
+                        posts = (_uiState.value.posts + diversifiedNewPosts).toImmutableList(),
                         nextCursor = response.nextCursor,
                         hasMore = response.hasMore,
                         isLoadingMore = false
@@ -1452,7 +1455,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             } else {
                 post
             }
-        }
+        }.toImmutableList()
         _uiState.value = _uiState.value.copy(posts = optimisticPosts)
         
         // Then make API call and sync with server response
@@ -1469,7 +1472,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         } else {
                             post
                         }
-                    }
+                    }.toImmutableList()
                     _uiState.value = _uiState.value.copy(posts = updatedPosts)
                 }
                 .onFailure {
@@ -1483,7 +1486,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         } else {
                             post
                         }
-                    }
+                    }.toImmutableList()
                     _uiState.value = _uiState.value.copy(posts = revertedPosts)
                 }
         }
@@ -1515,7 +1518,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                 } else {
                     post
                 }
-            }
+            }.toImmutableList()
         )
 
         viewModelScope.launch {
@@ -1531,7 +1534,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                             } else {
                                 post
                             }
-                        }
+                        }.toImmutableList()
                     )
                 }
                 .onFailure {
@@ -1545,7 +1548,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                             } else {
                                 post
                             }
-                        }
+                        }.toImmutableList()
                     )
                 }
         }
@@ -1613,7 +1616,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         } else {
                             post
                         }
-                    }
+                    }.toImmutableList()
                     
                     _uiState.value = _uiState.value.copy(
                         comments = updatedComments,
@@ -1698,7 +1701,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         } else {
                             post
                         }
-                    }
+                    }.toImmutableList()
                     _uiState.value = _uiState.value.copy(
                         comments = updatedComments,
                         posts = updatedPosts
@@ -1811,7 +1814,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         } else {
                             post
                         }
-                    }
+                    }.toImmutableList()
                     _uiState.value = _uiState.value.copy(posts = updatedPosts)
                 }
         }
@@ -1830,7 +1833,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                         } else {
                             post
                         }
-                    }
+                    }.toImmutableList()
                     _uiState.value = _uiState.value.copy(
                         posts = updatedPosts,
                         isSharing = false,

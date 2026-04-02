@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.rememberScrollState
@@ -76,6 +77,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
@@ -408,7 +410,7 @@ fun LinkedInContent(
     val uiState by viewModel.uiState.collectAsState()
     
     // Theme preference: "glass", "light", "dark"
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
     val glassBackgroundKey by SettingsPreferences.glassBackgroundPreset(context)
         .collectAsState(initial = DefaultGlassBackgroundPresetKey)
     val accentPaletteKey by SettingsPreferences.accentPalette(context)
@@ -943,7 +945,10 @@ fun LinkedInContent(
                                 onWeeklyGoalsClick = { showWeeklyGoalsScreen = true },
                                 onStreakDetailsClick = { showStreakDetailsScreen = true },
                                 onTopNetworkersClick = { showTopNetworkersScreen = true },
-                                reduceAnimations = reduceAnimations
+                                reduceAnimations = reduceAnimations,
+                                hasMore = uiState.hasMore,
+                                isLoadingMore = uiState.isLoadingMore,
+                                onLoadMore = { viewModel.loadMorePosts() }
                             )
                             
                             // Share modal
@@ -2398,7 +2403,10 @@ private fun FeedScreen(
     onWeeklyGoalsClick: () -> Unit = {},
     onStreakDetailsClick: () -> Unit = {},
     onTopNetworkersClick: () -> Unit = {},
-    reduceAnimations: Boolean = false
+    reduceAnimations: Boolean = false,
+    hasMore: Boolean = false,
+    isLoadingMore: Boolean = false,
+    onLoadMore: () -> Unit = {}
 ) {
     val listState = rememberLazyListState()
     val context = LocalContext.current
@@ -2420,6 +2428,32 @@ private fun FeedScreen(
             pos2 to "todays_matches",
             pos3 to "weekly_goals"
         )
+    }
+
+    val feedRows = remember(posts, retentionState, widgetPositions) {
+        buildHomeFeedRows(posts, retentionState, widgetPositions)
+    }
+
+    val shouldPrefetchNextPage by remember {
+        derivedStateOf {
+            if (!hasMore || isLoadingMore) return@derivedStateOf false
+            val layoutInfo = listState.layoutInfo
+            val total = layoutInfo.totalItemsCount
+            if (total <= 0) return@derivedStateOf false
+            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                ?: return@derivedStateOf false
+            val buffer = 5
+            if (total <= buffer + 1) {
+                lastVisible >= total - 1
+            } else {
+                lastVisible >= total - buffer - 1
+            }
+        }
+    }
+    LaunchedEffect(shouldPrefetchNextPage, hasMore, isLoadingMore) {
+        if (shouldPrefetchNextPage && hasMore && !isLoadingMore) {
+            onLoadMore()
+        }
     }
     
     // Custom smooth fling behavior for buttery scrolling
@@ -2630,100 +2664,33 @@ private fun FeedScreen(
             }
         }
 
-        // Posts from API with engagement widgets interspersed at positions 4, 10, 18
-        posts.forEachIndexed { index, post ->
-            // Check if we should show a widget before this post
-            retentionState?.let { state ->
-                val widgetType = widgetPositions[index]
-                when (widgetType) {
-                    "people_like_you" -> {
-                        if (state.peopleLikeYou.isNotEmpty()) {
-                            item(key = "widget_people_like_you") {
-                                PeopleLikeYouSection(
-                                    people = state.peopleLikeYou,
-                                    backdrop = backdrop,
-                                    contentColor = contentColor,
-                                    accentColor = accentColor,
-                                    onPersonClick = { userId -> onProfileClick(userId) },
-                                    onSeeAll = onNavigateToFindPeople
-                                )
-                            }
-                        }
-                    }
-                    "todays_matches" -> {
-                        if (state.todaysMatches.isNotEmpty()) {
-                            item(key = "widget_todays_matches") {
-                                TodaysMatchesSection(
-                                    matches = state.todaysMatches,
-                                    backdrop = backdrop,
-                                    contentColor = contentColor,
-                                    accentColor = accentColor,
-                                    onMatchClick = { userId -> onProfileClick(userId) },
-                                    onConnect = { userId ->
-                                        scope.launch {
-                                            ApiClient.sendConnectionRequest(context, userId)
-                                                .onSuccess {
-                                                    Toast.makeText(
-                                                        context,
-                                                        "Connection request sent",
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
-                                                }
-                                                .onFailure { error ->
-                                                    Toast.makeText(
-                                                        context,
-                                                        error.message ?: "Could not send request",
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
-                                                }
-                                        }
-                                    },
-                                    onSeeAll = onNavigateToFindPeople
-                                )
-                            }
-                        }
-                    }
-                    "weekly_goals" -> {
-                        item(key = "widget_weekly_goals") {
-                            EngagementDashboardCard(
-                                weeklyGoals = state.weeklyGoals,
-                                streakData = state.streakData,
-                                backdrop = backdrop,
-                                contentColor = contentColor,
-                                accentColor = accentColor,
-                                onWeeklyGoalsClick = onWeeklyGoalsClick,
-                                onStreakDetailsClick = onStreakDetailsClick
-                            )
-                        }
-                    }
+        // Posts + widgets: flattened list with stable keys and contentType for recycling
+        items(
+            items = feedRows,
+            key = { it.itemKey },
+            contentType = { it.contentType }
+        ) { row ->
+            when (row) {
+                is FeedListRow.PostItem -> {
+                    ApiPostCard(
+                        post = row.post,
+                        backdrop = backdrop,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        glassBackgroundKey = glassBackgroundKey,
+                        onLike = onLike,
+                        onComment = onComment,
+                        onShare = onShare,
+                        onVotePoll = onVotePoll,
+                        onProfileClick = { onProfileClick(row.post.author.id) },
+                        onMentionClick = { username -> onProfileClick(username) },
+                        onMenuAction = onMenuAction,
+                        reduceAnimations = reduceAnimations
+                    )
                 }
-            }
-            
-            // Render the post
-            item(key = post.id) {
-                ApiPostCard(
-                    post = post,
-                    backdrop = backdrop,
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    glassBackgroundKey = glassBackgroundKey,
-                    onLike = onLike,
-                    onComment = onComment,
-                    onShare = onShare,
-                    onVotePoll = onVotePoll,
-                    onProfileClick = { onProfileClick(post.author.id) },
-                    onMentionClick = { username -> onProfileClick(username) },
-                    onMenuAction = onMenuAction,
-                    reduceAnimations = reduceAnimations
-                )
-            }
-        }
-        
-        // Show widgets at the end if there aren't enough posts
-        if (posts.size < 25) {
-            retentionState?.let { state ->
-                if (state.peopleLikeYou.isNotEmpty() && posts.size < 5) {
-                    item(key = "widget_people_like_you_fallback") {
+                FeedListRow.WidgetPeopleLikeYou,
+                FeedListRow.WidgetPeopleLikeYouFallback -> {
+                    retentionState?.let { state ->
                         PeopleLikeYouSection(
                             people = state.peopleLikeYou,
                             backdrop = backdrop,
@@ -2734,8 +2701,9 @@ private fun FeedScreen(
                         )
                     }
                 }
-                if (state.todaysMatches.isNotEmpty() && posts.size < 12) {
-                    item(key = "widget_todays_matches_fallback") {
+                FeedListRow.WidgetTodaysMatches,
+                FeedListRow.WidgetTodaysMatchesFallback -> {
+                    retentionState?.let { state ->
                         TodaysMatchesSection(
                             matches = state.todaysMatches,
                             backdrop = backdrop,
@@ -2765,8 +2733,9 @@ private fun FeedScreen(
                         )
                     }
                 }
-                if (posts.size < 20) {
-                    item(key = "widget_weekly_goals_fallback") {
+                FeedListRow.WidgetWeeklyGoals,
+                FeedListRow.WidgetWeeklyGoalsFallback -> {
+                    retentionState?.let { state ->
                         EngagementDashboardCard(
                             weeklyGoals = state.weeklyGoals,
                             streakData = state.streakData,
@@ -6260,8 +6229,8 @@ private fun ApiPostCard(
                             brush = Brush.verticalGradient(
                                 listOf(
                                     Color.White.copy(alpha = 0.14f),
-                                    Color.White.copy(alpha = 0.08f),
-                                    accentColor.copy(alpha = 0.04f)
+                                    Color.White.copy(alpha = 0.10f),
+                                    Color.White.copy(alpha = 0.08f)
                                 )
                             ),
                             shape = containerShape
@@ -6288,8 +6257,8 @@ private fun ApiPostCard(
                                     Brush.verticalGradient(
                                         listOf(
                                             Color.White.copy(alpha = 0.16f),
-                                            Color.White.copy(alpha = 0.08f),
-                                            accentColor.copy(alpha = 0.05f)
+                                            Color.White.copy(alpha = 0.10f),
+                                            Color.White.copy(alpha = 0.08f)
                                         )
                                     )
                                 )
@@ -6417,14 +6386,6 @@ private fun ApiPostCard(
                                     label = "Only me",
                                     contentColor = subtleTextColor,
                                     containerColor = Color.White.copy(alpha = 0.06f)
-                                )
-                            }
-                            if (hasMedia) {
-                                ApiMetricChip(
-                                    label = if (!post.videoUrl.isNullOrEmpty()) "Video" else "Photo set",
-                                    contentColor = accentColor,
-                                    containerColor = accentColor.copy(alpha = 0.12f),
-                                    borderColor = accentColor.copy(alpha = 0.18f)
                                 )
                             }
                         }
@@ -6691,6 +6652,7 @@ private fun ApiPostCard(
             onDismissRequest = { showImageViewer = false },
             properties = androidx.compose.ui.window.DialogProperties(
                 usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false,
                 dismissOnBackPress = true,
                 dismissOnClickOutside = false
             )
@@ -7431,7 +7393,7 @@ private fun ApiImagePostGrid(
     ) {
         when (images.size) {
             1 -> {
-                // Single image - full width with actual aspect ratio
+                // Single image: full card width, height = natural aspect ratio (original proportions, not a fixed 4:3).
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(images[0])
@@ -7441,6 +7403,10 @@ private fun ApiImagePostGrid(
                     contentScale = ContentScale.FillWidth,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .wrapContentHeight(align = Alignment.Top)
+                        .heightIn(min = 120.dp)
+                        .clip(RoundedCornerShape(0.dp))
+                        .background(Color.Black.copy(alpha = 0.06f))
                         .clickable { onImageClick(0) }
                 )
             }

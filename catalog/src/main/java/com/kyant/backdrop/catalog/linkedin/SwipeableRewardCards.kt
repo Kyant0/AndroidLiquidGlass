@@ -217,7 +217,7 @@ fun SwipeableRewardCardsOverlay(
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
-    currentTheme: String = "glass",
+    currentTheme: String = "light",
     onCardShown: (RewardCard) -> Unit,
     onSkip: (RewardCard) -> Unit,
     onOpenProfile: (RewardCard) -> Unit,

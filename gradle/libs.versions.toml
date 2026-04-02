@@ -13,6 +13,7 @@ compose = "1.10.3"
 kyantShapes = "1.2.0"
 ktor = "3.0.3"
 coroutines = "1.9.0"
+kotlinxCollectionsImmutable = "0.4.0"
 kotlinxSerialization = "1.7.3"
 datastore = "1.1.2"
 lifecycle = "2.9.0"
@@ -50,6 +51,9 @@ ktor-client-logging = { group = "io.ktor", name = "ktor-client-logging", version
 
 # Coroutines
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+
+# Immutable collections (Compose stability for feed lists)
+kotlinx-collections-immutable = { group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable", version.ref = "kotlinxCollectionsImmutable" }
 
 # Serialization
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }

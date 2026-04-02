@@ -54,8 +54,8 @@ fun VideoPlayer(
     var duration by remember { mutableLongStateOf(0L) }
     var videoAspectRatio by remember { mutableFloatStateOf(16f / 9f) }
     
-    // Create and remember the ExoPlayer instance
-    val exoPlayer = remember {
+    // One player per videoUrl; avoids stale media when URL changes and releases on leave.
+    val exoPlayer = remember(videoUrl) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(videoUrl))
             prepare()
@@ -85,8 +85,8 @@ fun VideoPlayer(
             })
         }
     }
-    
-    // Handle lifecycle events
+
+    // Lifecycle only — release happens after PlayerView detaches (see AndroidView.onRelease).
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -98,9 +98,13 @@ fun VideoPlayer(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    DisposableEffect(exoPlayer) {
+        onDispose {
             exoPlayer.release()
         }
     }
@@ -118,11 +122,10 @@ fun VideoPlayer(
                 }
             )
     ) {
-        // Video player view
+        // Player must be set in [update] so LazyColumn reuse / URL changes attach the right instance.
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
-                    player = exoPlayer
                     useController = showControls
                     setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -130,10 +133,16 @@ fun VideoPlayer(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    // Set controller timeout
                     controllerShowTimeoutMs = 3000
                     controllerHideOnTouch = true
                 }
+            },
+            update = { view ->
+                view.player = exoPlayer
+                view.useController = showControls
+            },
+            onRelease = { view ->
+                view.player = null
             },
             modifier = Modifier.fillMaxSize()
         )

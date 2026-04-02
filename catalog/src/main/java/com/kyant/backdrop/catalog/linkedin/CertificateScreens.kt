@@ -150,7 +150,7 @@ fun AddEditCertificateScreen(
     var showExpiryDatePicker by remember { mutableStateOf(false) }
 
     // Theme preference: "glass", "light", "dark"
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
     val isGlassTheme = themeMode == "glass"
     val isDarkTheme = themeMode == "dark"
     

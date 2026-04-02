@@ -48,8 +48,8 @@ android {
         applicationId = "com.vormex.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.0.2"
+        versionCode = 5
+        versionName = "1.0.3"
         androidResources.localeFilters += arrayOf("en")
         buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
         buildConfigField("String", "SOCKET_BASE_URL", "\"$releaseSocketBaseUrl\"")
@@ -138,6 +138,7 @@ dependencies {
     
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.collections.immutable)
     
     // Serialization
     implementation(libs.kotlinx.serialization.json)

@@ -716,7 +716,7 @@ fun AppearanceSettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     
     // Collect appearance preferences
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "glass")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
     val glassBackgroundKey by SettingsPreferences.glassBackgroundPreset(context)
         .collectAsState(initial = DefaultGlassBackgroundPresetKey)
     val accentPaletteKey by SettingsPreferences.accentPalette(context)

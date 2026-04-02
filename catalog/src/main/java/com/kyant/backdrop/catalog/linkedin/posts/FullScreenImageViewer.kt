@@ -1,15 +1,15 @@
 package com.kyant.backdrop.catalog.linkedin.posts
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculateCentroidSize
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateRotation
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +27,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,20 +39,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import androidx.compose.ui.util.fastAny
+import androidx.compose.ui.util.fastForEach
+import kotlin.math.PI
+import kotlin.math.abs
 import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.size.Size
 
 /**
  * Full screen image viewer with swipe navigation and zoom/pan support
@@ -65,6 +74,8 @@ fun FullScreenImageViewer(
         initialPage = initialIndex.coerceIn(0, (images.size - 1).coerceAtLeast(0)),
         pageCount = { images.size }
     )
+    // When the visible page is zoomed, pager swipe is disabled so horizontal swipes pan the image instead.
+    var currentPageScale by remember { mutableFloatStateOf(1f) }
     
     // Preload adjacent images
     val context = LocalContext.current
@@ -79,6 +90,7 @@ fun FullScreenImageViewer(
         preloadIndices.forEach { index ->
             val request = ImageRequest.Builder(context)
                 .data(images[index])
+                .size(Size.ORIGINAL)
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .diskCachePolicy(CachePolicy.ENABLED)
                 .build()
@@ -95,12 +107,18 @@ fun FullScreenImageViewer(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
-            beyondViewportPageCount = 1 // Preload 1 page on each side
+            beyondViewportPageCount = 1, // Preload 1 page on each side
+            userScrollEnabled = currentPageScale <= ZoomEpsilon
         ) { page ->
-            ZoomableImage(
-                imageUrl = images[page],
-                onDismiss = onDismiss
-            )
+            // Stable slot + URL so pager recycling always shows the correct image at natural size.
+            key(page, images[page]) {
+                ZoomableImage(
+                    imageUrl = images[page],
+                    pageIndex = page,
+                    currentPageIndex = pagerState.currentPage,
+                    onCurrentPageScaleChanged = { currentPageScale = it }
+                )
+            }
         }
         
         // Top bar with close button and counter
@@ -176,103 +194,173 @@ fun FullScreenImageViewer(
     }
 }
 
+private const val ZoomEpsilon = 1.01f
+
+/** Float noise when comparing [PointerEvent.calculateZoom] to 1f. */
+private const val ZoomGestureEpsilon = 1e-3f
+
+private const val RotationGestureEpsilon = 1e-4f
+
 /**
- * Zoomable and pannable image with double-tap to zoom
+ * Like [androidx.compose.foundation.gestures.detectTransformGestures], but the stock implementation
+ * treats **single-finger** movement past touch slop as a transform and consumes it. That blocks
+ * [HorizontalPager] horizontal swipes. Here, single-finger pan only counts toward slop when
+ * [isZoomed] is true or when the gesture is clearly pinch/multi-touch.
+ */
+private suspend fun PointerInputScope.detectTransformGesturesUnlessPagerSwipe(
+    isZoomed: () -> Boolean,
+    onGesture: (centroid: Offset, pan: Offset, zoom: Float, rotation: Float) -> Unit,
+) {
+    awaitEachGesture {
+        var rotation = 0f
+        var zoom = 1f
+        var pan = Offset.Zero
+        var pastTouchSlop = false
+        val touchSlop = viewConfiguration.touchSlop
+        var lockedToPanZoom = false
+
+        awaitFirstDown(requireUnconsumed = false)
+        do {
+            val event = awaitPointerEvent()
+            val canceled = event.changes.fastAny { it.isConsumed }
+            if (!canceled) {
+                val zoomChange = event.calculateZoom()
+                val rotationChange = event.calculateRotation()
+                val panChange = event.calculatePan()
+                val pointerCount = event.changes.count { it.pressed }
+
+                if (!pastTouchSlop) {
+                    zoom *= zoomChange
+                    rotation += rotationChange
+                    pan += panChange
+
+                    val centroidSize = event.calculateCentroidSize(useCurrent = false)
+                    val zoomMotion = abs(1 - zoom) * centroidSize
+                    val rotationMotion = abs(rotation * PI.toFloat() * centroidSize / 180f)
+                    val panMotion = pan.getDistance()
+
+                    val pinchOrMultiTouch =
+                        pointerCount >= 2 ||
+                            abs(zoomChange - 1f) > ZoomGestureEpsilon ||
+                            abs(rotationChange) > RotationGestureEpsilon
+
+                    val panSlopAllowed = isZoomed() || pinchOrMultiTouch
+
+                    if (
+                        zoomMotion > touchSlop ||
+                            rotationMotion > touchSlop ||
+                            (panSlopAllowed && panMotion > touchSlop)
+                    ) {
+                        pastTouchSlop = true
+                        lockedToPanZoom = false
+                    }
+                }
+
+                if (pastTouchSlop) {
+                    val centroid = event.calculateCentroid(useCurrent = false)
+                    val effectiveRotation = if (lockedToPanZoom) 0f else rotationChange
+                    if (effectiveRotation != 0f || zoomChange != 1f || panChange != Offset.Zero) {
+                        onGesture(centroid, panChange, zoomChange, effectiveRotation)
+                    }
+                    event.changes.fastForEach {
+                        if (it.positionChanged()) {
+                            it.consume()
+                        }
+                    }
+                }
+            }
+        } while (!canceled && event.changes.fastAny { it.pressed })
+    }
+}
+
+/**
+ * Pinch to zoom; one-finger drag pans only while zoomed.
+ * At 1x scale, horizontal swipes reach [HorizontalPager] (custom slop rules; tap-to-dismiss removed).
+ *
+ * Opens with [ContentScale.Fit] so the **whole image** fits on screen. Using [ContentScale.None]
+ * at intrinsic pixel size made large photos look cropped/zoomed because they are bigger than the display.
  */
 @Composable
 private fun ZoomableImage(
     imageUrl: String,
-    onDismiss: () -> Unit
+    pageIndex: Int,
+    currentPageIndex: Int,
+    onCurrentPageScaleChanged: (Float) -> Unit
 ) {
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-    var isLoading by remember { mutableStateOf(true) }
-    
-    val animatedScale by animateFloatAsState(
-        targetValue = scale,
-        animationSpec = tween(150),
-        label = "scale"
-    )
-    
-    val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
-        val newScale = (scale * zoomChange).coerceIn(0.5f, 5f)
-        scale = newScale
-        
-        // Only allow panning when zoomed in
-        if (scale > 1f) {
-            offset = Offset(
-                x = offset.x + panChange.x,
-                y = offset.y + panChange.y
-            )
+    // New composition per URL: fresh zoom/pan (pager recycling safe).
+    key(imageUrl) {
+        // 1f = fit-to-screen baseline ([ContentScale.Fit]). Pinch multiplies from there.
+        var scale by remember { mutableFloatStateOf(1f) }
+        var offset by remember { mutableStateOf(Offset.Zero) }
+
+        SideEffect {
+            if (pageIndex == currentPageIndex) {
+                onCurrentPageScaleChanged(scale)
+            }
         }
-    }
-    
-    // Only apply transformable when zoomed in to allow pager swipe when not zoomed
-    val transformableModifier = if (scale > 1f) {
-        Modifier.transformable(state = transformableState)
-    } else {
-        Modifier
-    }
-    
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onDoubleTap = { tapOffset ->
-                        // Toggle between zoomed and normal state
-                        if (scale > 1.5f) {
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RectangleShape)
+                // Pinch / two-finger pan; at 1x, single-finger swipes are NOT consumed (see detector).
+                .pointerInput(Unit) {
+                    detectTransformGesturesUnlessPagerSwipe(
+                        isZoomed = { scale > ZoomEpsilon }
+                    ) { _, pan, zoom, _ ->
+                        val raw = (scale * zoom).coerceIn(0.25f, 6f)
+                        if (raw <= ZoomEpsilon) {
                             scale = 1f
                             offset = Offset.Zero
                         } else {
-                            scale = 2.5f
-                            // Center zoom on tap location
-                            offset = Offset(
-                                x = (size.width / 2 - tapOffset.x) * 1.5f,
-                                y = (size.height / 2 - tapOffset.y) * 1.5f
-                            )
-                        }
-                    },
-                    onTap = {
-                        // Single tap to dismiss when not zoomed
-                        if (scale <= 1f) {
-                            onDismiss()
+                            scale = raw
+                            offset += pan
                         }
                     }
-                )
-            }
-            .then(transformableModifier),
-        contentAlignment = Alignment.Center
-    ) {
-        SubcomposeAsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(imageUrl)
-                .crossfade(200)
-                .memoryCachePolicy(CachePolicy.ENABLED)
-                .diskCachePolicy(CachePolicy.ENABLED)
-                .build(),
-            contentDescription = "Full screen image",
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    scaleX = animatedScale
-                    scaleY = animatedScale
-                    translationX = offset.x
-                    translationY = offset.y
-                },
-            contentScale = ContentScale.Fit
-        ) {
-            val state = painter.state
-            
-            if (state is AsyncImagePainter.State.Loading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    LoadingIndicator()
                 }
-            } else {
-                SubcomposeAsyncImageContent()
+                // One-finger pan only while zoomed (pager handles one-finger swipe at 1x).
+                .pointerInput(scale) {
+                    if (scale > ZoomEpsilon) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            offset += dragAmount
+                        }
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            SubcomposeAsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(imageUrl)
+                    .size(Size.ORIGINAL)
+                    .crossfade(200)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .build(),
+                contentDescription = "Full screen image",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offset.x
+                        translationY = offset.y
+                    },
+                contentScale = ContentScale.Fit,
+                alignment = Alignment.Center
+            ) {
+                val state = painter.state
+
+                if (state is AsyncImagePainter.State.Loading) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LoadingIndicator()
+                    }
+                } else {
+                    SubcomposeAsyncImageContent()
+                }
             }
         }
     }

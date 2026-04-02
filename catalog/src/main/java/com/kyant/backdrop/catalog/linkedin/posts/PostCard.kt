@@ -261,6 +261,7 @@ fun PostCard(
             onDismissRequest = { showImageViewer = false },
             properties = androidx.compose.ui.window.DialogProperties(
                 usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false,
                 dismissOnBackPress = true,
                 dismissOnClickOutside = false
             )
