@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,6 +66,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.catalog.chat.shouldShowClusterMetaForGroup
 import com.kyant.backdrop.catalog.network.GroupSocketManager
 import com.kyant.backdrop.catalog.network.models.*
 import com.kyant.backdrop.drawBackdrop
@@ -200,8 +202,10 @@ fun GroupChatScreen(
                             DateDivider(contentColor = contentColor, date = date)
                         }
                         
-                        items(messages, key = { it.id }) { message ->
+                        itemsIndexed(messages, key = { _, m -> m.id }) { index, message ->
                             val isOwnMessage = message.senderId == currentUserId
+                            val nextInDay = messages.getOrNull(index + 1)
+                            val showTimestamp = shouldShowClusterMetaForGroup(message, nextInDay)
                             
                             MessageBubble(
                                 backdrop = backdrop,
@@ -209,6 +213,7 @@ fun GroupChatScreen(
                                 accentColor = accentColor,
                                 message = message,
                                 isOwnMessage = isOwnMessage,
+                                showTimestamp = showTimestamp,
                                 onLongPress = {
                                     viewModel.setReplyingTo(message)
                                 },
@@ -398,6 +403,7 @@ private fun MessageBubble(
     accentColor: Color,
     message: GroupMessage,
     isOwnMessage: Boolean,
+    showTimestamp: Boolean = true,
     onLongPress: () -> Unit,
     onAuthorClick: () -> Unit
 ) {
@@ -583,15 +589,17 @@ private fun MessageBubble(
                         )
                     }
                     
-                    // Timestamp
-                    BasicText(
-                        formatTime(message.createdAt),
-                        style = TextStyle(
-                            color = textColor.copy(alpha = 0.6f),
-                            fontSize = 10.sp
-                        ),
-                        modifier = Modifier.align(Alignment.End)
-                    )
+                    // Timestamp (only at cluster end — same sender, next within 5 min)
+                    if (showTimestamp) {
+                        BasicText(
+                            formatTime(message.createdAt),
+                            style = TextStyle(
+                                color = textColor.copy(alpha = 0.6f),
+                                fontSize = 10.sp
+                            ),
+                            modifier = Modifier.align(Alignment.End)
+                        )
+                    }
                 }
             }
             

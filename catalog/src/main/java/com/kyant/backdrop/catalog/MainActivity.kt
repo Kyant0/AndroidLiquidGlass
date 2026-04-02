@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import com.kyant.backdrop.catalog.network.ChatSocketManager
+import com.kyant.backdrop.catalog.data.ChatMutePreferences
 import com.kyant.backdrop.catalog.notifications.MessageNotificationManager
 import com.kyant.backdrop.catalog.notifications.PushTokenRegistrar
 import com.kyant.backdrop.catalog.notifications.VormexMessagingService
@@ -208,6 +209,12 @@ class MainActivity : ComponentActivity() {
         ChatSocketManager.setNotificationCallback { senderName, messageContent, data ->
             if (!isInForeground) {
                 Log.d(TAG, "🔕 Skipping socket notification while app is backgrounded")
+                return@setNotificationCallback
+            }
+
+            val convId = data["conversationId"].orEmpty()
+            if (convId.isNotBlank() && ChatMutePreferences.isMuted(this, convId)) {
+                Log.d(TAG, "🔕 Skipping socket notification — conversation muted: $convId")
                 return@setNotificationCallback
             }
 

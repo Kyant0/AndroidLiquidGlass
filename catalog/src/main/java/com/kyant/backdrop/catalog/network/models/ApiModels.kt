@@ -52,6 +52,7 @@ data class Post(
     val celebrationType: String? = null,
     val celebrationMeta: JsonElement? = null,
     val celebrationBadge: String? = null,
+    val celebrationGifUrl: String? = null,
     val likesCount: Int = 0,
     val commentsCount: Int = 0,
     val sharesCount: Int = 0,
@@ -901,6 +902,9 @@ data class FeedItem(
     val pollEndsAt: String? = null,
     val userVotedOptionId: String? = null,
     val showResultsBeforeVote: Boolean = false,
+    val celebrationType: String? = null,
+    val celebrationGifUrl: String? = null,
+    val celebrationBadge: String? = null,
     val tags: List<String>? = null,
     val likesCount: Int = 0,
     val commentsCount: Int = 0,
@@ -1729,4 +1733,10 @@ data class NotificationSettings(
     val streakRemindersEnabled: Boolean = true,
     val dailyDigestEnabled: Boolean = true,
     val weeklySummaryEnabled: Boolean = true
+)
+
+@Serializable
+data class ReportChatRequest(
+    val reason: String,
+    val description: String = ""
 )

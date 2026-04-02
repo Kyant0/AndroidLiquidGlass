@@ -17,6 +17,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.kyant.backdrop.catalog.MainActivity
 import com.kyant.backdrop.catalog.R
+import com.kyant.backdrop.catalog.data.ChatMutePreferences
 
 /**
  * Firebase Cloud Messaging Service for Vormex
@@ -435,6 +436,11 @@ class VormexMessagingService : FirebaseMessagingService() {
         val conversationId = data["conversationId"].orEmpty()
         if (conversationId.isBlank()) {
             showNotification(title, body, CHANNEL_ID_MESSAGES, data)
+            return
+        }
+
+        if (ChatMutePreferences.isMuted(this, conversationId)) {
+            Log.d(TAG, "Skipping FCM chat notification — conversation muted: $conversationId")
             return
         }
 

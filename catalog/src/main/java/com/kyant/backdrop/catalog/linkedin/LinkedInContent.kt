@@ -10,8 +10,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -85,6 +87,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.BlendMode
@@ -105,6 +109,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -121,6 +126,7 @@ import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.models.Comment
 import com.kyant.backdrop.catalog.network.models.FullProfileResponse
 import com.kyant.backdrop.catalog.network.models.PendingConnectionRequest
+import com.kyant.backdrop.catalog.network.models.CelebrationType
 import com.kyant.backdrop.catalog.network.models.PollOption
 import com.kyant.backdrop.catalog.network.models.Post
 import com.kyant.backdrop.catalog.network.models.StoryGroup
@@ -226,11 +232,11 @@ private fun PostSkeletonCard(
                 // Avatar skeleton
                 Box(
                     Modifier
-                        .size(48.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(shimmer)
                 )
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(8.dp))
                 Column {
                     // Name skeleton
                     Box(
@@ -674,6 +680,13 @@ fun LinkedInContent(
         }
     }
 
+    // Own profile caches for 5 minutes; refresh when opening the tab so new posts (e.g. celebrations) appear.
+    LaunchedEffect(selectedTab, uiState.isLoggedIn) {
+        if (uiState.isLoggedIn && selectedTab == 4) {
+            ownProfileViewModel.loadProfile(userId = null, forceRefresh = true)
+        }
+    }
+
     LaunchedEffect(showConnectionRequestsScreen, uiState.isLoggedIn) {
         if (uiState.isLoggedIn && showConnectionRequestsScreen) {
             findPeopleViewModel.loadPendingConnectionRequests(forceRefresh = true)
@@ -1053,8 +1066,14 @@ fun LinkedInContent(
                             onCreateArticlePost = { articleTitle, content, visibility, coverImage, articleTags, mentions ->
                                 viewModel.createArticlePost(articleTitle, content, visibility, coverImage, articleTags, mentions) { selectedTab = 0 }
                             },
-                            onCreateCelebrationPost = { celebrationType, content, visibility, mentions ->
-                                viewModel.createCelebrationPost(celebrationType, content, visibility, mentions) { selectedTab = 0 }
+                            onCreateCelebrationPost = { celebrationType, content, visibility, mentions, celebrationGif ->
+                                viewModel.createCelebrationPost(
+                                    celebrationType,
+                                    content,
+                                    visibility,
+                                    mentions,
+                                    celebrationGif
+                                ) { selectedTab = 0 }
                             },
                             onSearchMentions = { query -> viewModel.searchMentions(query) },
                             onClearMentionSearch = { viewModel.clearMentionSearch() },
@@ -1466,7 +1485,82 @@ fun LinkedInContent(
                 )
             }
             
-            // Profile page when viewing another user's profile
+            // Messages Screen Overlay
+            AnimatedVisibility(
+                visible = showMessagesScreen,
+                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+            ) {
+                // Same shell as Groups / Appearance: glass uses GlassBackgroundLayer (wallpaper + motion),
+                // light/dark use solid surfaces — avoids feed bleed-through and keeps chat aligned with theme.
+                val messagesContentColor = contentColor
+                val messagesAccentColor = accentColor
+                
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
+                ) {
+                    Column(Modifier.fillMaxSize()) {
+                        // Header with back button - hidden when in chat thread
+                        if (!isInChatThread) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .clickable { showMessagesScreen = false },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    BasicText(
+                                        "←",
+                                        style = TextStyle(
+                                            color = messagesContentColor,
+                                            fontSize = 22.sp
+                                        )
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                BasicText(
+                                    "Messages",
+                                    style = TextStyle(
+                                        color = messagesContentColor,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                )
+                            }
+                        }
+                        
+                        // Chat content
+                        ChatTabContent(
+                            backdrop = backdrop,
+                            contentColor = messagesContentColor,
+                            accentColor = messagesAccentColor,
+                            viewModel = chatViewModel,
+                            isGlassTheme = isGlassTheme,
+                            openConversationId = deepLinkConversationId,
+                            openChatWithUserId = openChatWithUserId,
+                            onConsumedOpenConversation = { deepLinkConversationId = null },
+                            onConsumedOpenChat = { openChatWithUserId = null },
+                            onInChatThread = { inThread -> isInChatThread = inThread },
+                            onNavigateToProfile = { userId ->
+                                viewingProfileUserId = userId
+                            }
+                        )
+                    }
+                }
+            }
+            
+            // Profile page when viewing another user's profile (above Messages so it opens on top of chat)
             AnimatedVisibility(
                 visible = viewingProfileUserId != null,
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
@@ -1522,96 +1616,6 @@ fun LinkedInContent(
                                         showCommentsSheet = true
                                     }
                                 }
-                            }
-                        )
-                    }
-                }
-            }
-            
-            // Messages Screen Overlay
-            AnimatedVisibility(
-                visible = showMessagesScreen,
-                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
-                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
-            ) {
-                // Theme-aware colors
-                val messagesContentColor = contentColor
-                val messagesAccentColor = accentColor
-                
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .then(
-                            if (isGlassTheme) {
-                                Modifier.drawBackdrop(
-                                    backdrop = backdrop,
-                                    shape = { RoundedRectangle(0f.dp) },
-                                    effects = {
-                                        vibrancy()
-                                        blur(12f.dp.toPx())
-                                    },
-                                    onDrawSurface = {
-                                        drawRect(Color.White.copy(alpha = 0.15f))
-                                    }
-                                )
-                            } else if (isDarkTheme) {
-                                Modifier.background(Color(0xFF1a1a2e))
-                            } else {
-                                Modifier.background(Color.White)
-                            }
-                        )
-                        .statusBarsPadding()
-                ) {
-                    Column(Modifier.fillMaxSize()) {
-                        // Header with back button - hidden when in chat thread
-                        if (!isInChatThread) {
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .clickable { showMessagesScreen = false },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    BasicText(
-                                        "←",
-                                        style = TextStyle(
-                                            color = messagesContentColor,
-                                            fontSize = 22.sp
-                                        )
-                                    )
-                                }
-                                Spacer(Modifier.width(10.dp))
-                                BasicText(
-                                    "Messages",
-                                    style = TextStyle(
-                                        color = messagesContentColor,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                )
-                            }
-                        }
-                        
-                        // Chat content
-                        ChatTabContent(
-                            backdrop = backdrop,
-                            contentColor = messagesContentColor,
-                            accentColor = messagesAccentColor,
-                            viewModel = chatViewModel,
-                            isGlassTheme = isGlassTheme,
-                            openConversationId = deepLinkConversationId,
-                            openChatWithUserId = openChatWithUserId,
-                            onConsumedOpenConversation = { deepLinkConversationId = null },
-                            onConsumedOpenChat = { openChatWithUserId = null },
-                            onInChatThread = { inThread -> isInChatThread = inThread },
-                            onNavigateToProfile = { userId ->
-                                viewingProfileUserId = userId
                             }
                         )
                     }
@@ -2440,7 +2444,7 @@ private fun FeedScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
             flingBehavior = smoothFlingBehavior
         ) {
             item { Spacer(Modifier.height(4.dp)) }
@@ -6234,14 +6238,32 @@ private fun ApiPostCard(
                     }
                 }
             )
-            .border(1.dp, cardBorderColor, containerShape)
+            // Only left/right strokes — a full .border() also draws top+bottom, so when cards
+            // stack flush the adjacent top+bottom borders read as a gray seam between posts.
+            .drawWithContent {
+                drawContent()
+                val strokeWidth = 1.dp.toPx()
+                val c = cardBorderColor
+                drawLine(
+                    color = c,
+                    start = Offset(strokeWidth / 2f, 0f),
+                    end = Offset(strokeWidth / 2f, size.height),
+                    strokeWidth = strokeWidth
+                )
+                drawLine(
+                    color = c,
+                    start = Offset(size.width - strokeWidth / 2f, 0f),
+                    end = Offset(size.width - strokeWidth / 2f, size.height),
+                    strokeWidth = strokeWidth
+                )
+            }
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
             // Author info with menu
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 18.dp, top = 18.dp, end = 12.dp, bottom = 14.dp),
+                    .padding(start = 14.dp, top = 12.dp, end = 10.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Profile image or initials fallback
@@ -6263,7 +6285,7 @@ private fun ApiPostCard(
                 ) {
                     Box(
                         Modifier
-                            .size(52.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
                             .background(
                                 Brush.linearGradient(
@@ -6273,7 +6295,7 @@ private fun ApiPostCard(
                                     )
                                 )
                             )
-                            .padding(2.dp),
+                            .padding(1.5.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
@@ -6296,21 +6318,21 @@ private fun ApiPostCard(
                             } else {
                                 BasicText(
                                     initials,
-                                    style = TextStyle(Color.White, 16.sp, FontWeight.Bold)
+                                    style = TextStyle(Color.White, 13.sp, FontWeight.Bold)
                                 )
                             }
                         }
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Spacer(Modifier.width(8.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         BasicText(
                             post.author.name ?: post.author.username ?: "Unknown",
-                            style = TextStyle(contentColor, 16.sp, FontWeight.SemiBold)
+                            style = TextStyle(contentColor, 14.sp, FontWeight.SemiBold)
                         )
                         post.author.headline?.let { headline ->
                             BasicText(
                                 headline,
-                                style = TextStyle(subtleTextColor, 12.sp),
+                                style = TextStyle(subtleTextColor, 11.sp),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -6324,6 +6346,19 @@ private fun ApiPostCard(
                                 contentColor = subtleTextColor,
                                 containerColor = Color.White.copy(alpha = 0.08f)
                             )
+                            when (post.visibility) {
+                                "CONNECTIONS" -> ApiMetricChip(
+                                    label = "Connections",
+                                    contentColor = accentColor,
+                                    containerColor = accentColor.copy(alpha = 0.12f),
+                                    borderColor = accentColor.copy(alpha = 0.2f)
+                                )
+                                "PRIVATE" -> ApiMetricChip(
+                                    label = "Only me",
+                                    contentColor = subtleTextColor,
+                                    containerColor = Color.White.copy(alpha = 0.06f)
+                                )
+                            }
                             if (hasMedia) {
                                 ApiMetricChip(
                                     label = if (!post.videoUrl.isNullOrEmpty()) "Video" else "Photo set",
@@ -6358,7 +6393,8 @@ private fun ApiPostCard(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },
                     backdrop = backdrop,
-                    contentColor = contentColor
+                    contentColor = contentColor,
+                    useGlassBackdropEffects = false
                 ) {
                     GlassMenuItem(
                         onClick = {
@@ -6401,6 +6437,33 @@ private fun ApiPostCard(
                 }
             }
 
+            val normalizedPostType = post.type.uppercase()
+            if (normalizedPostType == "ARTICLE" || !post.articleTitle.isNullOrBlank()) {
+                ApiArticleCard(
+                    articleTitle = post.articleTitle.orEmpty(),
+                    articleCoverImage = post.articleCoverImage,
+                    articleTags = post.articleTags,
+                    articleReadTime = post.articleReadTime,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    backdrop = backdrop
+                )
+            }
+
+            val celebrationGifShown =
+                normalizedPostType == "CELEBRATION" &&
+                    (!post.celebrationGifUrl.isNullOrBlank() || post.mediaUrls.isNotEmpty())
+            if (normalizedPostType == "CELEBRATION" || !post.celebrationType.isNullOrBlank()) {
+                ApiCelebrationHero(
+                    celebrationType = post.celebrationType,
+                    celebrationGifUrl = post.celebrationGifUrl ?: post.mediaUrls.firstOrNull(),
+                    celebrationBadge = post.celebrationBadge,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    backdrop = backdrop
+                )
+            }
+
             // Post content with mention support
             if (showContentBlock) {
                 Column(
@@ -6421,7 +6484,6 @@ private fun ApiPostCard(
             }
 
             // Media: Video or Image
-            val normalizedPostType = post.type.uppercase()
             val isVideoPost = normalizedPostType == "VIDEO" || !post.videoUrl.isNullOrEmpty()
             
             if (isVideoPost && !post.videoUrl.isNullOrEmpty()) {
@@ -6440,7 +6502,7 @@ private fun ApiPostCard(
                         onFullScreenClick = { showFullScreenVideo = true }
                     )
                 }
-            } else if (post.mediaUrls.isNotEmpty() && normalizedPostType != "ARTICLE") {
+            } else if (post.mediaUrls.isNotEmpty() && normalizedPostType != "ARTICLE" && !celebrationGifShown) {
                 Box(
                     Modifier
                         .padding(horizontal = 10.dp)
@@ -6464,6 +6526,7 @@ private fun ApiPostCard(
                         title = post.linkTitle,
                         description = post.linkDescription,
                         domain = post.linkDomain,
+                        linkImage = post.linkImage,
                         contentColor = contentColor,
                         accentColor = accentColor,
                         onClick = {
@@ -6651,57 +6714,412 @@ private fun ApiMetricChip(
     }
 }
 
+private fun celebrationTypeLabel(raw: String?): String {
+    if (raw.isNullOrBlank()) return "Celebration"
+    val match = CelebrationType.entries.find { it.name == raw }
+    return match?.label
+        ?: raw.replace('_', ' ').lowercase().replaceFirstChar { it.titlecase() }
+}
+
+@Composable
+private fun ApiArticleCard(
+    articleTitle: String,
+    articleCoverImage: String?,
+    articleTags: List<String>,
+    articleReadTime: Int?,
+    contentColor: Color,
+    accentColor: Color,
+    backdrop: LayerBackdrop
+) {
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(14f.dp) },
+                effects = {
+                    vibrancy()
+                    blur(18f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(
+                        Brush.verticalGradient(
+                            listOf(
+                                accentColor.copy(alpha = 0.14f),
+                                Color.White.copy(alpha = 0.07f)
+                            )
+                        )
+                    )
+                }
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(14.dp))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(168.dp)
+                .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+        ) {
+            if (!articleCoverImage.isNullOrBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(articleCoverImage)
+                        .crossfade(400)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    accentColor.copy(alpha = 0.55f),
+                                    accentColor.copy(alpha = 0.2f)
+                                )
+                            )
+                        )
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.62f))
+                        )
+                    )
+            )
+            BasicText(
+                text = articleTitle,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(14.dp),
+                style = TextStyle(Color.White, 18.sp, FontWeight.Bold, lineHeight = 22.sp),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            val readLabel = articleReadTime?.takeIf { it > 0 }?.let { "$it min read" }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ApiMetricChip(
+                    label = "Long-form article",
+                    contentColor = accentColor,
+                    containerColor = accentColor.copy(alpha = 0.14f),
+                    borderColor = accentColor.copy(alpha = 0.22f)
+                )
+                readLabel?.let {
+                    ApiMetricChip(
+                        label = it,
+                        contentColor = contentColor.copy(alpha = 0.78f),
+                        containerColor = Color.White.copy(alpha = 0.08f)
+                    )
+                }
+            }
+            if (articleTags.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    articleTags.take(6).forEach { tag ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color.White.copy(alpha = 0.1f))
+                                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(999.dp))
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            BasicText(
+                                text = "#$tag",
+                                style = TextStyle(accentColor.copy(alpha = 0.95f), 11.sp, FontWeight.Medium)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ApiCelebrationHero(
+    celebrationType: String?,
+    celebrationGifUrl: String?,
+    celebrationBadge: String?,
+    contentColor: Color,
+    accentColor: Color,
+    backdrop: LayerBackdrop
+) {
+    val context = LocalContext.current
+    val pulse = rememberInfiniteTransition(label = "celebratePulse")
+    val scale by pulse.animateFloat(
+        initialValue = 0.985f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "celebrateScale"
+    )
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .scale(scale)
+            .clip(RoundedCornerShape(16.dp))
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(16f.dp) },
+                effects = {
+                    vibrancy()
+                    blur(20f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(
+                        Brush.linearGradient(
+                            listOf(
+                                accentColor.copy(alpha = 0.22f),
+                                Color(0xFFFFD54F).copy(alpha = 0.08f),
+                                Color.White.copy(alpha = 0.06f)
+                            )
+                        )
+                    )
+                }
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(16.dp))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                BasicText(
+                    text = "CELEBRATION",
+                    style = TextStyle(accentColor, 10.sp, FontWeight.Bold)
+                )
+                BasicText(
+                    text = celebrationTypeLabel(celebrationType),
+                    style = TextStyle(contentColor, 16.sp, FontWeight.SemiBold),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (!celebrationBadge.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(accentColor.copy(alpha = 0.2f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    BasicText(
+                        text = celebrationBadge,
+                        style = TextStyle(accentColor, 11.sp, FontWeight.Medium),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+        if (!celebrationGifUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(celebrationGifUrl)
+                    .crossfade(320)
+                    .build(),
+                contentDescription = "Celebration animation",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 120.dp, max = 240.dp)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Fit
+            )
+        }
+    }
+}
+
 @Composable
 private fun ApiLinkPreview(
     url: String?,
     title: String?,
     description: String?,
     domain: String?,
+    linkImage: String?,
     contentColor: Color,
     accentColor: Color,
     onClick: () -> Unit
 ) {
     if (url.isNullOrBlank()) return
 
+    val shimmer = rememberInfiniteTransition(label = "linkShimmer")
+    val shimmerShift by shimmer.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmer"
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(0.dp))
+            .clip(RoundedCornerShape(4.dp))
             .background(
                 Brush.linearGradient(
                     listOf(
-                        Color.White.copy(alpha = 0.08f),
-                        accentColor.copy(alpha = 0.08f)
+                        Color.White.copy(alpha = 0.08f + 0.04f * shimmerShift),
+                        accentColor.copy(alpha = 0.06f + 0.05f * (1f - shimmerShift))
                     )
                 )
             )
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(0.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
             .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        BasicText(
-            text = domain ?: "Open link",
-            style = TextStyle(accentColor.copy(alpha = 0.9f), 10.sp, FontWeight.SemiBold)
-        )
-        BasicText(
-            text = title ?: url,
-            style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        if (!description.isNullOrBlank()) {
+        if (!linkImage.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp)
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(linkImage)
+                        .crossfade(400)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.25f))
+                            )
+                        )
+                )
+            }
+        }
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             BasicText(
-                text = description,
-                style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp),
-                maxLines = 3,
+                text = domain ?: "Open link",
+                style = TextStyle(accentColor.copy(alpha = 0.9f), 10.sp, FontWeight.SemiBold)
+            )
+            BasicText(
+                text = title ?: url,
+                style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold),
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            if (!description.isNullOrBlank()) {
+                BasicText(
+                    text = description,
+                    style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            BasicText(
+                text = "Tap to open in browser",
+                style = TextStyle(contentColor.copy(alpha = 0.52f), 11.sp)
+            )
         }
-        BasicText(
-            text = "Tap to open",
-            style = TextStyle(contentColor.copy(alpha = 0.52f), 11.sp)
-        )
+    }
+}
+
+/** Non-finite poll % crashes [Double.toInt] and Compose [animateFloatAsState] / [fillMaxWidth]. */
+private fun sanitizePollPercentForUi(raw: Double): Double =
+    when {
+        raw.isNaN() || raw.isInfinite() -> 0.0
+        else -> raw.coerceIn(0.0, 100.0)
+    }
+
+@Composable
+private fun ApiPollOptionRow(
+    option: PollOption,
+    showResults: Boolean,
+    percentage: Double,
+    hasVoted: Boolean,
+    isPollEnded: Boolean,
+    isSelected: Boolean,
+    contentColor: Color,
+    accentColor: Color,
+    onVote: () -> Unit
+) {
+    val safePct = sanitizePollPercentForUi(percentage)
+    val targetFrac = (safePct / 100.0).toFloat().let { f ->
+        if (f.isFinite()) f.coerceIn(0f, 1f) else 0f
+    }
+    val animatedFrac by animateFloatAsState(
+        targetValue = if (showResults) targetFrac else 0f,
+        animationSpec = spring(dampingRatio = 0.78f, stiffness = 340f),
+        label = "pollBar"
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White.copy(alpha = 0.08f))
+            .clickable(enabled = !hasVoted && !isPollEnded) { onVote() }
+    ) {
+        if (showResults) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(animatedFrac)
+                    .height(50.dp)
+                    .background(
+                        if (isSelected) accentColor.copy(alpha = 0.24f)
+                        else Color.White.copy(alpha = 0.14f)
+                    )
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BasicText(
+                text = option.text,
+                style = TextStyle(
+                    color = if (isSelected) accentColor else contentColor,
+                    fontSize = 14.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                )
+            )
+            if (showResults) {
+                BasicText(
+                    text = "${safePct.roundToInt()}%",
+                    style = TextStyle(contentColor.copy(alpha = 0.65f), 12.sp, FontWeight.Medium)
+                )
+            }
+        }
     }
 }
 
@@ -6719,66 +7137,73 @@ private fun ApiPollContent(
     val showResults = hasVoted || showResultsBeforeVote
     val isPollEnded = isPollExpired(endsAt)
     val totalVotes = options.sumOf { it.votes }
+    val livePulse = rememberInfiniteTransition(label = "pollLive")
+    val liveAlpha by livePulse.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "liveA"
+    )
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(0.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(0.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BasicText(
+                text = "Poll",
+                style = TextStyle(contentColor, 13.sp, FontWeight.SemiBold)
+            )
+            if (!isPollEnded && !endsAt.isNullOrBlank()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(accentColor.copy(alpha = liveAlpha))
+                    )
+                    BasicText(
+                        text = "Live",
+                        style = TextStyle(accentColor.copy(alpha = 0.9f), 11.sp, FontWeight.Medium)
+                    )
+                }
+            }
+        }
+
         options.forEach { option ->
-            val percentage = option.percentage.takeIf { showResults } ?: if (totalVotes > 0) {
+            val rawPercentage = option.percentage.takeIf { showResults } ?: if (totalVotes > 0) {
                 (option.votes.toDouble() / totalVotes.toDouble()) * 100.0
             } else {
                 0.0
             }
+            val percentage = sanitizePollPercentForUi(rawPercentage)
             val isSelected = option.id == userVotedOptionId
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(0.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .clickable(enabled = !hasVoted && !isPollEnded) { onVote(option.id) }
-            ) {
-                if (showResults) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth((percentage / 100.0).toFloat().coerceIn(0f, 1f))
-                            .height(48.dp)
-                            .background(
-                                if (isSelected) accentColor.copy(alpha = 0.22f)
-                                else Color.White.copy(alpha = 0.12f)
-                            )
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BasicText(
-                        text = option.text,
-                        style = TextStyle(
-                            color = if (isSelected) accentColor else contentColor,
-                            fontSize = 14.sp,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                        )
-                    )
-                    if (showResults) {
-                        BasicText(
-                            text = "${percentage.toInt()}%",
-                            style = TextStyle(contentColor.copy(alpha = 0.65f), 12.sp, FontWeight.Medium)
-                        )
-                    }
-                }
-            }
+            ApiPollOptionRow(
+                option = option,
+                showResults = showResults,
+                percentage = percentage,
+                hasVoted = hasVoted,
+                isPollEnded = isPollEnded,
+                isSelected = isSelected,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                onVote = { onVote(option.id) }
+            )
         }
 
         Row(
@@ -6792,7 +7217,7 @@ private fun ApiPollContent(
             BasicText(
                 text = when {
                     isPollEnded -> "Poll ended"
-                    !endsAt.isNullOrBlank() -> "Poll live"
+                    !endsAt.isNullOrBlank() -> "Ends soon"
                     else -> ""
                 },
                 style = TextStyle(contentColor.copy(alpha = 0.55f), 11.sp)

@@ -16,6 +16,7 @@ import com.kyant.backdrop.catalog.network.PostSocketManager
 import com.kyant.backdrop.catalog.network.GrowthApiService
 import com.kyant.backdrop.catalog.network.models.FullComment
 import com.kyant.backdrop.catalog.network.models.FullPost
+import com.kyant.backdrop.catalog.network.models.PollOption
 import com.kyant.backdrop.catalog.network.models.MentionUser
 import com.kyant.backdrop.catalog.network.models.FullProfileResponse
 import com.kyant.backdrop.catalog.network.models.Post
@@ -96,6 +97,28 @@ private fun diversifyFeed(posts: List<Post>, userId: String?): List<Post> {
     return result
 }
 
+/** Poll API may send non-finite doubles; [Double.toInt] throws on NaN and breaks Compose animations. */
+private fun PollOption.withSafePercentage(): PollOption {
+    val p = percentage
+    val safe = when {
+        p.isNaN() || p.isInfinite() -> 0.0
+        else -> p.coerceIn(0.0, 100.0)
+    }
+    return copy(percentage = safe)
+}
+
+private fun Post.withSanitizedPoll(): Post =
+    if (pollOptions.isEmpty()) this
+    else copy(pollOptions = pollOptions.map { it.withSafePercentage() })
+
+/**
+ * Prepends a created post while removing any existing row with the same id.
+ * Realtime [post:created] may arrive before the HTTP response; without this the feed
+ * can contain duplicate ids and [LazyColumn] crashes (duplicate keys).
+ */
+private fun prependCreatedPost(post: Post, currentPosts: List<Post>): List<Post> =
+    listOf(post) + currentPosts.filterNot { it.id == post.id }
+
 // Helper to convert FullPost to Post for FeedUiState compatibility
 private fun FullPost.toPost(): Post = Post(
     id = id,
@@ -130,12 +153,13 @@ private fun FullPost.toPost(): Post = Post(
     articleTags = articleTags,
     pollDuration = pollDuration,
     pollEndsAt = pollEndsAt,
-    pollOptions = pollOptions,
+    pollOptions = pollOptions.map { it.withSafePercentage() },
     userVotedOptionId = userVotedOptionId,
     showResultsBeforeVote = showResultsBeforeVote,
     celebrationType = celebrationType,
     celebrationMeta = celebrationMeta,
     celebrationBadge = celebrationBadge,
+    celebrationGifUrl = celebrationGifUrl,
     likesCount = likesCount,
     commentsCount = commentsCount,
     sharesCount = sharesCount,
@@ -255,8 +279,9 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     private fun observePostRealtime() {
         viewModelScope.launch {
             PostSocketManager.postCreatedFlow.collectLatest { post ->
+                val safe = post.withSanitizedPoll()
                 _uiState.value = _uiState.value.copy(
-                    posts = listOf(post) + _uiState.value.posts.filterNot { it.id == post.id }
+                    posts = listOf(safe) + _uiState.value.posts.filterNot { it.id == safe.id }
                 )
             }
         }
@@ -348,7 +373,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     posts = _uiState.value.posts.map { post ->
                         if (post.id == event.postId) {
                             post.copy(
-                                pollOptions = event.pollOptions,
+                                pollOptions = event.pollOptions.map { it.withSafePercentage() },
                                 userVotedOptionId =
                                     if (_uiState.value.currentUserId == event.voterId) {
                                         event.votedOptionId ?: post.userVotedOptionId
@@ -688,6 +713,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                 .onSuccess { response ->
                     // Apply diversity algorithm to prevent same-feed-every-time
                     val diversifiedPosts = diversifyFeed(response.posts, _uiState.value.currentUserId)
+                        .map { it.withSanitizedPoll() }
                     lastFeedLoadedAt = System.currentTimeMillis()
                     _uiState.value = _uiState.value.copy(
                         posts = diversifiedPosts,
@@ -966,7 +992,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     refreshStreaks()
                     
                     _uiState.value = _uiState.value.copy(
-                        posts = listOf(post) + _uiState.value.posts,
+                        posts = prependCreatedPost(post, _uiState.value.posts),
                         isCreatingPost = false
                     )
                     onSuccess?.invoke()
@@ -1087,8 +1113,9 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     setProcessing()
                     kotlinx.coroutines.delay(300)
                     refreshStreaks()
+                    val newPost = fullPost.toPost()
                     _uiState.value = _uiState.value.copy(
-                        posts = listOf(fullPost.toPost()) + _uiState.value.posts,
+                        posts = prependCreatedPost(newPost, _uiState.value.posts),
                         isCreatingPost = false
                     )
                     uploadSuccess()
@@ -1148,8 +1175,9 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     setProcessing()
                     kotlinx.coroutines.delay(300)
                     refreshStreaks()
+                    val newPost = fullPost.toPost()
                     _uiState.value = _uiState.value.copy(
-                        posts = listOf(fullPost.toPost()) + _uiState.value.posts,
+                        posts = prependCreatedPost(newPost, _uiState.value.posts),
                         isCreatingPost = false
                     )
                     uploadSuccess()
@@ -1204,8 +1232,9 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     updateUploadProgress(0.95f, "Processing video...")
                     kotlinx.coroutines.delay(300)
                     refreshStreaks()
+                    val newPost = fullPost.toPost()
                     _uiState.value = _uiState.value.copy(
-                        posts = listOf(fullPost.toPost()) + _uiState.value.posts,
+                        posts = prependCreatedPost(newPost, _uiState.value.posts),
                         isCreatingPost = false
                     )
                     uploadSuccess()
@@ -1241,8 +1270,9 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     setProcessing()
                     kotlinx.coroutines.delay(300)
                     refreshStreaks()
+                    val newPost = fullPost.toPost()
                     _uiState.value = _uiState.value.copy(
-                        posts = listOf(fullPost.toPost()) + _uiState.value.posts,
+                        posts = prependCreatedPost(newPost, _uiState.value.posts),
                         isCreatingPost = false
                     )
                     uploadSuccess()
@@ -1281,8 +1311,9 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     setProcessing()
                     kotlinx.coroutines.delay(300)
                     refreshStreaks()
+                    val newPost = fullPost.toPost()
                     _uiState.value = _uiState.value.copy(
-                        posts = listOf(fullPost.toPost()) + _uiState.value.posts,
+                        posts = prependCreatedPost(newPost, _uiState.value.posts),
                         isCreatingPost = false
                     )
                     uploadSuccess()
@@ -1325,8 +1356,9 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                     setProcessing()
                     kotlinx.coroutines.delay(400)
                     refreshStreaks()
+                    val newPost = fullPost.toPost()
                     _uiState.value = _uiState.value.copy(
-                        posts = listOf(fullPost.toPost()) + _uiState.value.posts,
+                        posts = prependCreatedPost(newPost, _uiState.value.posts),
                         isCreatingPost = false
                     )
                     uploadSuccess()
@@ -1343,6 +1375,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
         content: String?,
         visibility: String = "PUBLIC",
         mentions: List<String> = emptyList(),
+        celebrationGif: Pair<ByteArray, String>? = null,
         onSuccess: () -> Unit = {}
     ) {
         // Navigate immediately
@@ -1352,13 +1385,21 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             startUpload("CELEBRATION", "Posting celebration...")
             updateUploadProgress(0.4f)
             
-            PostsApiService.createCelebrationPost(context, celebrationType, content, visibility, mentions)
+            PostsApiService.createCelebrationPost(
+                context,
+                celebrationType,
+                content,
+                visibility,
+                mentions,
+                celebrationGif
+            )
                 .onSuccess { fullPost ->
                     setProcessing()
                     kotlinx.coroutines.delay(300)
                     refreshStreaks()
+                    val newPost = fullPost.toPost()
                     _uiState.value = _uiState.value.copy(
-                        posts = listOf(fullPost.toPost()) + _uiState.value.posts,
+                        posts = prependCreatedPost(newPost, _uiState.value.posts),
                         isCreatingPost = false
                     )
                     uploadSuccess()
@@ -1381,6 +1422,7 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                 .onSuccess { response ->
                     // Apply light diversity to new posts before appending
                     val diversifiedNewPosts = diversifyFeed(response.posts, _uiState.value.currentUserId)
+                        .map { it.withSanitizedPoll() }
                     _uiState.value = _uiState.value.copy(
                         posts = _uiState.value.posts + diversifiedNewPosts,
                         nextCursor = response.nextCursor,

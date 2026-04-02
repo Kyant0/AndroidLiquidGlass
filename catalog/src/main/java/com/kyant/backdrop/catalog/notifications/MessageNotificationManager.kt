@@ -19,6 +19,7 @@ import androidx.core.app.Person
 import androidx.core.graphics.drawable.IconCompat
 import com.kyant.backdrop.catalog.MainActivity
 import com.kyant.backdrop.catalog.R
+import com.kyant.backdrop.catalog.data.ChatMutePreferences
 import java.net.URL
 
 /**
@@ -55,6 +56,11 @@ object MessageNotificationManager {
         conversationId: String,
         senderId: String
     ) {
+        if (conversationId.isNotBlank() && ChatMutePreferences.isMuted(context, conversationId)) {
+            Log.d(TAG, "Skipping notification — conversation muted: $conversationId")
+            return
+        }
+
         VormexMessagingService.createNotificationChannels(context)
 
         val notificationId = getNotificationIdForConversation(conversationId)

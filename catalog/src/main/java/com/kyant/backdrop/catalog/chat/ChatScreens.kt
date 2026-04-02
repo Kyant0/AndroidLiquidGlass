@@ -6,6 +6,7 @@ import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -39,6 +41,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -68,8 +71,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -84,6 +90,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.catalog.R
+import com.kyant.backdrop.catalog.data.ChatMutePreferences
+import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.models.Conversation
 import com.kyant.backdrop.catalog.network.models.Message
 import com.kyant.backdrop.catalog.network.models.SharedPostContent
@@ -93,9 +101,14 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import androidx.compose.runtime.DisposableEffect
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlin.math.PI
 import kotlin.math.roundToInt
+import kotlin.math.sin
+import java.text.DateFormat
+import java.util.Date
 
 /**
  * Main entry point for the Chat tab.
@@ -486,6 +499,7 @@ private fun ChatThreadScreen(
     onNavigateToProfile: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val reportScope = rememberCoroutineScope()
     val uiState by viewModel.uiState.collectAsState()
     val conv = uiState.selectedConversation ?: return
     var inputText by remember(conv.id) { mutableStateOf("") }
@@ -495,7 +509,6 @@ private fun ChatThreadScreen(
     var pendingLoadMoreAnchor by remember(conv.id) { mutableStateOf<LoadMoreAnchor?>(null) }
     var initialBottomScrollDone by remember(conv.id) { mutableStateOf(false) }
     val connectionStatus = when {
-        uiState.typingUserId != null -> "typing..."
         !uiState.socketConnected -> "reconnecting..."
         uiState.isLoadingMessages -> "syncing messages..."
         else -> "live chat"
@@ -507,8 +520,26 @@ private fun ChatThreadScreen(
     var showChatMenu by remember { mutableStateOf(false) }
     var isSearchMode by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    var isMuted by remember { mutableStateOf(false) }
+    var muteUntilMillis by remember(conv.id) {
+        mutableStateOf(ChatMutePreferences.getMuteUntilMillis(context, conv.id))
+    }
+    var showMuteDurationSheet by remember { mutableStateOf(false) }
+    var showReportChatSheet by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
+
+    val isNotificationsMuted = muteUntilMillis > System.currentTimeMillis()
+
+    LaunchedEffect(conv.id) {
+        muteUntilMillis = ChatMutePreferences.getMuteUntilMillis(context, conv.id)
+    }
+
+    LaunchedEffect(conv.id, muteUntilMillis) {
+        val until = muteUntilMillis
+        if (until <= System.currentTimeMillis()) return@LaunchedEffect
+        val wait = (until - System.currentTimeMillis()).coerceAtMost(365L * 24 * 60 * 60 * 1000)
+        delay(wait)
+        muteUntilMillis = ChatMutePreferences.getMuteUntilMillis(context, conv.id)
+    }
     
     // Filtered messages for search
     val displayedMessages = if (isSearchMode && searchQuery.isNotBlank()) {
@@ -798,8 +829,10 @@ private fun ChatThreadScreen(
                                 }
                             }
 
-                            items(displayedMessages, key = { it.id }) { msg ->
+                            itemsIndexed(displayedMessages, key = { _, msg -> msg.id }) { index, msg ->
                                 val isFromMe = msg.senderId == uiState.currentUserId
+                                val nextMsg = displayedMessages.getOrNull(index + 1)
+                                val showTimestamp = shouldShowClusterMetaForDm(msg, nextMsg)
                                 val deliveryStateText = if (isFromMe && msg.id == latestOwnMessageId) {
                                     if (msg.status.equals("READ", ignoreCase = true) || msg.readAt != null) {
                                         "Read"
@@ -817,6 +850,7 @@ private fun ChatThreadScreen(
                                     accentColor = accentColor,
                                     backdrop = backdrop,
                                     isGlassTheme = isGlassTheme,
+                                    showTimestamp = showTimestamp,
                                     onReply = { viewModel.setReplyTo(msg) },
                                     onReact = { emoji -> viewModel.reactToMessage(msg.id, emoji) },
                                     onDelete = { forEveryone -> viewModel.deleteMessage(msg.id, forEveryone) },
@@ -875,6 +909,12 @@ private fun ChatThreadScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
+                if (uiState.typingUserId != null) {
+                    VormexTypingPresence(
+                        contentColor = contentColor,
+                        accentColor = accentColor
+                    )
+                }
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -962,7 +1002,9 @@ private fun ChatThreadScreen(
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
-                isMuted = isMuted,
+                isMuted = isNotificationsMuted,
+                muteStatusLine = formatChatMuteStatusLine(isNotificationsMuted, muteUntilMillis),
+                isGlassTheme = isGlassTheme,
                 onDismiss = { showChatMenu = false },
                 onViewProfile = {
                     onNavigateToProfile(conv.otherParticipant.id)
@@ -972,17 +1014,75 @@ private fun ChatThreadScreen(
                     isSearchMode = true
                     showChatMenu = false
                 },
-                onToggleMute = {
-                    isMuted = !isMuted
+                onMuteNotifications = {
                     showChatMenu = false
+                    if (isNotificationsMuted) {
+                        ChatMutePreferences.clearMute(context, conv.id)
+                        muteUntilMillis = 0L
+                        Toast.makeText(context, "Notifications unmuted", Toast.LENGTH_SHORT).show()
+                    } else {
+                        showMuteDurationSheet = true
+                    }
                 },
                 onClearChat = {
                     showClearConfirm = true
                     showChatMenu = false
                 },
                 onReport = {
-                    // TODO: Open report dialog
+                    showReportChatSheet = true
                     showChatMenu = false
+                }
+            )
+        }
+
+        if (showMuteDurationSheet) {
+            GlassMuteDurationSheet(
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                isGlassTheme = isGlassTheme,
+                peerName = conv.otherParticipant.name ?: conv.otherParticipant.username ?: "this chat",
+                onDismiss = { showMuteDurationSheet = false },
+                onConfirmDuration = { durationMs ->
+                    val until = System.currentTimeMillis() + durationMs
+                    ChatMutePreferences.setMuteUntilMillis(context, conv.id, until)
+                    muteUntilMillis = until
+                    showMuteDurationSheet = false
+                    Toast.makeText(context, "Notifications muted", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
+        if (showReportChatSheet) {
+            GlassReportChatDialog(
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                isGlassTheme = isGlassTheme,
+                reportedLabel = conv.otherParticipant.name ?: conv.otherParticipant.username ?: "this person",
+                onDismiss = { showReportChatSheet = false },
+                onSubmit = { reason, details ->
+                    reportScope.launch {
+                        ApiClient.reportChat(
+                            context,
+                            conv.id,
+                            reason,
+                            details
+                        ).onSuccess {
+                            Toast.makeText(
+                                context,
+                                "Thanks — we received your report and will review it.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            showReportChatSheet = false
+                        }.onFailure { e ->
+                            Toast.makeText(
+                                context,
+                                e.message ?: "Could not submit report",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
                 }
             )
         }
@@ -1021,6 +1121,59 @@ private fun ChatConversationOpeningState(
         ChatThreadLoadingState(
             contentColor = contentColor,
             accentColor = accentColor
+        )
+    }
+}
+
+/**
+ * Typing indicator: warm, brand-forward presence — not read receipts or “seen” lists.
+ */
+@Composable
+private fun VormexTypingPresence(
+    contentColor: Color,
+    accentColor: Color
+) {
+    val transition = rememberInfiniteTransition(label = "vormex_typing")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "typing_phase"
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(3) { i ->
+            val alpha = 0.35f + 0.55f * (
+                sin(phase * 2.0 * PI + i * 0.8).toFloat() * 0.5f + 0.5f
+                ).coerceIn(0f, 1f)
+            Box(
+                Modifier
+                    .padding(end = 4.dp)
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(accentColor.copy(alpha = alpha))
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        BasicText(
+            text = buildAnnotatedString {
+                withStyle(SpanStyle(color = accentColor.copy(alpha = 0.92f), fontWeight = FontWeight.SemiBold)) {
+                    append("Vormex")
+                }
+                append(" ")
+                withStyle(SpanStyle(color = contentColor.copy(alpha = 0.62f), fontSize = 12.sp)) {
+                    append("shaping a reply")
+                }
+                append("…")
+            },
+            style = TextStyle(fontSize = 13.sp)
         )
     }
 }
@@ -1267,6 +1420,7 @@ private fun MessageBubble(
     accentColor: Color,
     backdrop: LayerBackdrop,
     isGlassTheme: Boolean = true,
+    showTimestamp: Boolean = true,
     onReply: () -> Unit = {},
     onReact: (String) -> Unit = {},
     onDelete: (Boolean) -> Unit = {},
@@ -1415,18 +1569,17 @@ private fun MessageBubble(
                         }
                     }
 
-                    val metaLine = buildList {
-                        add(formatTime(message.createdAt))
-                        if (!deliveryStateText.isNullOrBlank()) {
-                            add(deliveryStateText)
-                        }
-                    }.joinToString(" • ")
-
-                    BasicText(
-                        metaLine,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                        style = TextStyle(contentColor.copy(alpha = 0.5f), 10.sp)
-                    )
+                    val metaParts = buildList {
+                        if (showTimestamp) add(formatTime(message.createdAt))
+                        if (!deliveryStateText.isNullOrBlank()) add(deliveryStateText)
+                    }
+                    if (metaParts.isNotEmpty()) {
+                        BasicText(
+                            metaParts.joinToString(" • "),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            style = TextStyle(contentColor.copy(alpha = 0.5f), 10.sp)
+                        )
+                    }
                 }
                 
                 // Reply indicator (shown during swipe for own messages)
@@ -1636,6 +1789,16 @@ private fun ReplyPreview(
     }
 }
 
+private fun formatChatMuteStatusLine(isMuted: Boolean, muteUntilMillis: Long): String {
+    if (!isMuted) return "Notifications on"
+    return try {
+        val fmt = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+        "Muted until ${fmt.format(Date(muteUntilMillis))}"
+    } catch (_: Exception) {
+        "Muted"
+    }
+}
+
 private fun formatTime(iso: String): String {
     return try {
         val t = iso.indexOf('T')
@@ -1747,14 +1910,32 @@ private fun GlassChatMenu(
     contentColor: Color,
     accentColor: Color,
     isMuted: Boolean,
+    muteStatusLine: String,
+    isGlassTheme: Boolean,
     onDismiss: () -> Unit,
     onViewProfile: () -> Unit,
     onSearchMessages: () -> Unit,
-    onToggleMute: () -> Unit,
+    onMuteNotifications: () -> Unit,
     onClearChat: () -> Unit,
     onReport: () -> Unit
 ) {
-    // Full screen dismissible overlay
+    val menuSurface: Modifier = if (isGlassTheme) {
+        Modifier.drawBackdrop(
+            backdrop = backdrop,
+            shape = { RoundedRectangle(16f.dp) },
+            effects = {
+                vibrancy()
+                blur(20f.dp.toPx())
+            },
+            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.4f)) }
+        )
+    } else {
+        Modifier.background(
+            color = contentColor.copy(alpha = 0.08f),
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1763,48 +1944,38 @@ private fun GlassChatMenu(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
             ) { onDismiss() }
     ) {
-        // Menu positioned at top right
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 60.dp, end = 16.dp)
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(16f.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(20f.dp.toPx())
-                    },
-                    onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.4f)) }
-                )
+                .then(menuSurface)
                 .clip(RoundedCornerShape(16.dp))
-                .clickable(enabled = false) { } // Prevent click-through
+                .clickable(enabled = false) { }
         ) {
             Column(
                 modifier = Modifier
-                    .width(220.dp)
+                    .widthIn(min = 228.dp, max = 280.dp)
                     .padding(8.dp)
             ) {
                 GlassMenuItem(
                     iconRes = R.drawable.ic_profile,
-                    text = "View Profile",
+                    text = "View profile",
                     contentColor = contentColor,
                     onClick = onViewProfile
                 )
                 GlassMenuItem(
                     iconRes = R.drawable.ic_search,
-                    text = "Search Messages",
+                    text = "Search messages",
                     contentColor = contentColor,
                     onClick = onSearchMessages
                 )
                 GlassMenuItem(
-                    iconRes = if (isMuted) R.drawable.ic_notifications else R.drawable.ic_notifications_off,
-                    text = if (isMuted) "Unmute Notifications" else "Mute Notifications",
+                    iconRes = if (isMuted) R.drawable.ic_notifications_off else R.drawable.ic_notifications,
+                    text = if (isMuted) "Unmute notifications" else "Mute notifications",
+                    subtitle = muteStatusLine,
                     contentColor = contentColor,
-                    onClick = onToggleMute
+                    onClick = onMuteNotifications
                 )
-                
-                // Divider
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -1812,16 +1983,17 @@ private fun GlassChatMenu(
                         .height(1.dp)
                         .background(contentColor.copy(alpha = 0.15f))
                 )
-                
+
                 GlassMenuItem(
                     iconRes = R.drawable.ic_delete,
-                    text = "Delete Chat",
+                    text = "Delete chat",
                     contentColor = Color(0xFFFF6B6B),
                     onClick = onClearChat
                 )
                 GlassMenuItem(
                     iconRes = R.drawable.ic_warning,
                     text = "Report",
+                    subtitle = "Safety concerns",
                     contentColor = Color(0xFFFFAA33),
                     onClick = onReport
                 )
@@ -1835,14 +2007,15 @@ private fun GlassMenuItem(
     iconRes: Int,
     text: String,
     contentColor: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    subtitle: String? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .padding(horizontal = 12.dp, vertical = if (subtitle != null) 9.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         androidx.compose.foundation.Image(
@@ -1852,13 +2025,313 @@ private fun GlassMenuItem(
             colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(contentColor)
         )
         Spacer(Modifier.width(12.dp))
-        BasicText(
-            text,
-            style = TextStyle(
-                color = contentColor,
-                fontSize = 15.sp
+        Column(Modifier.weight(1f)) {
+            BasicText(
+                text,
+                style = TextStyle(
+                    color = contentColor,
+                    fontSize = 15.sp
+                )
             )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(Modifier.height(3.dp))
+                BasicText(
+                    subtitle,
+                    style = TextStyle(
+                        color = contentColor.copy(alpha = 0.5f),
+                        fontSize = 11.sp
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlassMuteDurationSheet(
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    isGlassTheme: Boolean,
+    peerName: String,
+    onDismiss: () -> Unit,
+    onConfirmDuration: (Long) -> Unit
+) {
+    val options = remember {
+        listOf(
+            "1 hour" to 60L * 60 * 1000,
+            "8 hours" to 8L * 60 * 60 * 1000,
+            "1 week" to 7L * 24 * 60 * 60 * 1000,
+            "1 year" to 365L * 24 * 60 * 60 * 1000
         )
+    }
+    var selectedMs by remember { mutableStateOf(options[0].second) }
+
+    val cardSurface: Modifier = if (isGlassTheme) {
+        Modifier.drawBackdrop(
+            backdrop = backdrop,
+            shape = { RoundedRectangle(20f.dp) },
+            effects = {
+                vibrancy()
+                blur(24f.dp.toPx())
+            },
+            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.5f)) }
+        )
+    } else {
+        Modifier.background(
+            color = contentColor.copy(alpha = 0.1f),
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(
+                indication = null,
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            ) { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 28.dp)
+                .fillMaxWidth()
+                .then(cardSurface)
+                .clip(RoundedCornerShape(20.dp))
+                .clickable(enabled = false) { }
+        ) {
+            Column(Modifier.padding(22.dp)) {
+                BasicText(
+                    "Mute notifications",
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+                Spacer(Modifier.height(8.dp))
+                BasicText(
+                    "How long should we silence alerts from $peerName? You won’t get message notifications from this chat on your device until then.",
+                    style = TextStyle(contentColor.copy(alpha = 0.72f), 13.sp)
+                )
+                Spacer(Modifier.height(16.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    options.forEach { (label, ms) ->
+                        val selected = selectedMs == ms
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (selected) accentColor.copy(alpha = 0.18f)
+                                    else contentColor.copy(alpha = 0.07f)
+                                )
+                                .clickable { selectedMs = ms }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            BasicText(
+                                label,
+                                style = TextStyle(contentColor, 14.sp, FontWeight.Medium)
+                            )
+                            if (selected) {
+                                BasicText("✓", style = TextStyle(accentColor, 14.sp, FontWeight.Bold))
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(contentColor.copy(alpha = 0.1f))
+                            .clickable { onDismiss() }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        BasicText(
+                            "Cancel",
+                            style = TextStyle(contentColor, 15.sp, FontWeight.Medium)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(accentColor.copy(alpha = 0.85f))
+                            .clickable {
+                                onConfirmDuration(selectedMs)
+                            }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        BasicText(
+                            "Mute",
+                            style = TextStyle(Color.White, 15.sp, FontWeight.Medium)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlassReportChatDialog(
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    isGlassTheme: Boolean,
+    reportedLabel: String,
+    onDismiss: () -> Unit,
+    onSubmit: (reason: String, details: String) -> Unit
+) {
+    val reasons = remember {
+        listOf("Harassment or hate", "Spam or scam", "Impersonation", "Other")
+    }
+    var selectedReason by remember { mutableStateOf(reasons.first()) }
+    var details by remember { mutableStateOf("") }
+
+    val cardSurface: Modifier = if (isGlassTheme) {
+        Modifier.drawBackdrop(
+            backdrop = backdrop,
+            shape = { RoundedRectangle(20f.dp) },
+            effects = {
+                vibrancy()
+                blur(24f.dp.toPx())
+            },
+            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.5f)) }
+        )
+    } else {
+        Modifier.background(
+            color = contentColor.copy(alpha = 0.1f),
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(
+                indication = null,
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            ) { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 28.dp)
+                .fillMaxWidth()
+                .then(cardSurface)
+                .clip(RoundedCornerShape(20.dp))
+                .clickable(enabled = false) { }
+        ) {
+            Column(Modifier.padding(22.dp)) {
+                BasicText(
+                    "Report conversation",
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+                Spacer(Modifier.height(8.dp))
+                BasicText(
+                    "Tell us what’s wrong about your chat with $reportedLabel.",
+                    style = TextStyle(contentColor.copy(alpha = 0.72f), 13.sp)
+                )
+                Spacer(Modifier.height(14.dp))
+                reasons.forEach { reason ->
+                    val selected = selectedReason == reason
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (selected) accentColor.copy(alpha = 0.16f) else contentColor.copy(alpha = 0.06f)
+                            )
+                            .clickable { selectedReason = reason }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        BasicText(
+                            if (selected) "●" else "○",
+                            style = TextStyle(accentColor, 12.sp),
+                            modifier = Modifier.width(20.dp)
+                        )
+                        BasicText(
+                            reason,
+                            style = TextStyle(contentColor, 14.sp)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                BasicText(
+                    "Details (optional)",
+                    style = TextStyle(contentColor.copy(alpha = 0.55f), 11.sp)
+                )
+                Spacer(Modifier.height(6.dp))
+                BasicTextField(
+                    value = details,
+                    onValueChange = { details = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 72.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(contentColor.copy(alpha = 0.08f))
+                        .padding(12.dp),
+                    textStyle = TextStyle(contentColor, 13.sp),
+                    cursorBrush = SolidColor(contentColor),
+                    maxLines = 4
+                )
+                Spacer(Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(contentColor.copy(alpha = 0.1f))
+                            .clickable { onDismiss() }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        BasicText(
+                            "Cancel",
+                            style = TextStyle(contentColor, 15.sp, FontWeight.Medium)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(accentColor.copy(alpha = 0.85f))
+                            .clickable {
+                                onSubmit(selectedReason, details.trim())
+                            }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        BasicText(
+                            "Submit",
+                            style = TextStyle(Color.White, 15.sp, FontWeight.Medium)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

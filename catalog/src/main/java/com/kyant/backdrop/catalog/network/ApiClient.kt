@@ -1404,6 +1404,25 @@ object ApiClient {
         }
     }
 
+    suspend fun reportChat(
+        context: Context,
+        conversationId: String,
+        reason: String,
+        description: String = ""
+    ): Result<Unit> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.post("$BASE_URL/reports/chat/$conversationId") {
+                header("Authorization", "Bearer $token")
+                setBody(ReportChatRequest(reason = reason, description = description))
+            }
+            if (response.status.isSuccess()) Result.success(Unit)
+            else Result.failure(Exception((response.body<ApiError>()).getErrorMessage()))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun editMessage(context: Context, messageId: String, content: String): Result<Message> {
         return try {
             val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))

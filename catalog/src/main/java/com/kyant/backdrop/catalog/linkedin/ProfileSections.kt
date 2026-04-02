@@ -2612,6 +2612,7 @@ private fun FeedItemCard(
     }
     val previewMediaItems = when {
         !item.videoThumbnail.isNullOrBlank() && mediaItems.isEmpty() -> listOf(item.videoThumbnail)
+        !item.celebrationGifUrl.isNullOrBlank() && mediaItems.isEmpty() -> listOf(item.celebrationGifUrl)
         else -> mediaItems
     }
     var showMenu by remember { mutableStateOf(false) }
@@ -2701,6 +2702,16 @@ private fun FeedItemCard(
                     style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (item.postType?.equals("CELEBRATION", ignoreCase = true) == true) {
+                Spacer(Modifier.height(8.dp))
+                ActivityCelebrationPreview(
+                    celebrationType = item.celebrationType,
+                    celebrationBadge = item.celebrationBadge,
+                    contentColor = contentColor,
+                    accentColor = accentColor
                 )
             }
 
@@ -2880,6 +2891,53 @@ private fun FeedItemCard(
                     style = TextStyle(contentColor.copy(alpha = 0.5f), 10.sp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ActivityCelebrationPreview(
+    celebrationType: String?,
+    celebrationBadge: String?,
+    contentColor: Color,
+    accentColor: Color
+) {
+    val label = when (celebrationType?.uppercase(Locale.US)) {
+        "NEW_JOB" -> "New job"
+        "PROMOTION" -> "Promotion"
+        "GRADUATION" -> "Graduation"
+        "CERTIFICATION" -> "Certification"
+        "WORK_ANNIVERSARY" -> "Work anniversary"
+        "BIRTHDAY" -> "Birthday"
+        else ->
+            celebrationType?.replace('_', ' ')?.lowercase(Locale.US)?.split(' ')?.joinToString(" ") { w ->
+                w.replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase(Locale.US) else c.toString() }
+            }?.takeIf { it.isNotBlank() } ?: "Celebration"
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(accentColor.copy(alpha = 0.12f))
+            .border(1.dp, accentColor.copy(alpha = 0.22f), RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            BasicText("🎉", style = TextStyle(fontSize = 18.sp))
+            BasicText(
+                label,
+                style = TextStyle(contentColor, 14.sp, FontWeight.SemiBold)
+            )
+        }
+        celebrationBadge?.takeIf { it.isNotBlank() }?.let { badge ->
+            BasicText(
+                badge,
+                style = TextStyle(contentColor.copy(alpha = 0.78f), 12.sp)
+            )
         }
     }
 }

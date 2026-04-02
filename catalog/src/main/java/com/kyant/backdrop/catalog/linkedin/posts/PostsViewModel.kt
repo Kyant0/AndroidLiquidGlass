@@ -398,7 +398,7 @@ class PostsViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreatingPost = true, createPostError = null)
             
-            PostsApiService.createCelebrationPost(context, celebrationType, content, visibility, mentions)
+            PostsApiService.createCelebrationPost(context, celebrationType, content, visibility, mentions, null)
                 .onSuccess { post ->
                     _uiState.value = _uiState.value.copy(
                         posts = listOf(post) + _uiState.value.posts,

@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -44,7 +45,9 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 
 /**
- * Glass-themed dropdown menu that matches the app's glass aesthetic
+ * Glass-themed dropdown menu that matches the app's glass aesthetic.
+ *
+ * @param useGlassBackdropEffects When false, uses a flat surface (no blur/lens/vibrancy) — avoids glow on dense UIs like post overflow menus.
  */
 @Composable
 fun GlassDropdownMenu(
@@ -53,6 +56,7 @@ fun GlassDropdownMenu(
     backdrop: LayerBackdrop,
     contentColor: Color,
     modifier: Modifier = Modifier,
+    useGlassBackdropEffects: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val expandedState = remember { MutableTransitionState(false) }
@@ -98,28 +102,45 @@ fun GlassDropdownMenu(
                             transformOrigin = TransformOrigin(1f, 0f)
                         )
                     ) {
-                        Box(
-                            modifier = modifier
-                                .width(200.dp)
-                                .drawBackdrop(
-                                    backdrop = backdrop,
-                                    shape = { RoundedRectangle(16f.dp) },
-                                    effects = {
-                                        vibrancy()
-                                        blur(24f.dp.toPx())
-                                        lens(6f.dp.toPx(), 12f.dp.toPx())
-                                    },
-                                    onDrawSurface = {
-                                        drawRect(Color.White.copy(alpha = 0.2f))
-                                    }
-                                )
-                                .clip(RoundedCornerShape(16.dp))
-                                .padding(8.dp)
-                        ) {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                        if (useGlassBackdropEffects) {
+                            Box(
+                                modifier = modifier
+                                    .width(200.dp)
+                                    .drawBackdrop(
+                                        backdrop = backdrop,
+                                        shape = { RoundedRectangle(16f.dp) },
+                                        effects = {
+                                            vibrancy()
+                                            blur(24f.dp.toPx())
+                                            lens(6f.dp.toPx(), 12f.dp.toPx())
+                                        },
+                                        onDrawSurface = {
+                                            drawRect(Color.White.copy(alpha = 0.2f))
+                                        }
+                                    )
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .padding(8.dp)
                             ) {
-                                content()
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    content()
+                                }
+                            }
+                        } else {
+                            Box(
+                                modifier = modifier
+                                    .width(200.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color(0xF0141414))
+                                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+                                    .padding(8.dp)
+                            ) {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    content()
+                                }
                             }
                         }
                     }

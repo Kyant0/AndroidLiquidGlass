@@ -155,6 +155,7 @@ dependencies {
     
     // Image Loading
     implementation(libs.coil.compose)
+    implementation("io.coil-kt:coil-gif:2.6.0")
 
     // Room cache
     implementation(libs.androidx.room.runtime)

@@ -354,7 +354,8 @@ object PostsApiService {
         celebrationType: String,
         content: String? = null,
         visibility: String = "PUBLIC",
-        mentions: List<String> = emptyList()
+        mentions: List<String> = emptyList(),
+        celebrationGif: Pair<ByteArray, String>? = null
     ): Result<FullPost> {
         return try {
             val token = ApiClient.getToken(context) ?: return Result.failure(Exception("Not logged in"))
@@ -367,6 +368,22 @@ object PostsApiService {
                     content?.let { append("content", it) }
                     if (mentions.isNotEmpty()) {
                         append("mentions", json.encodeToString(ListSerializer(String.serializer()), mentions))
+                    }
+                    celebrationGif?.let { (bytes, filename) ->
+                        val mime = when {
+                            filename.endsWith(".gif", ignoreCase = true) -> "image/gif"
+                            filename.endsWith(".webp", ignoreCase = true) -> "image/webp"
+                            filename.endsWith(".png", ignoreCase = true) -> "image/png"
+                            else -> "image/jpeg"
+                        }
+                        append(
+                            "image",
+                            bytes,
+                            Headers.build {
+                                append(HttpHeaders.ContentType, mime)
+                                append(HttpHeaders.ContentDisposition, "filename=$filename")
+                            }
+                        )
                     }
                 }))
             }

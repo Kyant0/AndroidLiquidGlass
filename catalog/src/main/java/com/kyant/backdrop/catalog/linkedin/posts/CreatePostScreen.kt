@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Work
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material3.*
@@ -180,7 +181,7 @@ fun CreatePostScreen(
     onCreateLinkPost: (linkUrl: String, content: String?, visibility: String, mentions: List<String>) -> Unit,
     onCreatePollPost: (pollOptions: List<String>, pollDurationHours: Int, content: String?, visibility: String, showResultsBeforeVote: Boolean, mentions: List<String>) -> Unit,
     onCreateArticlePost: (articleTitle: String, content: String?, visibility: String, coverImage: Pair<ByteArray, String>?, articleTags: List<String>, mentions: List<String>) -> Unit,
-    onCreateCelebrationPost: (celebrationType: String, content: String?, visibility: String, mentions: List<String>) -> Unit,
+    onCreateCelebrationPost: (celebrationType: String, content: String?, visibility: String, mentions: List<String>, celebrationGif: Pair<ByteArray, String>?) -> Unit,
     onSearchMentions: (String) -> Unit,
     onClearMentionSearch: () -> Unit,
     onClearError: () -> Unit,
@@ -220,6 +221,8 @@ fun CreatePostScreen(
     
     // Celebration state
     var selectedCelebrationType by remember { mutableStateOf<CelebrationType?>(null) }
+    var celebrationGifUri by remember { mutableStateOf<Uri?>(null) }
+    var celebrationGifBytes by remember { mutableStateOf<Pair<ByteArray, String>?>(null) }
     
     // Mention state
     var selectedMentions by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -274,6 +277,23 @@ fun CreatePostScreen(
                     val filename = it.lastPathSegment ?: "cover.jpg"
                     articleCoverUri = it
                     articleCoverBytes = bytes to filename
+                }
+            } catch (e: Exception) {
+                // Handle error
+            }
+        }
+    }
+
+    val celebrationGifPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            try {
+                context.contentResolver.openInputStream(it)?.use { stream ->
+                    val bytes = stream.readBytes()
+                    val filename = it.lastPathSegment ?: "celebration.gif"
+                    celebrationGifUri = it
+                    celebrationGifBytes = bytes to filename
                 }
             } catch (e: Exception) {
                 // Handle error
@@ -341,7 +361,13 @@ fun CreatePostScreen(
             }
             PostType.CELEBRATION -> {
                 selectedCelebrationType?.let { type ->
-                    onCreateCelebrationPost(type.name, content.ifBlank { null }, visibility, selectedMentions)
+                    onCreateCelebrationPost(
+                        type.name,
+                        content.ifBlank { null },
+                        visibility,
+                        selectedMentions,
+                        celebrationGifBytes
+                    )
                 }
             }
             else -> {}
@@ -591,11 +617,21 @@ fun CreatePostScreen(
                 PostType.CELEBRATION -> CreatePostSection(accentColor = accentColor) {
                     SectionCaption(
                         title = postTypeSectionTitle(selectedPostType),
-                        subtitle = "Pick the win you want to highlight."
+                        subtitle = "Pick the win, then add an optional local GIF."
                     )
                     CelebrationPicker(
                         selectedType = selectedCelebrationType,
                         onTypeSelected = { selectedCelebrationType = it },
+                        contentColor = contentColor,
+                        accentColor = accentColor
+                    )
+                    CelebrationGifPicker(
+                        gifUri = celebrationGifUri,
+                        onPickGif = { celebrationGifPicker.launch("image/*") },
+                        onRemoveGif = {
+                            celebrationGifUri = null
+                            celebrationGifBytes = null
+                        },
                         contentColor = contentColor,
                         accentColor = accentColor
                     )
@@ -632,6 +668,93 @@ fun CreatePostScreen(
                             modifier = Modifier.size(16.dp)
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CelebrationGifPicker(
+    gifUri: Uri?,
+    onPickGif: () -> Unit,
+    onRemoveGif: () -> Unit,
+    contentColor: Color,
+    accentColor: Color
+) {
+    val context = LocalContext.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        BasicText(
+            text = "GIF sticker (optional)",
+            style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp)
+        )
+        if (gifUri == null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(96.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                accentColor.copy(alpha = 0.14f),
+                                Color.White.copy(alpha = 0.04f)
+                            )
+                        )
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
+                    .clickable(onClick = onPickGif),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.AutoAwesome,
+                        contentDescription = "Pick GIF",
+                        tint = accentColor,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    BasicText(
+                        text = "Choose a GIF from your gallery",
+                        style = TextStyle(contentColor.copy(alpha = 0.76f), 13.sp, FontWeight.Medium)
+                    )
+                    BasicText(
+                        text = "Animated GIF or still image",
+                        style = TextStyle(contentColor.copy(alpha = 0.45f), 11.sp)
+                    )
+                }
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(16.dp))
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context).data(gifUri).crossfade(true).build(),
+                    contentDescription = "Celebration GIF preview",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .clickable(onClick = onRemoveGif),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = "Remove GIF",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
         }

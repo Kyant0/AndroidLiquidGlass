@@ -112,6 +112,7 @@ data class FullPost(
     val celebrationType: String? = null,
     val celebrationMeta: JsonElement? = null,
     val celebrationBadge: String? = null,
+    val celebrationGifUrl: String? = null,
     
     // Visibility and engagement
     val visibility: String = "PUBLIC",

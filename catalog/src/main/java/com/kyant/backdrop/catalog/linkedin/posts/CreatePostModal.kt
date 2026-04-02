@@ -74,7 +74,7 @@ fun CreatePostModal(
     onCreateLinkPost: (linkUrl: String, content: String?, visibility: String, mentions: List<String>) -> Unit,
     onCreatePollPost: (pollOptions: List<String>, pollDurationHours: Int, content: String?, visibility: String, showResultsBeforeVote: Boolean, mentions: List<String>) -> Unit,
     onCreateArticlePost: (articleTitle: String, content: String?, visibility: String, coverImage: Pair<ByteArray, String>?, articleTags: List<String>, mentions: List<String>) -> Unit,
-    onCreateCelebrationPost: (celebrationType: String, content: String?, visibility: String, mentions: List<String>) -> Unit,
+    onCreateCelebrationPost: (celebrationType: String, content: String?, visibility: String, mentions: List<String>, celebrationGif: Pair<ByteArray, String>?) -> Unit,
     onSearchMentions: (String) -> Unit,
     onClearMentionSearch: () -> Unit,
     onClearError: () -> Unit
@@ -212,7 +212,7 @@ fun CreatePostModal(
             }
             PostType.CELEBRATION -> {
                 selectedCelebrationType?.let { type ->
-                    onCreateCelebrationPost(type.name, content.ifBlank { null }, visibility, selectedMentions)
+                    onCreateCelebrationPost(type.name, content.ifBlank { null }, visibility, selectedMentions, null)
                 }
                 Unit
             }
