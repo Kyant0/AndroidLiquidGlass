@@ -128,6 +128,10 @@ class MainActivity : ComponentActivity() {
         intent ?: return
 
         intent.data?.let { uri ->
+            if (uri.path?.contains("agent", ignoreCase = true) == true) {
+                pendingDeepLink = NotificationDeepLink(action = "ai_agent")
+                return
+            }
             val mode = uri.getQueryParameter("mode")
             val ref = uri.getQueryParameter("ref")
             if (!mode.isNullOrBlank() || !ref.isNullOrBlank()) {

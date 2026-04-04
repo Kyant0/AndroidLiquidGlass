@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.kyant.backdrop.catalog.chat.cache.CachedMessagesSnapshot
 import com.kyant.backdrop.catalog.chat.cache.ChatCacheRepository
+import com.kyant.backdrop.catalog.network.AgentApiService
 import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.ChatSocketManager
 import com.kyant.backdrop.catalog.network.models.Conversation
@@ -1112,10 +1113,39 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     fun loadAiSuggestions() {
         val lastMessage = _uiState.value.messages.lastOrNull { it.senderId != _uiState.value.currentUserId }
+        val conversationId = _uiState.value.selectedConversation?.id
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingAiSuggestions = true) }
-            val suggestions = generateMockSuggestions(lastMessage?.content)
-            _uiState.update { it.copy(aiSuggestions = suggestions, isLoadingAiSuggestions = false) }
+            val messageText = lastMessage?.content
+            if (messageText.isNullOrBlank()) {
+                _uiState.update {
+                    it.copy(
+                        aiSuggestions = generateMockSuggestions(lastMessage?.content),
+                        isLoadingAiSuggestions = false
+                    )
+                }
+                return@launch
+            }
+
+            AgentApiService.getSmartReplies(
+                context = context,
+                lastMessage = messageText,
+                conversationId = conversationId
+            ).onSuccess { replies ->
+                _uiState.update {
+                    it.copy(
+                        aiSuggestions = replies.ifEmpty { generateMockSuggestions(messageText) },
+                        isLoadingAiSuggestions = false
+                    )
+                }
+            }.onFailure {
+                _uiState.update {
+                    it.copy(
+                        aiSuggestions = generateMockSuggestions(messageText),
+                        isLoadingAiSuggestions = false
+                    )
+                }
+            }
         }
     }
 

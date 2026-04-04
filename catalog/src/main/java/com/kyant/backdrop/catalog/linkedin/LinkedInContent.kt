@@ -404,6 +404,7 @@ private fun android.content.Context.findActivity(): android.app.Activity? = when
     else -> null
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LinkedInContent(
     deepLink: com.kyant.backdrop.catalog.NotificationDeepLink? = null,
@@ -481,6 +482,7 @@ fun LinkedInContent(
     var showAboutScreen by remember { mutableStateOf(false) }
     var showContactScreen by remember { mutableStateOf(false) }
     var showGrowthHubScreen by remember { mutableStateOf(false) }
+    var showAgentSheet by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var notificationUnreadCount by remember { mutableIntStateOf(0) }
     
@@ -690,6 +692,37 @@ fun LinkedInContent(
     // Chat state for unread message indicator
     val chatViewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory(context))
     val chatState by chatViewModel.uiState.collectAsState()
+    val agentViewModel: AgentViewModel = viewModel(factory = AgentViewModel.Factory(context))
+    val agentState by agentViewModel.uiState.collectAsState()
+
+    val agentSurface = when {
+        showGrowthHubScreen -> "growth_hub"
+        showNotificationsInbox -> "notifications"
+        showMessagesScreen || isInChatThread -> "chat"
+        showGroupsScreen || selectedGroupId != null || showGroupChat -> "groups"
+        viewingProfileUserId != null || selectedTab == 4 -> "profile"
+        selectedTab == 1 -> "find_people"
+        else -> "feed"
+    }
+    val agentSurfaceContext = remember(
+        agentSurface,
+        selectedTab,
+        viewingProfileUserId,
+        selectedGroupId,
+        openChatWithUserId,
+        chatState.selectedConversation?.id,
+        uiState.currentUser?.id
+    ) {
+        buildMap<String, String> {
+            put("surface", agentSurface)
+            put("selectedTab", selectedTab.toString())
+            uiState.currentUser?.id?.let { put("currentUserId", it) }
+            viewingProfileUserId?.let { put("viewingProfileUserId", it) }
+            selectedGroupId?.let { put("selectedGroupId", it) }
+            openChatWithUserId?.let { put("openChatWithUserId", it) }
+            chatState.selectedConversation?.id?.let { put("conversationId", it) }
+        }
+    }
 
     LaunchedEffect(selectedTab, uiState.isLoggedIn) {
         if (uiState.isLoggedIn && selectedTab == 3) {
@@ -728,6 +761,78 @@ fun LinkedInContent(
         delay(220)
         reelsViewModel.prefetchAppStartData()
         rewardCardsViewModel.maybeLoadOnAppOpen(true)
+    }
+
+    LaunchedEffect(showAgentSheet, agentSurface, uiState.isLoggedIn) {
+        if (showAgentSheet && uiState.isLoggedIn) {
+            agentViewModel.ensureSession(surface = agentSurface)
+        }
+    }
+
+    LaunchedEffect(uiState.isLoggedIn, agentSurface) {
+        if (uiState.isLoggedIn) {
+            agentViewModel.ensureSession(surface = agentSurface)
+        }
+    }
+
+    LaunchedEffect(agentState.pendingUiIntents) {
+        val pendingIntents = agentState.pendingUiIntents
+        if (pendingIntents.isEmpty()) return@LaunchedEffect
+
+        var shouldCloseAgentSheet = false
+        pendingIntents.forEach { intent ->
+            when (intent.type) {
+                "switch_tab" -> {
+                    when (intent.tab?.lowercase()) {
+                        "feed", "home" -> selectedTab = 0
+                        "find", "find_people", "network" -> selectedTab = 1
+                        "post", "create_post" -> selectedTab = 2
+                        "more" -> selectedTab = 3
+                        "profile" -> selectedTab = 4
+                        "groups" -> showGroupsScreen = true
+                    }
+                    shouldCloseAgentSheet = true
+                }
+                "open_profile" -> {
+                    intent.userId?.let { viewingProfileUserId = it }
+                    shouldCloseAgentSheet = true
+                }
+                "open_chat" -> {
+                    showMessagesScreen = true
+                    intent.conversationId?.let { deepLinkConversationId = it }
+                    if (intent.conversationId.isNullOrBlank()) {
+                        openChatWithUserId = intent.userId
+                    }
+                    shouldCloseAgentSheet = true
+                }
+                "open_group" -> {
+                    showGroupsScreen = true
+                    intent.groupId?.let { selectedGroupId = it }
+                    shouldCloseAgentSheet = true
+                }
+                "open_groups" -> {
+                    showGroupsScreen = true
+                    shouldCloseAgentSheet = true
+                }
+                "open_notifications" -> {
+                    showNotificationsInbox = true
+                    shouldCloseAgentSheet = true
+                }
+                "open_growth_task" -> {
+                    showGrowthHubScreen = true
+                    shouldCloseAgentSheet = true
+                }
+                "show_match_stack" -> {
+                    selectedTab = 1
+                    shouldCloseAgentSheet = true
+                }
+            }
+        }
+
+        if (shouldCloseAgentSheet) {
+            showAgentSheet = false
+        }
+        agentViewModel.consumeUiIntents()
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -1345,6 +1450,90 @@ fun LinkedInContent(
                 }
             } // End LiquidBottomTabs
             } // End AnimatedVisibility
+
+            AnimatedVisibility(
+                visible = uiState.isLoggedIn,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.BottomEnd)
+            ) {
+                Box(
+                    modifier = Modifier.padding(end = 24.dp, bottom = if (isInChatThread) 28.dp else 112.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        accentColor,
+                                        accentColor.copy(alpha = 0.78f)
+                                    )
+                                )
+                            )
+                            .clickable { showAgentSheet = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            BasicText(
+                                "AI",
+                                style = TextStyle(
+                                    color = Color.White,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                            BasicText(
+                                "Agent",
+                                style = TextStyle(
+                                    color = Color.White.copy(alpha = 0.92f),
+                                    fontSize = 9.sp
+                                )
+                            )
+                        }
+                    }
+
+                    if (agentState.pendingApprovals.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFF5A5F))
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                        ) {
+                            BasicText(
+                                text = agentState.pendingApprovals.size.toString(),
+                                style = TextStyle(
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (showAgentSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showAgentSheet = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = if (isDarkTheme) Color(0xFF131313) else Color(0xFFF9F7F2)
+                ) {
+                    AgentSheetContent(
+                        viewModel = agentViewModel,
+                        surface = agentSurface,
+                        surfaceContext = agentSurfaceContext,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        onDismiss = { showAgentSheet = false }
+                    )
+                }
+            }
             
             // Reels Full-Screen Viewer Dialog (shown from any tab)
             if (reelsState.isViewerOpen) {

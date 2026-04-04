@@ -15,11 +15,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.kyant.backdrop.catalog.NotificationDeepLink
 import com.kyant.backdrop.catalog.data.OnboardingPreferences
+import com.kyant.backdrop.catalog.linkedin.AIAgentScreen
 
 sealed class Route(val path: String) {
     data object Onboarding : Route("onboarding")
     data object ProfileSetup : Route("profile_setup")
     data object Home : Route("home")
+    data object Agent : Route("ai_agent")
 }
 
 @Composable
@@ -37,6 +39,14 @@ fun AppRoot(
     LaunchedEffect(initialDeepLink) {
         if (initialDeepLink != null) {
             pendingDeepLink = initialDeepLink
+        }
+    }
+
+    LaunchedEffect(pendingDeepLink?.action) {
+        if (pendingDeepLink?.action == "ai_agent") {
+            navController.navigate(Route.Agent.path)
+            pendingDeepLink = null
+            onDeepLinkConsumed()
         }
     }
     
@@ -82,6 +92,12 @@ fun AppRoot(
                     pendingDeepLink = null
                     onDeepLinkConsumed()
                 }
+            )
+        }
+
+        composable(Route.Agent.path) {
+            AIAgentScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }

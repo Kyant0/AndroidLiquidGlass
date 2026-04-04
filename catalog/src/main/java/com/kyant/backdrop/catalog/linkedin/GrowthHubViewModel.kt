@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kyant.backdrop.catalog.network.AgentApiService
 import com.kyant.backdrop.catalog.network.GrowthApiService
 import com.kyant.backdrop.catalog.network.models.AccountabilityPartnerSummary
 import com.kyant.backdrop.catalog.network.models.BadgeSummary
@@ -165,16 +166,16 @@ class GrowthHubViewModel(
         )
 
         viewModelScope.launch {
-            val history = updatedMessages.takeLast(10).map {
-                CareerChatHistoryItem(content = it.content, role = it.role)
-            }
-
-            GrowthApiService.sendCareerChatMessage(applicationContext, trimmed, history)
-                .onSuccess { response ->
+            AgentApiService.sendTurn(
+                context = applicationContext,
+                inputText = trimmed,
+                surface = "growth_hub",
+                surfaceContext = mapOf("source" to "growth_hub")
+            ).onSuccess { response ->
                     _uiState.value = _uiState.value.copy(
                         aiMessages = _uiState.value.aiMessages + GrowthHubChatMessage(
                             role = "assistant",
-                            content = response.reply.ifBlank {
+                            content = response.assistantMessage.ifBlank {
                                 "I’m here. Try asking for a study plan, interview prep, or networking advice."
                             }
                         ),
