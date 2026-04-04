@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -813,6 +815,29 @@ object ApiClient {
             Result.failure(e)
         }
     }
+
+    suspend fun getUserConnections(
+        context: Context,
+        userId: String,
+        page: Int = 1,
+        limit: Int = 20
+    ): Result<ProfileConnectionsResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.get("$BASE_URL/connections/user/$userId") {
+                header("Authorization", "Bearer $token")
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                Result.failure(Exception("Failed to load connections"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     
     // ==================== Profile APIs (Additional) ====================
     
@@ -868,13 +893,50 @@ object ApiClient {
         }
     }
     
-    suspend fun updateProfile(context: Context, data: ProfileUpdateRequest): Result<ProfileUser> {
+    private fun buildProfileUpdatePayload(
+        data: ProfileUpdateRequest,
+        explicitNullFields: Set<String> = emptySet()
+    ) = buildJsonObject {
+        data.headline?.let { put("headline", it) }
+        data.bio?.let { put("bio", it) }
+        data.location?.let { put("location", it) }
+        data.currentYear?.let { put("currentYear", it) }
+        data.degree?.let { put("degree", it) }
+        data.graduationYear?.let { put("graduationYear", it) }
+        data.portfolioUrl?.let { put("portfolioUrl", it) }
+        data.linkedinUrl?.let { put("linkedinUrl", it) }
+        data.githubProfileUrl?.let { put("githubProfileUrl", it) }
+        data.profileVisibility?.let { put("profileVisibility", it) }
+        data.isOpenToOpportunities?.let { put("isOpenToOpportunities", it) }
+        data.interests?.let { interests ->
+            putJsonArray("interests") {
+                interests.forEach { add(JsonPrimitive(it)) }
+            }
+        }
+        when {
+            data.profileRing != null -> put("profileRing", data.profileRing)
+            "profileRing" in explicitNullFields -> put("profileRing", JsonNull)
+        }
+        data.hasClaimedWelcomeGift?.let { put("hasClaimedWelcomeGift", it) }
+        when {
+            data.visitLoaderGiftId != null -> put("visitLoaderGiftId", data.visitLoaderGiftId)
+            "visitLoaderGiftId" in explicitNullFields -> put("visitLoaderGiftId", JsonNull)
+        }
+        data.college?.let { put("college", it) }
+        data.branch?.let { put("branch", it) }
+    }
+
+    suspend fun updateProfile(
+        context: Context,
+        data: ProfileUpdateRequest,
+        explicitNullFields: Set<String> = emptySet()
+    ): Result<ProfileUser> {
         return try {
             val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
             val response = client.put("$BASE_URL/users/me") {
                 header("Authorization", "Bearer $token")
                 contentType(io.ktor.http.ContentType.Application.Json)
-                setBody(data)
+                setBody(buildProfileUpdatePayload(data, explicitNullFields))
             }
             if (response.status.isSuccess()) {
                 Result.success(response.body())
@@ -1056,7 +1118,30 @@ object ApiClient {
             Result.failure(e)
         }
     }
-    
+
+    suspend fun getFollowers(
+        context: Context,
+        userId: String,
+        page: Int = 1,
+        limit: Int = 20
+    ): Result<FollowersListResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.get("$BASE_URL/follow/followers/$userId") {
+                header("Authorization", "Bearer $token")
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                Result.failure(Exception("Failed to load followers"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ==================== Connection Management APIs ====================
     
     suspend fun removeConnection(context: Context, connectionId: String): Result<Unit> {

@@ -225,10 +225,8 @@ fun GroupsScreen(
                             accentColor = accentColor,
                             groups = uiState.myGroups,
                             joiningIds = uiState.joiningGroupIds,
-                            leavingIds = uiState.leavingGroupIds,
                             onGroupClick = { onNavigateToGroupDetail(it.id) },
-                            onChatClick = { onNavigateToGroupChat(it.id) },
-                            onLeaveGroup = { viewModel.leaveGroup(it.id) }
+                            onChatClick = { onNavigateToGroupChat(it.id) }
                         )
                         
                         GroupsTab.DISCOVER -> DiscoverGroupsContent(
@@ -549,10 +547,8 @@ private fun MyGroupsContent(
     accentColor: Color,
     groups: List<Group>,
     joiningIds: Set<String>,
-    leavingIds: Set<String>,
     onGroupClick: (Group) -> Unit,
-    onChatClick: (Group) -> Unit,
-    onLeaveGroup: (Group) -> Unit
+    onChatClick: (Group) -> Unit
 ) {
     if (groups.isEmpty()) {
         EmptyContent(
@@ -573,11 +569,9 @@ private fun MyGroupsContent(
                     accentColor = accentColor,
                     group = group,
                     isJoining = group.id in joiningIds,
-                    isLeaving = group.id in leavingIds,
                     showActions = true,
                     onClick = { onGroupClick(group) },
-                    onChatClick = { onChatClick(group) },
-                    onActionClick = { onLeaveGroup(group) }
+                    onChatClick = { onChatClick(group) }
                 )
             }
         }
@@ -662,7 +656,6 @@ fun GroupCard(
     accentColor: Color,
     group: Group,
     isJoining: Boolean = false,
-    isLeaving: Boolean = false,
     showActions: Boolean = false,
     showJoinButton: Boolean = false,
     onClick: () -> Unit,
@@ -950,33 +943,6 @@ fun GroupCard(
                                     "Join Group",
                                     style = TextStyle(
                                         color = Color.White,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                )
-                            }
-                        }
-                    } else if (showActions) {
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .background(Color.Red.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable(enabled = !isLeaving, onClick = onActionClick)
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isLeaving) {
-                                CircularProgressIndicator(
-                                    color = Color.Red,
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                BasicText(
-                                    "Leave",
-                                    style = TextStyle(
-                                        color = Color.Red,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Medium
                                     )

@@ -947,8 +947,6 @@ fun AppearanceSettingsScreen(
                 }
             }
 
-            item { Spacer(Modifier.height(8.dp)) }
-            
             // Accessibility Section
             item {
                 BasicText(
@@ -2790,19 +2788,22 @@ fun LogoutConfirmationDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val dialogSurfaceColor = MaterialTheme.colorScheme.surface
+    val dialogTextColor = MaterialTheme.colorScheme.onSurface
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
                 "Log Out",
-                color = contentColor,
+                color = dialogTextColor,
                 fontWeight = FontWeight.Bold
             )
         },
         text = {
             Text(
                 "Are you sure you want to log out? You'll need to sign in again to access your account.",
-                color = contentColor.copy(alpha = 0.7f)
+                color = dialogTextColor.copy(alpha = 0.74f)
             )
         },
         confirmButton = {
@@ -2821,7 +2822,7 @@ fun LogoutConfirmationDialog(
                 Text("Cancel")
             }
         },
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = dialogSurfaceColor
     )
 }
 

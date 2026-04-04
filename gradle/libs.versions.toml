@@ -26,6 +26,7 @@ socketio = "2.1.0"
 googleServices = "4.4.2"
 room = "2.8.4"
 ksp = "2.3.6"
+lottie = "6.6.7"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core" }
@@ -90,6 +91,9 @@ media3-session = { group = "androidx.media3", name = "media3-session", version.r
 
 # Socket.IO for real-time chat
 socketio-client = { group = "io.socket", name = "socket.io-client", version.ref = "socketio" }
+
+# Lottie (vector animations)
+lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", version.ref = "lottie" }
 
 # Firebase
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebase" }

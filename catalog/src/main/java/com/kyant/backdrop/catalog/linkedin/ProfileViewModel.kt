@@ -4,13 +4,54 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kyant.backdrop.catalog.data.SettingsPreferences
 import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.PostsApiService
 import com.kyant.backdrop.catalog.network.models.*
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+enum class ProfilePeopleSheetKind(
+    val title: String,
+    val emptyTitle: String,
+    val emptyBody: String
+) {
+    CONNECTIONS(
+        title = "Connections",
+        emptyTitle = "No connections yet",
+        emptyBody = ""
+    ),
+    FOLLOWERS(
+        title = "Followers",
+        emptyTitle = "No followers yet",
+        emptyBody = ""
+    )
+}
+
+data class ProfilePeopleListItem(
+    val id: String,
+    val username: String? = null,
+    val name: String? = null,
+    val profileImage: String? = null,
+    val headline: String? = null,
+    val college: String? = null,
+    val isOnline: Boolean = false
+)
+
+data class ProfilePeopleSheetState(
+    val kind: ProfilePeopleSheetKind? = null,
+    val people: List<ProfilePeopleListItem> = emptyList(),
+    val total: Int = 0,
+    val page: Int = 1,
+    val hasMore: Boolean = false,
+    val isVisible: Boolean = false,
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
 
 data class ProfileUiState(
     // Profile data
@@ -42,6 +83,9 @@ data class ProfileUiState(
     val feedPage: Int = 1,
     val feedHasMore: Boolean = false,
     val isLoadingFeed: Boolean = false,
+
+    // Connections / followers sheet
+    val peopleSheet: ProfilePeopleSheetState = ProfilePeopleSheetState(),
     
     // Is current user
     val isOwner: Boolean = false,
@@ -58,7 +102,10 @@ data class ProfileUiState(
     // Avatar/Banner upload
     val isUploadingAvatar: Boolean = false,
     val isUploadingBanner: Boolean = false,
-    val uploadError: String? = null
+    val uploadError: String? = null,
+
+    /** Loader gift id to show while profile is fetching (from prefs, memory, or merged profile). */
+    val visitLoaderGiftIdHint: String? = null
 )
 
 class ProfileViewModel(private val context: Context) : ViewModel() {
@@ -83,24 +130,41 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
             lastLoadedUserId == effectiveUserId &&
             (now - lastLoadedAtMillis) < cacheTtlMillis
 
-        if (isCacheFresh) {
+        // Keep aggressive caching for the owner's own profile, but always refresh
+        // viewed profiles in the background so recent cosmetic changes like frames
+        // show up when another user opens the profile again.
+        if (isCacheFresh && effectiveUserId == "me") {
             return
         }
 
         if (isProfileRequestInFlight && lastLoadedUserId == effectiveUserId && !forceRefresh) {
             return
         }
+
+        // If we already have profile data for this user, keep showing it while refreshing (no blocking load).
+        val hasStaleContentToShow =
+            _uiState.value.profile != null &&
+                lastLoadedUserId == effectiveUserId &&
+                (effectiveUserId == "me" || _uiState.value.profile!!.user.id == effectiveUserId)
         
         viewModelScope.launch {
             isProfileRequestInFlight = true
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            
-            // Get current user ID
             val currentUserId = ApiClient.getCurrentUserId(context)
             val isOwner = effectiveUserId == "me" || effectiveUserId == currentUserId
+            val equippedLoader = SettingsPreferences.equippedProfileLoaderGiftId(context).first()
+            val localProfileFrameEnabled = SettingsPreferences.profileFrameEnabled(context).first()
+            val reduceAnimations = SettingsPreferences.reduceAnimations(context).first()
+            val visitHint = when {
+                isOwner -> equippedLoader
+                else -> ProfileLoaderGiftMemory.get(effectiveUserId)
+            }
             _uiState.value = _uiState.value.copy(
+                isLoading = !hasStaleContentToShow,
+                error = null,
+                peopleSheet = ProfilePeopleSheetState(),
                 isOwner = isOwner,
-                currentUserId = currentUserId
+                currentUserId = currentUserId,
+                visitLoaderGiftIdHint = visitHint
             )
             
             // Load profile
@@ -108,12 +172,74 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
                 .onSuccess { profile ->
                     lastLoadedUserId = effectiveUserId
                     lastLoadedAtMillis = System.currentTimeMillis()
+                    val mergedUser = if (isOwner) {
+                        val v = profile.user.visitLoaderGiftId ?: equippedLoader
+                        profile.user.copy(visitLoaderGiftId = v?.takeIf { it.isNotBlank() })
+                    } else {
+                        profile.user.copy(visitLoaderGiftId = profile.user.visitLoaderGiftId?.takeIf { it.isNotBlank() })
+                    }
+                    val serverProfileFrameEnabled = isAnimatedProfileFrame(mergedUser.profileRing)
+                    val serverVisitLoaderGiftId = profile.user.visitLoaderGiftId?.takeIf { it.isNotBlank() }
+                    val mergedProfile = profile.copy(
+                        user = when {
+                            isOwner && localProfileFrameEnabled && !serverProfileFrameEnabled -> {
+                                mergedUser.copy(profileRing = PROFILE_FRAME_RING_ID)
+                            }
+                            isOwner && !equippedLoader.isNullOrBlank() && serverVisitLoaderGiftId.isNullOrBlank() -> {
+                                mergedUser.copy(visitLoaderGiftId = equippedLoader)
+                            }
+                            else -> {
+                                mergedUser
+                            }
+                        }
+                    )
+                    if (isOwner) {
+                        when {
+                            localProfileFrameEnabled && !serverProfileFrameEnabled -> {
+                                ApiClient.updateProfile(
+                                    context,
+                                    ProfileUpdateRequest(profileRing = PROFILE_FRAME_RING_ID)
+                                )
+                            }
+                            !localProfileFrameEnabled && serverProfileFrameEnabled -> {
+                                SettingsPreferences.setProfileFrameEnabled(context, true)
+                            }
+                        }
+                        when {
+                            !equippedLoader.isNullOrBlank() && serverVisitLoaderGiftId.isNullOrBlank() -> {
+                                ApiClient.updateProfile(
+                                    context,
+                                    ProfileUpdateRequest(visitLoaderGiftId = equippedLoader)
+                                )
+                            }
+                            equippedLoader.isNullOrBlank() && !serverVisitLoaderGiftId.isNullOrBlank() -> {
+                                SettingsPreferences.setEquippedProfileLoaderGiftId(
+                                    context,
+                                    serverVisitLoaderGiftId
+                                )
+                            }
+                        }
+                    }
+                    ProfileLoaderGiftMemory.put(mergedProfile.user.id, mergedProfile.user.visitLoaderGiftId)
+                    val shouldHoldForVisitLoader =
+                        !isOwner &&
+                            !reduceAnimations &&
+                            visitHint.isNullOrBlank() &&
+                            !mergedProfile.user.visitLoaderGiftId.isNullOrBlank()
+                    if (shouldHoldForVisitLoader) {
+                        _uiState.value = _uiState.value.copy(
+                            visitLoaderGiftIdHint = mergedProfile.user.visitLoaderGiftId,
+                            isLoading = true
+                        )
+                        delay(900)
+                    }
                     _uiState.value = _uiState.value.copy(
-                        profile = profile,
+                        profile = mergedProfile,
                         isLoading = false,
-                        activityHeatmap = profile.activityHeatmap,
-                        feedItems = profile.recentActivity.items,
-                        feedHasMore = profile.recentActivity.hasMore
+                        activityHeatmap = mergedProfile.activityHeatmap,
+                        feedItems = mergedProfile.recentActivity.items,
+                        feedHasMore = mergedProfile.recentActivity.hasMore,
+                        visitLoaderGiftIdHint = mergedProfile.user.visitLoaderGiftId
                     )
                     
                     // Load relationship status for non-owners
@@ -181,6 +307,148 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
                         availableYears = response.years
                     )
                 }
+        }
+    }
+
+    fun openConnectionsSheet() {
+        openPeopleSheet(ProfilePeopleSheetKind.CONNECTIONS)
+    }
+
+    fun openFollowersSheet() {
+        openPeopleSheet(ProfilePeopleSheetKind.FOLLOWERS)
+    }
+
+    fun dismissPeopleSheet() {
+        _uiState.value = _uiState.value.copy(peopleSheet = ProfilePeopleSheetState())
+    }
+
+    fun retryPeopleSheet() {
+        _uiState.value.peopleSheet.kind?.let { kind ->
+            loadPeopleSheet(kind = kind, reset = true)
+        }
+    }
+
+    fun loadMorePeopleSheet() {
+        val kind = _uiState.value.peopleSheet.kind ?: return
+        loadPeopleSheet(kind = kind, reset = false)
+    }
+
+    private fun openPeopleSheet(kind: ProfilePeopleSheetKind) {
+        val currentSheet = _uiState.value.peopleSheet
+        val needsFreshLoad =
+            currentSheet.kind != kind ||
+                currentSheet.people.isEmpty() ||
+                currentSheet.error != null
+
+        _uiState.value = _uiState.value.copy(
+            peopleSheet = currentSheet.copy(
+                kind = kind,
+                isVisible = true,
+                error = null
+            )
+        )
+
+        if (needsFreshLoad) {
+            loadPeopleSheet(kind = kind, reset = true)
+        }
+    }
+
+    private fun loadPeopleSheet(kind: ProfilePeopleSheetKind, reset: Boolean) {
+        val profileUserId = _uiState.value.profile?.user?.id ?: return
+        val currentSheet = _uiState.value.peopleSheet
+        val activeSheet = if (currentSheet.kind == kind) currentSheet else ProfilePeopleSheetState(kind = kind)
+
+        if (!reset && (activeSheet.isLoading || !activeSheet.hasMore)) return
+
+        val nextPage = if (reset) 1 else activeSheet.page + 1
+
+        _uiState.value = _uiState.value.copy(
+            peopleSheet = activeSheet.copy(
+                kind = kind,
+                isVisible = true,
+                isLoading = true,
+                error = null,
+                people = if (reset) emptyList() else activeSheet.people,
+                total = if (reset) 0 else activeSheet.total,
+                page = if (reset) 1 else activeSheet.page,
+                hasMore = if (reset) false else activeSheet.hasMore
+            )
+        )
+
+        viewModelScope.launch {
+            when (kind) {
+                ProfilePeopleSheetKind.CONNECTIONS -> {
+                    ApiClient.getUserConnections(context, profileUserId, page = nextPage, limit = 30)
+                        .onSuccess { response ->
+                            val mergedPeople = (
+                                if (reset) {
+                                    response.connections.map { it.toPeopleSheetItem() }
+                                } else {
+                                    _uiState.value.peopleSheet.people + response.connections.map { it.toPeopleSheetItem() }
+                                }
+                            ).distinctBy { it.id }
+
+                            _uiState.value = _uiState.value.copy(
+                                peopleSheet = _uiState.value.peopleSheet.copy(
+                                    kind = kind,
+                                    isVisible = true,
+                                    isLoading = false,
+                                    people = mergedPeople,
+                                    total = response.total,
+                                    page = response.page,
+                                    hasMore = response.hasMore,
+                                    error = null
+                                )
+                            )
+                        }
+                        .onFailure { e ->
+                            _uiState.value = _uiState.value.copy(
+                                peopleSheet = _uiState.value.peopleSheet.copy(
+                                    kind = kind,
+                                    isVisible = true,
+                                    isLoading = false,
+                                    error = e.message ?: "Failed to load connections"
+                                )
+                            )
+                        }
+                }
+
+                ProfilePeopleSheetKind.FOLLOWERS -> {
+                    ApiClient.getFollowers(context, profileUserId, page = nextPage, limit = 30)
+                        .onSuccess { response ->
+                            val mergedPeople = (
+                                if (reset) {
+                                    response.followers.map { it.toPeopleSheetItem() }
+                                } else {
+                                    _uiState.value.peopleSheet.people + response.followers.map { it.toPeopleSheetItem() }
+                                }
+                            ).distinctBy { it.id }
+
+                            _uiState.value = _uiState.value.copy(
+                                peopleSheet = _uiState.value.peopleSheet.copy(
+                                    kind = kind,
+                                    isVisible = true,
+                                    isLoading = false,
+                                    people = mergedPeople,
+                                    total = response.total,
+                                    page = response.page,
+                                    hasMore = response.hasMore,
+                                    error = null
+                                )
+                            )
+                        }
+                        .onFailure { e ->
+                            _uiState.value = _uiState.value.copy(
+                                peopleSheet = _uiState.value.peopleSheet.copy(
+                                    kind = kind,
+                                    isVisible = true,
+                                    isLoading = false,
+                                    error = e.message ?: "Failed to load followers"
+                                )
+                            )
+                        }
+                }
+            }
         }
     }
     
@@ -414,7 +682,7 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
                         connectionActionInProgress = false
                     )
                     // Refresh profile to update connection count
-                    targetUserId?.let { loadProfile(it) }
+                    targetUserId?.let { loadProfile(it, forceRefresh = true) }
                 }
                 .onFailure {
                     _uiState.value = _uiState.value.copy(connectionActionInProgress = false)
@@ -458,7 +726,7 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
                         connectionActionInProgress = false
                     )
                     // Refresh profile to update connection count
-                    targetUserId?.let { loadProfile(it) }
+                    targetUserId?.let { loadProfile(it, forceRefresh = true) }
                 }
                 .onFailure {
                     _uiState.value = _uiState.value.copy(connectionActionInProgress = false)
@@ -478,9 +746,17 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
             if (_uiState.value.isFollowing) {
                 ApiClient.unfollowUser(context, userId)
                     .onSuccess {
+                        val currentProfile = _uiState.value.profile
                         _uiState.value = _uiState.value.copy(
                             isFollowing = false,
-                            followActionInProgress = false
+                            followActionInProgress = false,
+                            profile = currentProfile?.let { profile ->
+                                profile.copy(
+                                    stats = profile.stats.copy(
+                                        followersCount = (profile.stats.followersCount - 1).coerceAtLeast(0)
+                                    )
+                                )
+                            }
                         )
                     }
                     .onFailure {
@@ -489,9 +765,17 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
             } else {
                 ApiClient.followUser(context, userId)
                     .onSuccess {
+                        val currentProfile = _uiState.value.profile
                         _uiState.value = _uiState.value.copy(
                             isFollowing = true,
-                            followActionInProgress = false
+                            followActionInProgress = false,
+                            profile = currentProfile?.let { profile ->
+                                profile.copy(
+                                    stats = profile.stats.copy(
+                                        followersCount = profile.stats.followersCount + 1
+                                    )
+                                )
+                            }
                         )
                     }
                     .onFailure {
@@ -900,4 +1184,28 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
             return ProfileViewModel(context) as T
         }
     }
+}
+
+private fun ProfileConnectionItem.toPeopleSheetItem(): ProfilePeopleListItem {
+    return ProfilePeopleListItem(
+        id = user.id,
+        username = user.username,
+        name = user.name,
+        profileImage = user.profileImage,
+        headline = user.headline,
+        college = user.college,
+        isOnline = user.isOnline
+    )
+}
+
+private fun ProfileFollowerItem.toPeopleSheetItem(): ProfilePeopleListItem {
+    return ProfilePeopleListItem(
+        id = user.id,
+        username = user.username,
+        name = user.name,
+        profileImage = user.profileImage,
+        headline = user.headline,
+        college = user.college,
+        isOnline = user.isOnline
+    )
 }

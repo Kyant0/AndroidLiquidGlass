@@ -110,6 +110,23 @@ fun AddEditProjectScreen(
     val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
     val isGlassTheme = themeMode == "glass"
     val isDarkTheme = themeMode == "dark"
+    val modalBackground = when {
+        isDarkTheme -> Color(0xFF0E1014)
+        isGlassTheme -> Color(0xFFF2F6FA)
+        else -> Color(0xFFF8FAFC)
+    }
+    val sectionBorderColor = when {
+        isGlassTheme -> Color.White.copy(alpha = 0.18f)
+        isDarkTheme -> Color.White.copy(alpha = 0.08f)
+        else -> Color.Black.copy(alpha = 0.06f)
+    }
+    val sectionSurfaceColor = when {
+        isGlassTheme -> Color(0xFFF8FAFC)
+        isDarkTheme -> Color(0xFF151922)
+        else -> Color.White
+    }
+    val subduedTextColor = contentColor.copy(alpha = 0.62f)
+    val featuredAccent = Color(0xFFFFD66B)
     
     // Form state
     var name by remember { mutableStateOf(project?.name ?: "") }
@@ -135,6 +152,43 @@ fun AddEditProjectScreen(
     
     // Validation - only name is required
     val isValid = name.isNotBlank()
+
+    fun submitProject() {
+        if (!isValid || isLoading) return
+        scope.launch {
+            isLoading = true
+            val effectiveStartDate = startDate.takeIf { it.isNotBlank() }
+                ?: LocalDate.now().format(DateTimeFormatter.ISO_DATE)
+            val input = ProjectInput(
+                name = name,
+                description = description.takeIf { it.isNotBlank() } ?: "",
+                role = role.takeIf { it.isNotBlank() },
+                techStack = techStack.toList().takeIf { it.isNotEmpty() },
+                startDate = effectiveStartDate,
+                endDate = endDate.takeIf { it.isNotBlank() && !isCurrent },
+                isCurrent = isCurrent,
+                projectUrl = projectUrl.takeIf { it.isNotBlank() },
+                githubUrl = githubUrl.takeIf { it.isNotBlank() },
+                images = images.toList().takeIf { it.isNotEmpty() },
+                featured = featured
+            )
+
+            val result = if (isEditMode && projectId != null) {
+                ApiClient.updateProject(context, projectId, input)
+            } else {
+                ApiClient.createProject(context, input)
+            }
+
+            result
+                .onSuccess { savedProject ->
+                    onSave(savedProject)
+                }
+                .onFailure { e ->
+                    errorMessage = e.message ?: "Failed to save project"
+                    isLoading = false
+                }
+        }
+    }
     
     // Image picker
     val imagePicker = rememberLauncherForActivityResult(
@@ -232,337 +286,375 @@ fun AddEditProjectScreen(
                     BasicText("Cancel", style = TextStyle(contentColor, 14.sp))
                 }
             },
-            containerColor = Color(0xFF1A1A1A)
+            containerColor = modalBackground
         )
     }
     
     Box(
         Modifier
             .fillMaxSize()
-            .then(
-                when {
-                    // Glass: make this a true modal overlay (blur + dim) so the
-                    // underlying profile never visually bleeds through.
-                    isGlassTheme -> Modifier.drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(0f.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(28f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            // Frosted "ice" scrim (no black)
-                            drawRect(Color(0xFFEAF2FF).copy(alpha = 0.55f))
-                        }
+            .background(modalBackground)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        modalBackground,
+                        modalBackground,
+                        modalBackground
                     )
-                    isDarkTheme -> Modifier.background(Color(0xFF0E0E12))
-                    else -> Modifier.background(Color(0xFFF7F7FA))
-                }
+                )
             )
     ) {
         Column(
-            Modifier
+            modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                // Allow scrolling past the bottom tab/footer area
-                .padding(bottom = 120.dp)
+                .padding(vertical = 16.dp)
+                .padding(bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedRectangle(20f.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(16f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(
-                                when {
-                                    isGlassTheme -> Color.White.copy(alpha = 0.14f)
-                                    isDarkTheme -> Color.White.copy(alpha = 0.08f)
-                                    else -> Color.Black.copy(alpha = 0.04f)
-                                }
-                            )
-                        }
-                    )
-                    .padding(16.dp)
+            ProjectEditorSection(
+                title = if (isEditMode) "Edit Project" else "Create Project",
+                subtitle = if (isEditMode) {
+                    "Refresh the visuals, stack, story, and links so this work feels current."
+                } else {
+                    "Turn your work into a polished card with a strong story, visuals, timeline, and links."
+                },
+                iconRes = if (isEditMode) R.drawable.ic_edit else R.drawable.ic_sparkles,
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                borderColor = sectionBorderColor,
+                surfaceColor = sectionSurfaceColor
             ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(
-                                when {
-                                    isGlassTheme -> Color.White.copy(alpha = 0.14f)
-                                    isDarkTheme -> Color.White.copy(alpha = 0.10f)
-                                    else -> Color.Black.copy(alpha = 0.06f)
-                                }
-                            )
-                            .clickable { onCancel() }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        BasicText(
-                            "Cancel",
-                            style = TextStyle(
-                                if (isGlassTheme || isDarkTheme) Color.White else Color.Black.copy(alpha = 0.8f),
-                                14.sp
-                            )
-                        )
-                    }
-                    
-                    BasicText(
-                        if (isEditMode) "Edit Project" else "Add Project",
-                        style = TextStyle(
-                            if (isGlassTheme || isDarkTheme) Color.White else Color.Black.copy(alpha = 0.9f),
-                            18.sp,
-                            FontWeight.SemiBold
-                        )
+                    ProjectEditorMetricChip(
+                        iconRes = R.drawable.ic_work,
+                        label = name.takeIf { it.isNotBlank() } ?: "Untitled draft",
+                        tint = accentColor,
+                        contentColor = contentColor
                     )
-                    
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(if (isValid && !isLoading) accentColor else accentColor.copy(alpha = 0.3f))
-                            .clickable(enabled = isValid && !isLoading) {
-                                scope.launch {
-                                    isLoading = true
-                                    // Use current date if not provided (backend requires startDate)
-                                    val effectiveStartDate = startDate.takeIf { it.isNotBlank() } 
-                                        ?: LocalDate.now().format(DateTimeFormatter.ISO_DATE)
-                                    val input = ProjectInput(
-                                        name = name,
-                                        description = description.takeIf { it.isNotBlank() } ?: "",
-                                        role = role.takeIf { it.isNotBlank() },
-                                        techStack = techStack.toList().takeIf { it.isNotEmpty() },
-                                        startDate = effectiveStartDate,
-                                        endDate = endDate.takeIf { it.isNotBlank() && !isCurrent },
-                                        isCurrent = isCurrent,
-                                        projectUrl = projectUrl.takeIf { it.isNotBlank() },
-                                        githubUrl = githubUrl.takeIf { it.isNotBlank() },
-                                        images = images.toList().takeIf { it.isNotEmpty() },
-                                        featured = featured
-                                    )
-                                    
-                                    val result = if (isEditMode && projectId != null) {
-                                        ApiClient.updateProject(context, projectId, input)
-                                    } else {
-                                        ApiClient.createProject(context, input)
-                                    }
-                                    
-                                    result
-                                        .onSuccess { savedProject ->
-                                            onSave(savedProject)
-                                        }
-                                        .onFailure { e ->
-                                            errorMessage = e.message ?: "Failed to save project"
-                                            isLoading = false
-                                        }
-                                }
-                            }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            BasicText("Save", style = TextStyle(Color.White, 14.sp, FontWeight.SemiBold))
-                        }
+                    ProjectEditorMetricChip(
+                        iconRes = R.drawable.ic_image,
+                        label = "${images.size} visual${if (images.size == 1) "" else "s"}",
+                        tint = contentColor.copy(alpha = 0.74f),
+                        contentColor = contentColor
+                    )
+                    ProjectEditorMetricChip(
+                        iconRes = R.drawable.ic_code,
+                        label = "${techStack.size} tag${if (techStack.size == 1) "" else "s"}",
+                        tint = contentColor.copy(alpha = 0.74f),
+                        contentColor = contentColor
+                    )
+                    if (featured) {
+                        ProjectEditorMetricChip(
+                            iconRes = R.drawable.ic_sparkles,
+                            label = "Featured",
+                            tint = featuredAccent,
+                            contentColor = contentColor
+                        )
                     }
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    ProjectEditorActionButton(
+                        modifier = Modifier.weight(1f),
+                        label = "Cancel",
+                        iconRes = R.drawable.ic_close,
+                        filled = false,
+                        enabled = !isLoading,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        onClick = onCancel
+                    )
+                    ProjectEditorActionButton(
+                        modifier = Modifier.weight(1f),
+                        label = if (isLoading) "Saving..." else if (isEditMode) "Save changes" else "Save project",
+                        iconRes = if (isLoading) null else R.drawable.ic_check,
+                        filled = true,
+                        enabled = isValid && !isLoading,
+                        loading = isLoading,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        onClick = { submitProject() }
+                    )
+                }
             }
-            
-            // Error message
+
             errorMessage?.let { error ->
                 Box(
-                    Modifier
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Red.copy(alpha = 0.2f))
-                        .padding(12.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFFFF6B6B).copy(alpha = 0.12f))
+                        .border(1.dp, Color(0xFFFF6B6B).copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+                        .padding(14.dp)
                 ) {
-                    BasicText(error, style = TextStyle(Color.Red, 13.sp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_warning),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            colorFilter = ColorFilter.tint(Color(0xFFFF6B6B))
+                        )
+                        BasicText(
+                            text = error,
+                            style = TextStyle(Color(0xFFFF6B6B), 13.sp, FontWeight.Medium)
+                        )
+                    }
                 }
             }
-            
-            // Form content
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+
+            ProjectEditorSection(
+                title = "Project Story",
+                subtitle = "Give this work a clear identity and explain why it matters.",
+                iconRes = R.drawable.ic_work,
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                borderColor = sectionBorderColor,
+                surfaceColor = sectionSurfaceColor
             ) {
-                // Project Name (Required)
                 FormField(
                     label = "Title *",
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = "e.g. Art Portfolio, Music Album, Research Paper...",
+                    placeholder = "e.g. Campus placement prep platform",
                     contentColor = contentColor,
                     accentColor = accentColor,
-                    singleLine = true
+                    singleLine = true,
+                    iconRes = R.drawable.ic_work,
+                    helperText = "Use the name people should remember."
                 )
-                
-                // Description (Optional)
+
                 FormField(
                     label = "Description",
                     value = description,
                     onValueChange = { description = it },
-                    placeholder = "Describe your work, goals, achievements...",
+                    placeholder = "What did you build, solve, launch, or improve?",
                     contentColor = contentColor,
                     accentColor = accentColor,
                     singleLine = false,
-                    minLines = 4
+                    minLines = 5,
+                    iconRes = R.drawable.ic_file_text,
+                    helperText = "Keep it outcome-focused and easy to scan."
                 )
-                
-                // Project Images
-                Column {
-                    BasicText(
-                        "Project Images",
-                        style = TextStyle(contentColor, 13.sp, FontWeight.Medium)
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(images.toList()) { imageUrl ->
+
+                FormField(
+                    label = "Your Role",
+                    value = role,
+                    onValueChange = { role = it },
+                    placeholder = "e.g. Product designer, Android developer, Founder",
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    singleLine = true,
+                    iconRes = R.drawable.ic_profile,
+                    helperText = "Say how you contributed to this work."
+                )
+            }
+
+            ProjectEditorSection(
+                title = "Visuals",
+                subtitle = "Add a strong cover image, screenshots, or proof of execution.",
+                iconRes = R.drawable.ic_image,
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                borderColor = sectionBorderColor,
+                surfaceColor = sectionSurfaceColor
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    images.forEach { imageUrl ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(22.dp))
+                                .border(1.dp, contentColor.copy(alpha = 0.08f), RoundedCornerShape(22.dp))
+                        ) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(imageUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = "Project image",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
                             Box(
-                                Modifier
-                                    .size(100.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                            ) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data(imageUrl)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = "Project image",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                                // Remove button
-                                Box(
-                                    Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(4.dp)
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.Black.copy(alpha = 0.7f))
-                                        .clickable { images.remove(imageUrl) },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    BasicText("×", style = TextStyle(Color.White, 14.sp))
-                                }
-                            }
-                        }
-                        
-                        // Add image tile
-                        item {
-                            Box(
-                                Modifier
-                                    .size(100.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .border(
-                                        2.dp,
-                                        contentColor.copy(alpha = 0.3f),
-                                        RoundedCornerShape(8.dp)
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                Color.Black.copy(alpha = 0.16f)
+                                            )
+                                        )
                                     )
-                                    .clickable(enabled = !isUploadingImage) {
-                                        imagePicker.launch("image/*")
-                                    },
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp)
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.48f))
+                                    .clickable { images.remove(imageUrl) },
                                 contentAlignment = Alignment.Center
                             ) {
-                                if (isUploadingImage) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(24.dp),
-                                        color = accentColor,
-                                        strokeWidth = 2.dp
+                                Image(
+                                    painter = painterResource(R.drawable.ic_close),
+                                    contentDescription = "Remove image",
+                                    modifier = Modifier.size(12.dp),
+                                    colorFilter = ColorFilter.tint(Color.White)
+                                )
+                            }
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(contentColor.copy(alpha = 0.04f))
+                            .border(1.dp, contentColor.copy(alpha = 0.08f), RoundedCornerShape(22.dp))
+                            .clickable(enabled = !isUploadingImage) {
+                                imagePicker.launch("image/*")
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isUploadingImage) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(28.dp),
+                                color = accentColor,
+                                strokeWidth = 2.5.dp
+                            )
+                        } else {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(contentColor.copy(alpha = 0.06f))
+                                        .padding(12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Image(
+                                        painter = painterResource(R.drawable.ic_upload),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        colorFilter = ColorFilter.tint(contentColor)
                                     )
-                                } else {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        BasicText("+", style = TextStyle(contentColor.copy(alpha = 0.5f), 24.sp))
-                                        BasicText("Add", style = TextStyle(contentColor.copy(alpha = 0.5f), 11.sp))
-                                    }
+                                }
+                                BasicText(
+                                    text = "Upload visual",
+                                    style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold)
+                                )
+                                BasicText(
+                                    text = "Cover, screenshot, poster, or proof",
+                                    style = TextStyle(subduedTextColor, 12.sp),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            ProjectEditorSection(
+                title = "Stack & Timeline",
+                subtitle = "Show the tools you used and when this work happened.",
+                iconRes = R.drawable.ic_code,
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                borderColor = sectionBorderColor,
+                surfaceColor = sectionSurfaceColor
+            ) {
+                if (techStack.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        techStack.forEach { tech ->
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(accentColor.copy(alpha = 0.12f))
+                                    .border(1.dp, accentColor.copy(alpha = 0.18f), RoundedCornerShape(999.dp))
+                                    .padding(start = 12.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                BasicText(
+                                    text = tech,
+                                    style = TextStyle(contentColor, 12.sp, FontWeight.SemiBold)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(accentColor.copy(alpha = 0.14f))
+                                        .clickable { techStack.remove(tech) }
+                                        .padding(4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Image(
+                                        painter = painterResource(R.drawable.ic_close),
+                                        contentDescription = "Remove tag",
+                                        modifier = Modifier.size(10.dp),
+                                        colorFilter = ColorFilter.tint(accentColor)
+                                    )
                                 }
                             }
                         }
                     }
                 }
-                
-                // Role
-                FormField(
-                    label = "Your Role",
-                    value = role,
-                    onValueChange = { role = it },
-                    placeholder = "e.g. Creator, Lead Artist, Contributor...",
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    singleLine = true
-                )
-                
-                // Skills & Tags (Universal)
-                Column {
-                    BasicText(
-                        "Skills & Tags",
-                        style = TextStyle(contentColor, 13.sp, FontWeight.Medium)
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    
-                    // Tag chips
-                    if (techStack.isNotEmpty()) {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        ) {
-                            techStack.forEach { tech ->
-                                Box(
-                                    Modifier
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(accentColor.copy(alpha = 0.2f))
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        BasicText(tech, style = TextStyle(accentColor, 12.sp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Box(
-                                            Modifier
-                                                .clip(CircleShape)
-                                                .clickable { techStack.remove(tech) }
-                                                .padding(2.dp)
-                                        ) {
-                                            BasicText("×", style = TextStyle(accentColor, 12.sp))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Add tag input
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(contentColor.copy(alpha = 0.04f))
+                        .border(1.dp, accentColor.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
+                        .padding(14.dp)
+                ) {
                     Row(
-                        Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
-                            Modifier
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(accentColor.copy(alpha = 0.14f))
+                                .padding(10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_tag),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                colorFilter = ColorFilter.tint(accentColor)
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(contentColor.copy(alpha = 0.05f))
-                                .padding(12.dp)
+                                .padding(end = 2.dp)
                         ) {
                             BasicTextField(
                                 value = techInput,
@@ -574,206 +666,166 @@ fun AddEditProjectScreen(
                                 decorationBox = { innerTextField ->
                                     if (techInput.isEmpty()) {
                                         BasicText(
-                                            "Add skill or tag...",
-                                            style = TextStyle(contentColor.copy(alpha = 0.4f), 14.sp)
+                                            text = "Add skill, tool, platform, or keyword",
+                                            style = TextStyle(subduedTextColor, 14.sp)
                                         )
                                     }
                                     innerTextField()
                                 }
                             )
                         }
-                        Spacer(Modifier.width(8.dp))
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(accentColor)
-                                .clickable(enabled = techInput.isNotBlank()) {
-                                    if (techInput.isNotBlank()) {
-                                        techStack.add(techInput.trim())
-                                        techInput = ""
-                                    }
+
+                        ProjectEditorActionButton(
+                            label = "Add",
+                            iconRes = R.drawable.ic_plus,
+                            filled = true,
+                            enabled = techInput.isNotBlank(),
+                            contentColor = contentColor,
+                            accentColor = accentColor,
+                            onClick = {
+                                val newTag = techInput.trim()
+                                if (newTag.isNotBlank()) {
+                                    techStack.add(newTag)
+                                    techInput = ""
                                 }
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                        ) {
-                            BasicText("Add", style = TextStyle(Color.White, 14.sp))
-                        }
+                            }
+                        )
                     }
                 }
-                
-                // Dates (Optional)
+
                 Row(
-                    Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Start Date
-                    Column(Modifier.weight(1f)) {
-                        BasicText(
-                            "Start Date",
-                            style = TextStyle(contentColor, 13.sp, FontWeight.Medium)
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(contentColor.copy(alpha = 0.05f))
-                                .clickable { showStartDatePicker = true }
-                                .padding(12.dp)
-                        ) {
-                            BasicText(
-                                if (startDate.isNotBlank()) formatDateDisplay(startDate) else "Select date",
-                                style = TextStyle(
-                                    if (startDate.isNotBlank()) contentColor else contentColor.copy(alpha = 0.4f),
-                                    14.sp
-                                )
-                            )
-                        }
-                    }
-                    
-                    // End Date
-                    Column(Modifier.weight(1f)) {
-                        BasicText(
-                            "End Date",
-                            style = TextStyle(contentColor, 13.sp, FontWeight.Medium)
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    if (isCurrent) contentColor.copy(alpha = 0.02f)
-                                    else contentColor.copy(alpha = 0.05f)
-                                )
-                                .clickable(enabled = !isCurrent) { showEndDatePicker = true }
-                                .padding(12.dp)
-                        ) {
-                            BasicText(
-                                when {
-                                    isCurrent -> "Present"
-                                    endDate.isNotBlank() -> formatDateDisplay(endDate)
-                                    else -> "Select date"
-                                },
-                                style = TextStyle(
-                                    when {
-                                        isCurrent -> contentColor.copy(alpha = 0.4f)
-                                        endDate.isNotBlank() -> contentColor
-                                        else -> contentColor.copy(alpha = 0.4f)
-                                    },
-                                    14.sp
-                                )
-                            )
-                        }
-                    }
-                }
-                
-                // Currently working checkbox
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { isCurrent = !isCurrent }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = isCurrent,
-                        onCheckedChange = { isCurrent = it },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = accentColor,
-                            uncheckedColor = contentColor.copy(alpha = 0.5f)
-                        )
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    BasicText(
-                        "Currently working on this project",
-                        style = TextStyle(contentColor, 14.sp)
-                    )
-                }
-                
-                // Featured checkbox
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { featured = !featured }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = featured,
-                        onCheckedChange = { featured = it },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = Color(0xFFFFD700),
-                            uncheckedColor = contentColor.copy(alpha = 0.5f)
-                        )
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    BasicText(
-                        "Mark as Featured ⭐",
-                        style = TextStyle(contentColor, 14.sp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    BasicText(
-                        "(max 3)",
-                        style = TextStyle(contentColor.copy(alpha = 0.5f), 12.sp)
-                    )
-                }
-                
-                // Project Links Section
-                Column {
-                    BasicText(
-                        "LINKS",
-                        style = TextStyle(contentColor.copy(alpha = 0.5f), 11.sp, FontWeight.Bold)
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    
-                    FormField(
-                        label = "Live/Portfolio URL",
-                        value = projectUrl,
-                        onValueChange = { projectUrl = it },
-                        placeholder = "https://your-work.com",
+                    ProjectDateField(
+                        modifier = Modifier.weight(1f),
+                        label = "Start date",
+                        value = startDate.takeIf { it.isNotBlank() }?.let(::formatDateDisplay) ?: "Pick month",
+                        enabled = true,
                         contentColor = contentColor,
                         accentColor = accentColor,
-                        singleLine = true,
-                        keyboardType = KeyboardType.Uri
+                        onClick = { showStartDatePicker = true }
                     )
-                    
-                    Spacer(Modifier.height(12.dp))
-                    
-                    FormField(
-                        label = "Source/Repository URL",
-                        value = githubUrl,
-                        onValueChange = { githubUrl = it },
-                        placeholder = "https://github.com/... or other source link",
+                    ProjectDateField(
+                        modifier = Modifier.weight(1f),
+                        label = "End date",
+                        value = when {
+                            isCurrent -> "Present"
+                            endDate.isNotBlank() -> formatDateDisplay(endDate)
+                            else -> "Pick month"
+                        },
+                        enabled = !isCurrent,
                         contentColor = contentColor,
                         accentColor = accentColor,
-                        singleLine = true,
-                        keyboardType = KeyboardType.Uri
+                        onClick = { showEndDatePicker = true }
                     )
                 }
-                
-                // Delete button (Edit mode only)
-                if (isEditMode && onDelete != null) {
-                    Spacer(Modifier.height(16.dp))
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.Red.copy(alpha = 0.1f))
-                            .clickable { showDeleteDialog = true }
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        BasicText(
-                            "Delete Project",
-                            style = TextStyle(Color.Red, 14.sp, FontWeight.Medium)
-                        )
-                    }
-                }
-                
-                Spacer(Modifier.height(32.dp))
+
+                ProjectToggleCard(
+                    label = "Currently active",
+                    description = "Use this if you are still building or maintaining the project.",
+                    iconRes = R.drawable.ic_check,
+                    checked = isCurrent,
+                    accentColor = accentColor,
+                    contentColor = contentColor,
+                    onToggle = { isCurrent = !isCurrent }
+                )
+
+                ProjectToggleCard(
+                    label = "Feature on profile",
+                    description = "Highlight this project in your public profile showcase.",
+                    iconRes = R.drawable.ic_sparkles,
+                    checked = featured,
+                    accentColor = featuredAccent,
+                    contentColor = contentColor,
+                    trailingNote = "Max 3",
+                    onToggle = { featured = !featured }
+                )
             }
+
+            ProjectEditorSection(
+                title = "Links",
+                subtitle = "Send people to the live version, source, or portfolio page.",
+                iconRes = R.drawable.ic_link,
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                borderColor = sectionBorderColor,
+                surfaceColor = sectionSurfaceColor
+            ) {
+                FormField(
+                    label = "Live / Portfolio URL",
+                    value = projectUrl,
+                    onValueChange = { projectUrl = it },
+                    placeholder = "https://your-project.com",
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    singleLine = true,
+                    keyboardType = KeyboardType.Uri,
+                    iconRes = R.drawable.ic_open_in_browser,
+                    helperText = "Share the link people should visit first."
+                )
+
+                FormField(
+                    label = "Source / Repository URL",
+                    value = githubUrl,
+                    onValueChange = { githubUrl = it },
+                    placeholder = "https://github.com/username/repo",
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    singleLine = true,
+                    keyboardType = KeyboardType.Uri,
+                    iconRes = R.drawable.ic_github,
+                    helperText = "Add code, docs, or any supporting source link."
+                )
+            }
+
+            if (isEditMode && onDelete != null) {
+                ProjectEditorSection(
+                    title = "Danger Zone",
+                    subtitle = "Remove this project permanently from your profile.",
+                    iconRes = R.drawable.ic_delete,
+                    backdrop = backdrop,
+                    contentColor = contentColor,
+                    accentColor = Color(0xFFFF6B6B),
+                    borderColor = Color(0xFFFF6B6B).copy(alpha = 0.18f),
+                    surfaceColor = sectionSurfaceColor
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color(0xFFFF6B6B).copy(alpha = 0.1f))
+                            .border(1.dp, Color(0xFFFF6B6B).copy(alpha = 0.16f), RoundedCornerShape(18.dp))
+                            .clickable { showDeleteDialog = true }
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_delete),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                colorFilter = ColorFilter.tint(Color(0xFFFF6B6B))
+                            )
+                            Column {
+                                BasicText(
+                                    text = "Delete project",
+                                    style = TextStyle(Color(0xFFFF6B6B), 14.sp, FontWeight.SemiBold)
+                                )
+                                BasicText(
+                                    text = "This action cannot be undone.",
+                                    style = TextStyle(Color(0xFFFF6B6B).copy(alpha = 0.72f), 12.sp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
@@ -792,276 +844,1140 @@ fun ProjectDetailScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
+    val isGlassTheme = themeMode == "glass"
+    val isDarkTheme = themeMode == "dark"
+    val heroAccent = if (project.featured) Color(0xFFFFD66B) else accentColor
+    val surfaceBorder = if (project.featured) heroAccent.copy(alpha = 0.26f) else contentColor.copy(alpha = 0.1f)
+    val baseBackground = when {
+        isDarkTheme -> Color(0xFF101318)
+        isGlassTheme -> Color(0xFFF2F6FA)
+        else -> Color(0xFFF9FAFC)
+    }
+    val backgroundBrush = Brush.verticalGradient(
+        colors = when {
+            isDarkTheme -> listOf(
+                accentColor.copy(alpha = 0.22f),
+                Color(0xFF161C25),
+                baseBackground
+            )
+            isGlassTheme -> listOf(
+                accentColor.copy(alpha = 0.14f),
+                Color.White.copy(alpha = 0.34f),
+                baseBackground
+            )
+            else -> listOf(
+                accentColor.copy(alpha = 0.12f),
+                Color.White.copy(alpha = 0.72f),
+                baseBackground
+            )
+        }
+    )
+    val timelineLabel = projectDetailTimeline(project)
+    val detailLinks = buildList {
+        project.projectUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            add(
+                ProjectDetailLinkEntry(
+                    title = "Live experience",
+                    subtitle = projectLinkHost(url),
+                    iconRes = R.drawable.ic_open_in_browser,
+                    tint = heroAccent,
+                    url = url,
+                    isPrimary = true
+                )
+            )
+        }
+        project.githubUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            add(
+                ProjectDetailLinkEntry(
+                    title = "Source code",
+                    subtitle = projectLinkHost(url),
+                    iconRes = R.drawable.ic_github,
+                    tint = contentColor,
+                    url = url
+                )
+            )
+        }
+        project.otherLinks.orEmpty()
+            .filter { it.url.isNotBlank() }
+            .forEach { link ->
+                add(
+                    ProjectDetailLinkEntry(
+                        title = link.name.ifBlank { "External link" },
+                        subtitle = projectLinkHost(link.url),
+                        iconRes = R.drawable.ic_link,
+                        tint = contentColor,
+                        url = link.url
+                    )
+                )
+            }
+    }
+    val overviewItems = buildList {
+        project.role?.takeIf { it.isNotBlank() }?.let { role ->
+            add(
+                ProjectDetailOverviewItem(
+                    label = "Role",
+                    value = role,
+                    iconRes = R.drawable.ic_work,
+                    tint = heroAccent
+                )
+            )
+        }
+        add(
+            ProjectDetailOverviewItem(
+                label = "Timeline",
+                value = timelineLabel,
+                iconRes = R.drawable.ic_calendar,
+                tint = contentColor.copy(alpha = 0.72f)
+            )
+        )
+        add(
+            ProjectDetailOverviewItem(
+                label = "Status",
+                value = if (project.isCurrent) "Active now" else "Completed",
+                iconRes = if (project.isCurrent) R.drawable.ic_check else R.drawable.ic_sparkles,
+                tint = if (project.isCurrent) heroAccent else contentColor.copy(alpha = 0.72f)
+            )
+        )
+        if (project.images.isNotEmpty()) {
+            add(
+                ProjectDetailOverviewItem(
+                    label = "Media",
+                    value = "${project.images.size} visual${if (project.images.size > 1) "s" else ""}",
+                    iconRes = R.drawable.ic_image,
+                    tint = contentColor.copy(alpha = 0.72f)
+                )
+            )
+        }
+        if (detailLinks.isNotEmpty()) {
+            add(
+                ProjectDetailOverviewItem(
+                    label = "Links",
+                    value = "${detailLinks.size} destination${if (detailLinks.size > 1) "s" else ""}",
+                    iconRes = R.drawable.ic_link,
+                    tint = contentColor.copy(alpha = 0.72f)
+                )
+            )
+        }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(baseBackground)
+            .background(backgroundBrush)
     ) {
         Column(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // Header image
-            Box(
-                Modifier
+            ProjectDetailSurface(
+                modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                backdrop = backdrop,
+                borderColor = surfaceBorder
             ) {
-                if (project.images.isNotEmpty()) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(project.images.first())
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = project.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    // Gradient overlay
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        Color.Black.copy(alpha = 0.7f)
-                                    )
-                                )
-                            )
-                    )
-                } else {
-                    // Placeholder
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        accentColor.copy(alpha = 0.3f),
-                                        accentColor.copy(alpha = 0.1f)
-                                    )
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        BasicText("🚀", style = TextStyle(fontSize = 48.sp))
-                    }
-                }
-                
-                // Back button
                 Box(
-                    Modifier
-                        .padding(16.dp)
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .clickable { onBack() },
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 10f)
                 ) {
-                    BasicText("←", style = TextStyle(Color.White, 20.sp))
-                }
-                
-                // Featured badge
-                if (project.featured) {
-                    Box(
-                        Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(16.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFFFFD700).copy(alpha = 0.9f))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            BasicText("⭐", style = TextStyle(fontSize = 12.sp))
-                            Spacer(Modifier.width(4.dp))
-                            BasicText(
-                                "Featured",
-                                style = TextStyle(Color.Black, 12.sp, FontWeight.Medium)
+                    if (project.images.isNotEmpty()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(project.images.first())
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = project.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(
+                                            heroAccent.copy(alpha = 0.42f),
+                                            accentColor.copy(alpha = 0.2f),
+                                            contentColor.copy(alpha = 0.08f)
+                                        )
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(
+                                    when {
+                                        !project.githubUrl.isNullOrBlank() -> R.drawable.ic_code
+                                        !project.projectUrl.isNullOrBlank() -> R.drawable.ic_globe
+                                        else -> R.drawable.ic_work
+                                    }
+                                ),
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                colorFilter = ColorFilter.tint(heroAccent)
                             )
                         }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Black.copy(alpha = 0.14f),
+                                        Color.Transparent,
+                                        Color.Black.copy(alpha = 0.46f)
+                                    )
+                                )
+                            )
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        ProjectDetailHeroButton(
+                            label = "Back",
+                            onClick = onBack
+                        )
+
+                        if (isOwner) {
+                            ProjectDetailHeroButton(
+                                iconRes = R.drawable.ic_edit,
+                                label = "Edit",
+                                onClick = onEdit
+                            )
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (project.featured) {
+                                ProjectDetailBadge(
+                                    iconRes = R.drawable.ic_sparkles,
+                                    label = "Featured",
+                                    tint = heroAccent,
+                                    background = Color.Black.copy(alpha = 0.28f)
+                                )
+                            }
+                            if (project.isCurrent) {
+                                ProjectDetailBadge(
+                                    iconRes = R.drawable.ic_check,
+                                    label = "Active",
+                                    tint = Color.White,
+                                    background = Color.White.copy(alpha = 0.14f)
+                                )
+                            }
+                        }
+
+                        BasicText(
+                            text = project.name,
+                            style = TextStyle(Color.White, 28.sp, FontWeight.Bold),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        project.role?.takeIf { it.isNotBlank() }?.let { role ->
+                            BasicText(
+                                text = role,
+                                style = TextStyle(
+                                    color = Color.White.copy(alpha = 0.88f),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        BasicText(
+                            text = timelineLabel,
+                            style = TextStyle(
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
-            
-            // Content
+
             Column(
-                Modifier
+                modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Title and edit button
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+                ProjectDetailSectionSurface(
+                    title = "Overview",
+                    backdrop = backdrop,
+                    contentColor = contentColor,
+                    borderColor = surfaceBorder
                 ) {
-                    Column(Modifier.weight(1f)) {
+                    ProjectDetailOverviewBlock(
+                        project = project,
+                        overviewItems = overviewItems,
+                        contentColor = contentColor,
+                        accentColor = heroAccent
+                    )
+                }
+
+                if (project.description.isNotBlank()) {
+                    ProjectDetailSectionSurface(
+                        title = "About this project",
+                        backdrop = backdrop,
+                        contentColor = contentColor,
+                        borderColor = surfaceBorder
+                    ) {
                         BasicText(
-                            project.name,
-                            style = TextStyle(contentColor, 24.sp, FontWeight.Bold)
+                            text = project.description,
+                            style = TextStyle(
+                                color = contentColor.copy(alpha = 0.84f),
+                                fontSize = 14.sp,
+                                lineHeight = 21.sp
+                            )
                         )
-                        project.role?.let { role ->
-                            BasicText(
-                                role,
-                                style = TextStyle(accentColor, 14.sp)
-                            )
-                        }
-                    }
-                    
-                    if (isOwner) {
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(contentColor.copy(alpha = 0.1f))
-                                .clickable { onEdit() }
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            BasicText(
-                                "Edit",
-                                style = TextStyle(contentColor, 13.sp, FontWeight.Medium)
-                            )
-                        }
                     }
                 }
-                
-                Spacer(Modifier.height(4.dp))
-                
-                // Date range
-                BasicText(
-                    "${formatDateDisplay(project.startDate)} — ${if (project.isCurrent) "Present" else project.endDate?.let { formatDateDisplay(it) } ?: ""}",
-                    style = TextStyle(contentColor.copy(alpha = 0.5f), 13.sp)
-                )
-                
-                Spacer(Modifier.height(16.dp))
-                
-                // Description
-                BasicText(
-                    project.description,
-                    style = TextStyle(contentColor.copy(alpha = 0.9f), 15.sp)
-                )
-                
-                // Skills & Tags
+
                 if (project.techStack.isNotEmpty()) {
-                    Spacer(Modifier.height(20.dp))
-                    BasicText(
-                        "SKILLS & TAGS",
-                        style = TextStyle(contentColor.copy(alpha = 0.5f), 11.sp, FontWeight.Bold)
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ProjectDetailSectionSurface(
+                        title = "Stack",
+                        backdrop = backdrop,
+                        contentColor = contentColor,
+                        borderColor = surfaceBorder
                     ) {
-                        project.techStack.forEach { tech ->
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(accentColor.copy(alpha = 0.15f))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                BasicText(
-                                    tech,
-                                    style = TextStyle(accentColor, 13.sp)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            project.techStack.forEach { tech ->
+                                ProjectDetailBadge(
+                                    iconRes = R.drawable.ic_code,
+                                    label = tech,
+                                    tint = heroAccent,
+                                    background = heroAccent.copy(alpha = 0.12f),
+                                    textColor = contentColor
                                 )
                             }
                         }
                     }
                 }
-                
-                // More images
+
+                if (detailLinks.isNotEmpty()) {
+                    ProjectDetailSectionSurface(
+                        title = "Explore",
+                        backdrop = backdrop,
+                        contentColor = contentColor,
+                        borderColor = surfaceBorder
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            detailLinks.forEach { link ->
+                                ProjectDetailLinkRow(
+                                    link = link,
+                                    contentColor = contentColor,
+                                    onClick = {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 if (project.images.size > 1) {
-                    Spacer(Modifier.height(20.dp))
-                    BasicText(
-                        "GALLERY",
-                        style = TextStyle(contentColor.copy(alpha = 0.5f), 11.sp, FontWeight.Bold)
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ProjectDetailSectionSurface(
+                        title = "Gallery",
+                        backdrop = backdrop,
+                        contentColor = contentColor,
+                        borderColor = surfaceBorder
                     ) {
-                        items(project.images.drop(1)) { imageUrl ->
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(imageUrl)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = "Project image",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .height(120.dp)
-                                    .aspectRatio(16f / 9f)
-                                    .clip(RoundedCornerShape(8.dp))
-                            )
-                        }
-                    }
-                }
-                
-                // Links
-                if (project.projectUrl != null || project.githubUrl != null) {
-                    Spacer(Modifier.height(24.dp))
-                    BasicText(
-                        "LINKS",
-                        style = TextStyle(contentColor.copy(alpha = 0.5f), 11.sp, FontWeight.Bold)
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        project.projectUrl?.let { url ->
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(accentColor)
-                                    .clickable {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                    }
-                                    .padding(horizontal = 20.dp, vertical = 12.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    BasicText("🔗", style = TextStyle(fontSize = 14.sp))
-                                    Spacer(Modifier.width(8.dp))
-                                    BasicText(
-                                        "View Live",
-                                        style = TextStyle(Color.White, 14.sp, FontWeight.Medium)
-                                    )
-                                }
-                            }
-                        }
-                        
-                        project.githubUrl?.let { url ->
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(contentColor.copy(alpha = 0.1f))
-                                    .clickable {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                    }
-                                    .padding(horizontal = 20.dp, vertical = 12.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    BasicText("📂", style = TextStyle(fontSize = 14.sp))
-                                    Spacer(Modifier.width(8.dp))
-                                    BasicText(
-                                        "Source",
-                                        style = TextStyle(contentColor, 14.sp, FontWeight.Medium)
-                                    )
-                                }
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(project.images.drop(1)) { imageUrl ->
+                                ProjectDetailGalleryCard(
+                                    imageUrl = imageUrl,
+                                    projectName = project.name
+                                )
                             }
                         }
                     }
                 }
-                
-                Spacer(Modifier.height(32.dp))
+
+                Spacer(Modifier.height(18.dp))
             }
         }
     }
 }
 
+private data class ProjectDetailOverviewItem(
+    val label: String,
+    val value: String,
+    val iconRes: Int,
+    val tint: Color
+)
+
+private data class ProjectDetailLinkEntry(
+    val title: String,
+    val subtitle: String,
+    val iconRes: Int,
+    val tint: Color,
+    val url: String,
+    val isPrimary: Boolean = false
+)
+
+@Composable
+private fun ProjectDetailSurface(
+    modifier: Modifier = Modifier,
+    backdrop: LayerBackdrop,
+    borderColor: Color,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedRectangle(24f.dp) },
+                effects = {
+                    vibrancy()
+                    blur(18f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(Color.White.copy(alpha = 0.06f))
+                }
+            )
+            .border(1.dp, borderColor, RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(24.dp))
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun ProjectDetailSectionSurface(
+    title: String,
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    borderColor: Color,
+    content: @Composable () -> Unit
+) {
+    ProjectDetailSurface(
+        modifier = Modifier.fillMaxWidth(),
+        backdrop = backdrop,
+        borderColor = borderColor
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            BasicText(
+                text = title,
+                style = TextStyle(
+                    color = contentColor,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun ProjectDetailHeroButton(
+    label: String,
+    iconRes: Int? = null,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.Black.copy(alpha = 0.22f))
+            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(999.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        iconRes?.let { res ->
+            Image(
+                painter = painterResource(res),
+                contentDescription = label,
+                modifier = Modifier.size(14.dp),
+                colorFilter = ColorFilter.tint(Color.White)
+            )
+        }
+        BasicText(
+            text = label,
+            style = TextStyle(Color.White, 13.sp, FontWeight.SemiBold)
+        )
+    }
+}
+
+@Composable
+private fun ProjectDetailBadge(
+    iconRes: Int,
+    label: String,
+    tint: Color,
+    background: Color,
+    textColor: Color = tint
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(background)
+            .border(1.dp, tint.copy(alpha = 0.2f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = label,
+            modifier = Modifier.size(12.dp),
+            colorFilter = ColorFilter.tint(tint)
+        )
+        BasicText(
+            text = label,
+            style = TextStyle(textColor, 11.sp, FontWeight.SemiBold)
+        )
+    }
+}
+
+@Composable
+private fun ProjectDetailOverviewBlock(
+    project: Project,
+    overviewItems: List<ProjectDetailOverviewItem>,
+    contentColor: Color,
+    accentColor: Color
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = 0.18f),
+                            accentColor.copy(alpha = 0.08f),
+                            contentColor.copy(alpha = 0.03f)
+                        )
+                    )
+                )
+                .border(1.dp, accentColor.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+                .padding(16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                BasicText(
+                    text = "Quick snapshot",
+                    style = TextStyle(
+                        color = contentColor.copy(alpha = 0.58f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+
+                BasicText(
+                    text = project.role?.takeIf { it.isNotBlank() } ?: "Project highlight",
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    overviewItems.forEach { item ->
+                        ProjectDetailMetricPill(
+                            iconRes = item.iconRes,
+                            text = item.value,
+                            tint = item.tint,
+                            contentColor = contentColor
+                        )
+                    }
+                }
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(contentColor.copy(alpha = 0.04f))
+                .border(1.dp, contentColor.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+        ) {
+            overviewItems.forEachIndexed { index, item ->
+                ProjectDetailOverviewRow(
+                    item = item,
+                    contentColor = contentColor
+                )
+
+                if (index != overviewItems.lastIndex) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(1.dp)
+                            .background(contentColor.copy(alpha = 0.06f))
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectDetailMetricPill(
+    iconRes: Int,
+    text: String,
+    tint: Color,
+    contentColor: Color
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.White.copy(alpha = 0.14f))
+            .border(1.dp, tint.copy(alpha = 0.16f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = text,
+            modifier = Modifier.size(12.dp),
+            colorFilter = ColorFilter.tint(tint)
+        )
+        BasicText(
+            text = text,
+            style = TextStyle(
+                color = contentColor,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun ProjectDetailOverviewRow(
+    item: ProjectDetailOverviewItem,
+    contentColor: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(item.tint.copy(alpha = 0.14f))
+                .padding(10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(item.iconRes),
+                contentDescription = item.label,
+                modifier = Modifier.size(14.dp),
+                colorFilter = ColorFilter.tint(item.tint)
+            )
+        }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            BasicText(
+                text = item.label,
+                style = TextStyle(
+                    color = contentColor.copy(alpha = 0.56f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            BasicText(
+                text = item.value,
+                style = TextStyle(
+                    color = contentColor,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProjectDetailLinkRow(
+    link: ProjectDetailLinkEntry,
+    contentColor: Color,
+    onClick: () -> Unit
+) {
+    val rowBackground = if (link.isPrimary) link.tint.copy(alpha = 0.14f) else contentColor.copy(alpha = 0.04f)
+    val rowBorder = if (link.isPrimary) link.tint.copy(alpha = 0.22f) else contentColor.copy(alpha = 0.08f)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(rowBackground)
+            .border(1.dp, rowBorder, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(link.tint.copy(alpha = if (link.isPrimary) 0.2f else 0.12f))
+                .padding(10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(link.iconRes),
+                contentDescription = link.title,
+                modifier = Modifier.size(16.dp),
+                colorFilter = ColorFilter.tint(link.tint)
+            )
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            BasicText(
+                text = link.title,
+                style = TextStyle(
+                    color = contentColor,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            BasicText(
+                text = link.subtitle,
+                style = TextStyle(
+                    color = contentColor.copy(alpha = 0.56f),
+                    fontSize = 12.sp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        BasicText(
+            text = "Open",
+            style = TextStyle(
+                color = if (link.isPrimary) link.tint else contentColor.copy(alpha = 0.72f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        )
+    }
+}
+
+@Composable
+private fun ProjectDetailGalleryCard(
+    imageUrl: String,
+    projectName: String
+) {
+    val context = LocalContext.current
+
+    Box(
+        modifier = Modifier
+            .height(150.dp)
+            .aspectRatio(16f / 10f)
+            .clip(RoundedCornerShape(20.dp))
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(imageUrl)
+                .crossfade(true)
+                .build(),
+            contentDescription = projectName,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.18f)
+                        )
+                    )
+                )
+        )
+    }
+}
+
+private fun projectDetailTimeline(project: Project): String {
+    val endLabel = if (project.isCurrent) "Present" else project.endDate?.let { formatDateDisplay(it) }
+    return listOf(formatDateDisplay(project.startDate), endLabel)
+        .filterNotNull()
+        .filter { it.isNotBlank() }
+        .joinToString(" • ")
+}
+
+private fun projectLinkHost(url: String): String {
+    return Uri.parse(url).host?.removePrefix("www.") ?: url
+}
+
 // ==================== Helper Composables ====================
+
+@Composable
+private fun ProjectEditorSection(
+    title: String,
+    subtitle: String,
+    iconRes: Int,
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    borderColor: Color,
+    surfaceColor: Color,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(surfaceColor)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(accentColor.copy(alpha = 0.14f))
+                        .border(1.dp, accentColor.copy(alpha = 0.18f), CircleShape)
+                        .padding(10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(iconRes),
+                        contentDescription = title,
+                        modifier = Modifier.size(18.dp),
+                        colorFilter = ColorFilter.tint(accentColor)
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    BasicText(
+                        text = title,
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                    BasicText(
+                        text = subtitle,
+                        style = TextStyle(
+                            color = contentColor.copy(alpha = 0.62f),
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp
+                        )
+                    )
+                }
+            }
+
+            content()
+        }
+    }
+}
+
+@Composable
+private fun ProjectEditorMetricChip(
+    iconRes: Int,
+    label: String,
+    tint: Color,
+    contentColor: Color
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.White.copy(alpha = 0.12f))
+            .border(1.dp, tint.copy(alpha = 0.18f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = label,
+            modifier = Modifier.size(12.dp),
+            colorFilter = ColorFilter.tint(tint)
+        )
+        BasicText(
+            text = label,
+            style = TextStyle(contentColor, 11.sp, FontWeight.SemiBold),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun ProjectEditorActionButton(
+    modifier: Modifier = Modifier,
+    label: String,
+    iconRes: Int? = null,
+    filled: Boolean,
+    enabled: Boolean = true,
+    loading: Boolean = false,
+    contentColor: Color,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    val background = when {
+        filled && enabled -> accentColor
+        filled -> accentColor.copy(alpha = 0.3f)
+        else -> contentColor.copy(alpha = 0.05f)
+    }
+    val border = if (filled) Color.Transparent else contentColor.copy(alpha = 0.08f)
+    val textColor = if (filled) Color.White else contentColor
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(background)
+            .border(1.dp, border, RoundedCornerShape(18.dp))
+            .clickable(enabled = enabled && !loading, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = textColor,
+                strokeWidth = 2.dp
+            )
+        } else {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                iconRes?.let { res ->
+                    Image(
+                        painter = painterResource(res),
+                        contentDescription = label,
+                        modifier = Modifier.size(14.dp),
+                        colorFilter = ColorFilter.tint(textColor)
+                    )
+                }
+                BasicText(
+                    text = label,
+                    style = TextStyle(textColor, 14.sp, FontWeight.SemiBold)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectDateField(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String,
+    enabled: Boolean,
+    contentColor: Color,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        BasicText(
+            text = label,
+            style = TextStyle(contentColor.copy(alpha = 0.62f), 12.sp, FontWeight.Medium)
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    if (enabled) contentColor.copy(alpha = 0.04f)
+                    else contentColor.copy(alpha = 0.025f)
+                )
+                .border(
+                    1.dp,
+                    if (enabled) accentColor.copy(alpha = 0.12f) else contentColor.copy(alpha = 0.06f),
+                    RoundedCornerShape(18.dp)
+                )
+                .clickable(enabled = enabled, onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(accentColor.copy(alpha = if (enabled) 0.14f else 0.08f))
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_calendar),
+                    contentDescription = label,
+                    modifier = Modifier.size(14.dp),
+                    colorFilter = ColorFilter.tint(if (enabled) accentColor else contentColor.copy(alpha = 0.4f))
+                )
+            }
+            BasicText(
+                text = value,
+                style = TextStyle(
+                    color = if (enabled) contentColor else contentColor.copy(alpha = 0.42f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProjectToggleCard(
+    label: String,
+    description: String,
+    iconRes: Int,
+    checked: Boolean,
+    accentColor: Color,
+    contentColor: Color,
+    trailingNote: String? = null,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (checked) accentColor.copy(alpha = 0.10f)
+                else contentColor.copy(alpha = 0.04f)
+            )
+            .border(
+                1.dp,
+                if (checked) accentColor.copy(alpha = 0.2f)
+                else contentColor.copy(alpha = 0.08f),
+                RoundedCornerShape(20.dp)
+            )
+            .clickable(onClick = onToggle)
+            .padding(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(accentColor.copy(alpha = if (checked) 0.18f else 0.1f))
+                .padding(10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(iconRes),
+                contentDescription = label,
+                modifier = Modifier.size(16.dp),
+                colorFilter = ColorFilter.tint(accentColor)
+            )
+        }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BasicText(
+                    text = label,
+                    style = TextStyle(contentColor, 14.sp, FontWeight.SemiBold)
+                )
+                trailingNote?.let { note ->
+                    BasicText(
+                        text = note,
+                        style = TextStyle(contentColor.copy(alpha = 0.48f), 11.sp, FontWeight.Medium)
+                    )
+                }
+            }
+            BasicText(
+                text = description,
+                style = TextStyle(contentColor.copy(alpha = 0.62f), 12.sp, lineHeight = 17.sp)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(if (checked) accentColor else Color.Transparent)
+                .border(
+                    1.dp,
+                    if (checked) accentColor else contentColor.copy(alpha = 0.2f),
+                    CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (checked) {
+                Image(
+                    painter = painterResource(R.drawable.ic_check),
+                    contentDescription = "Selected",
+                    modifier = Modifier.size(12.dp),
+                    colorFilter = ColorFilter.tint(Color.White)
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun FormField(
@@ -1073,20 +1989,58 @@ private fun FormField(
     accentColor: Color,
     singleLine: Boolean = true,
     minLines: Int = 1,
-    keyboardType: KeyboardType = KeyboardType.Text
+    keyboardType: KeyboardType = KeyboardType.Text,
+    iconRes: Int? = null,
+    helperText: String? = null
 ) {
-    Column {
-        BasicText(
-            label,
-            style = TextStyle(contentColor, 13.sp, FontWeight.Medium)
-        )
-        Spacer(Modifier.height(8.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            iconRes?.let { res ->
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(accentColor.copy(alpha = 0.14f))
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(res),
+                        contentDescription = label,
+                        modifier = Modifier.size(14.dp),
+                        colorFilter = ColorFilter.tint(accentColor)
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                BasicText(
+                    label,
+                    style = TextStyle(contentColor, 13.sp, FontWeight.SemiBold)
+                )
+                helperText?.let { helper ->
+                    BasicText(
+                        text = helper,
+                        style = TextStyle(contentColor.copy(alpha = 0.56f), 12.sp, lineHeight = 17.sp)
+                    )
+                }
+            }
+        }
+
         Box(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(contentColor.copy(alpha = 0.05f))
-                .padding(12.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(contentColor.copy(alpha = 0.04f))
+                .border(
+                    1.dp,
+                    if (value.isNotBlank()) accentColor.copy(alpha = 0.18f)
+                    else contentColor.copy(alpha = 0.08f),
+                    RoundedCornerShape(20.dp)
+                )
+                .padding(horizontal = 14.dp, vertical = 14.dp)
         ) {
             BasicTextField(
                 value = value,
@@ -1100,12 +2054,12 @@ private fun FormField(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(if (!singleLine) Modifier.height((minLines * 20).dp) else Modifier),
+                    .then(if (!singleLine) Modifier.height((minLines * 24).dp) else Modifier),
                 decorationBox = { innerTextField ->
                     if (value.isEmpty()) {
                         BasicText(
                             placeholder,
-                            style = TextStyle(contentColor.copy(alpha = 0.4f), 14.sp)
+                            style = TextStyle(contentColor.copy(alpha = 0.38f), 14.sp)
                         )
                     }
                     innerTextField()

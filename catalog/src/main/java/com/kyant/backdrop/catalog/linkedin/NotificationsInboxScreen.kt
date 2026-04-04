@@ -211,10 +211,8 @@ fun NotificationsInboxScreen(
                                 }
 
                                 items(section.notifications, key = { it.id }) { notification ->
-                                    val destination = resolveNotificationDestination(notification)
                                     NotificationInboxCard(
                                         notification = notification,
-                                        destination = destination,
                                         backdrop = backdrop,
                                         contentColor = contentColor,
                                         accentColor = accentColor,
@@ -360,13 +358,15 @@ private fun NotificationSectionHeader(
                     fontWeight = FontWeight.SemiBold
                 )
             )
-            BasicText(
-                text = section.subtitle,
-                style = TextStyle(
-                    color = contentColor.copy(alpha = 0.58f),
-                    fontSize = 10.sp
+            if (section.subtitle.isNotBlank()) {
+                BasicText(
+                    text = section.subtitle,
+                    style = TextStyle(
+                        color = contentColor.copy(alpha = 0.58f),
+                        fontSize = 10.sp
+                    )
                 )
-            )
+            }
         }
 
         NotificationMetaPill(
@@ -381,15 +381,14 @@ private fun NotificationSectionHeader(
 @Composable
 private fun NotificationInboxCard(
     notification: Notification,
-    destination: NotificationDestination,
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
     onClick: () -> Unit
 ) {
     val tone = notificationTone(notification.type, accentColor)
-    val preview = notificationContextPreview(notification)
     val displayTitle = notificationDisplayTitle(notification.title)
+    val displayBody = notificationDisplayBody(notification.body)
     val usesVormexBranding = notificationUsesVormexBranding(notification)
 
     Box(
@@ -466,20 +465,6 @@ private fun NotificationInboxCard(
                                 borderColor = tone.copy(alpha = 0.24f),
                                 textColor = tone
                             )
-                            NotificationMetaPill(
-                                text = destination.badge,
-                                background = Color.White.copy(alpha = 0.08f),
-                                borderColor = Color.White.copy(alpha = 0.12f),
-                                textColor = contentColor.copy(alpha = 0.75f)
-                            )
-                            if (!notification.isRead) {
-                                NotificationMetaPill(
-                                    text = "New",
-                                    background = Color(0xFFFF6B6B).copy(alpha = 0.16f),
-                                    borderColor = Color(0xFFFF6B6B).copy(alpha = 0.22f),
-                                    textColor = Color(0xFFFF6B6B)
-                                )
-                            }
                         }
                     }
 
@@ -521,87 +506,17 @@ private fun NotificationInboxCard(
                 )
             }
 
-            BasicText(
-                text = notification.body,
-                style = TextStyle(
-                    color = contentColor.copy(alpha = 0.74f),
-                    fontSize = 11.sp,
-                    lineHeight = 15.sp
-                ),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            if (!usesVormexBranding && !preview.isNullOrBlank()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
-                        .padding(horizontal = 10.dp, vertical = 9.dp)
-                ) {
-                    BasicText(
-                        text = preview,
-                        style = TextStyle(
-                            color = contentColor.copy(alpha = 0.62f),
-                            fontSize = 10.sp,
-                            lineHeight = 14.sp
-                        ),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            if (!usesVormexBranding) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        BasicText(
-                            text = destination.label,
-                            style = TextStyle(
-                                color = tone,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        )
-                        BasicText(
-                            text = destination.hint,
-                            style = TextStyle(
-                                color = contentColor.copy(alpha = 0.52f),
-                                fontSize = 10.sp
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Spacer(Modifier.width(12.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(tone.copy(alpha = 0.16f))
-                            .border(1.dp, tone.copy(alpha = 0.24f), RoundedCornerShape(999.dp))
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        BasicText(
-                            text = "Open →",
-                            style = TextStyle(
-                                color = tone,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        )
-                    }
-                }
+            if (displayBody.isNotBlank()) {
+                BasicText(
+                    text = displayBody,
+                    style = TextStyle(
+                        color = contentColor.copy(alpha = 0.74f),
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -857,7 +772,7 @@ private fun buildNotificationSections(
             sections += NotificationSection(
                 id = "new",
                 title = "New",
-                subtitle = "Unread first so nothing important slips away",
+                subtitle = "",
                 notifications = unread
             )
         }
@@ -878,7 +793,7 @@ private fun buildNotificationSections(
         sections += NotificationSection(
             id = "today",
             title = "Today",
-            subtitle = "Recent updates you already checked",
+            subtitle = "",
             notifications = today
         )
     }
@@ -886,7 +801,7 @@ private fun buildNotificationSections(
         sections += NotificationSection(
             id = "yesterday",
             title = "Yesterday",
-            subtitle = "Still worth another look",
+            subtitle = "",
             notifications = yesterday
         )
     }
@@ -894,7 +809,7 @@ private fun buildNotificationSections(
         sections += NotificationSection(
             id = "week",
             title = "This week",
-            subtitle = "Older activity from the last few days",
+            subtitle = "",
             notifications = thisWeek
         )
     }
@@ -902,7 +817,7 @@ private fun buildNotificationSections(
         sections += NotificationSection(
             id = "earlier",
             title = "Earlier",
-            subtitle = "Archive of older activity",
+            subtitle = "",
             notifications = earlier
         )
     }
@@ -912,7 +827,7 @@ private fun buildNotificationSections(
             NotificationSection(
                 id = "all",
                 title = "All activity",
-                subtitle = "Everything in one place",
+                subtitle = "",
                 notifications = notifications
             )
         )
@@ -1001,8 +916,50 @@ private fun notificationTypeLabel(type: String): String {
 
 private fun notificationDisplayTitle(title: String): String {
     val trimmed = title.trim()
-    val cleaned = trimmed.replace(Regex("^[^\\p{L}\\p{N}]+\\s*"), "")
-    return cleaned.ifBlank { trimmed }
+    val cleaned = cleanNotificationCopy(trimmed)
+    return cleaned.ifBlank { trimmed.replace(Regex("^[^\\p{L}\\p{N}]+\\s*"), "") }
+}
+
+private fun notificationDisplayBody(body: String): String {
+    return cleanNotificationCopy(body)
+}
+
+private fun cleanNotificationCopy(text: String): String {
+    val original = text.trim()
+    if (original.isBlank()) return ""
+
+    var cleaned = original.replace(Regex("^[^\\p{L}\\p{N}]+\\s*"), "")
+    listOf(
+        Regex("^there is a new\\s+", RegexOption.IGNORE_CASE),
+        Regex("^there's a new\\s+", RegexOption.IGNORE_CASE),
+        Regex("^you have a new\\s+", RegexOption.IGNORE_CASE),
+        Regex("^you got a new\\s+", RegexOption.IGNORE_CASE),
+        Regex("^you have\\s+", RegexOption.IGNORE_CASE),
+        Regex("^new\\s+(?=(message|comment|reply|request|connection|follower|mention|like|reel|notification)s?\\b)", RegexOption.IGNORE_CASE)
+    ).forEach { pattern ->
+        cleaned = cleaned.replace(pattern, "")
+    }
+
+    listOf(
+        Regex("\\bon Vormex\\b", RegexOption.IGNORE_CASE),
+        Regex("\\btap to (?:open|view|see|reply)\\b", RegexOption.IGNORE_CASE),
+        Regex("\\bcheck it out\\b", RegexOption.IGNORE_CASE),
+        Regex("\\bright now\\b", RegexOption.IGNORE_CASE)
+    ).forEach { pattern ->
+        cleaned = cleaned.replace(pattern, "")
+    }
+
+    cleaned = cleaned
+        .replace(Regex("\\s+"), " ")
+        .replace(Regex("\\s+([,.:!?])"), "$1")
+        .replace(Regex("^[,.:;\\-\\s]+"), "")
+        .replace(Regex("[,.:;\\-\\s]+$"), "")
+        .trim()
+
+    val normalized = cleaned.ifBlank { original }
+    return normalized.replaceFirstChar { char ->
+        if (char.isLowerCase()) char.titlecase(Locale.getDefault()) else char.toString()
+    }
 }
 
 private fun notificationTone(type: String, accentColor: Color): Color {
@@ -1017,17 +974,6 @@ private fun notificationTone(type: String, accentColor: Color): Color {
         "streak" in normalized || "xp" in normalized -> Color(0xFFFFC107)
         else -> accentColor
     }
-}
-
-private fun notificationContextPreview(notification: Notification): String? {
-    return listOf(
-        notification.post?.content,
-        notification.reel?.title,
-        notification.dataValue("commentPreview"),
-        notification.dataValue("replyPreview"),
-        notification.dataValue("preview"),
-        notification.dataValue("reason")
-    ).firstOrNull { !it.isNullOrBlank() }
 }
 
 private fun resolveNotificationDestination(notification: Notification): NotificationDestination {

@@ -109,9 +109,7 @@ fun GroupDetailScreen(
                         accentColor = accentColor,
                         group = group,
                         isJoining = group.id in uiState.joiningGroupIds,
-                        isLeaving = group.id in uiState.leavingGroupIds,
                         onJoinClick = { viewModel.joinGroup(group.id) },
-                        onLeaveClick = { viewModel.leaveGroup(group.id) },
                         onChatClick = onNavigateToChat
                     )
                 }
@@ -358,9 +356,7 @@ private fun GroupInfoCard(
     accentColor: Color,
     group: Group,
     isJoining: Boolean,
-    isLeaving: Boolean,
     onJoinClick: () -> Unit,
-    onLeaveClick: () -> Unit,
     onChatClick: () -> Unit
 ) {
     Column(
@@ -523,35 +519,6 @@ private fun GroupInfoCard(
                     }
                 }
                 
-                // Leave button
-                if (group.memberRole != "owner") {
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .background(Color.Red.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable(enabled = !isLeaving, onClick = onLeaveClick)
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isLeaving) {
-                            CircularProgressIndicator(
-                                color = Color.Red,
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            BasicText(
-                                "Leave Group",
-                                style = TextStyle(
-                                    color = Color.Red,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            )
-                        }
-                    }
-                }
             } else {
                 // Join button
                 Box(

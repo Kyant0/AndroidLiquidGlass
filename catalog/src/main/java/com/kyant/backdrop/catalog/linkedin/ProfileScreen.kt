@@ -9,6 +9,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -17,6 +19,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
@@ -30,13 +34,16 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -61,6 +68,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,15 +98,20 @@ import coil.request.ImageRequest
 import coil.request.CachePolicy
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.catalog.data.SettingsPreferences
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.components.LiquidSlider
-import com.kyant.backdrop.catalog.data.SettingsPreferences
 import com.kyant.backdrop.catalog.network.models.*
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 import java.io.ByteArrayOutputStream
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -111,6 +124,9 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 // ==================== Main Profile Screen ====================
@@ -125,7 +141,8 @@ fun ProfileScreen(
     onNavigateBack: () -> Unit = {},
     onEditProfile: () -> Unit = {},
     onMessage: (String) -> Unit = {},
-    onOpenFeedItem: (FeedItem) -> Unit = {}
+    onOpenFeedItem: (FeedItem) -> Unit = {},
+    onOpenProfile: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val screenViewModel = profileViewModel ?: viewModel(
@@ -136,6 +153,7 @@ fun ProfileScreen(
     
     // Theme detection
     val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
+    val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
     val isGlassTheme = themeMode == "glass"
     val isDarkTheme = themeMode == "dark"
     val isLightTheme = themeMode == "light"
@@ -143,7 +161,18 @@ fun ProfileScreen(
     // Project screen state
     var showAddProject by remember { mutableStateOf(false) }
     var editingProject by remember { mutableStateOf<Project?>(null) }
-    var viewingProject by remember { mutableStateOf<Project?>(null) }
+    var projectDetailProject by remember { mutableStateOf<Project?>(null) }
+    var projectDetailVisible by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun dismissProjectDetail(afterDismiss: (() -> Unit)? = null) {
+        scope.launch {
+            projectDetailVisible = false
+            delay(220)
+            projectDetailProject = null
+            afterDismiss?.invoke()
+        }
+    }
     
     // Experience screen state
     var showAddExperience by remember { mutableStateOf(false) }
@@ -168,7 +197,7 @@ fun ProfileScreen(
     
     // Handle back button for profile overlays, or navigate back from profile
     BackHandler(
-        enabled = showAddProject || editingProject != null || viewingProject != null ||
+        enabled = showAddProject || editingProject != null || projectDetailProject != null ||
                 showAddExperience || editingExperience != null ||
                 showAddEducation || editingEducation != null ||
                 showAddCertificate || editingCertificate != null || viewingCertificate != null ||
@@ -180,7 +209,7 @@ fun ProfileScreen(
             // Close any open dialogs/overlays first
             showAddProject -> showAddProject = false
             editingProject != null -> editingProject = null
-            viewingProject != null -> viewingProject = null
+            projectDetailProject != null -> dismissProjectDetail()
             showAddExperience -> showAddExperience = false
             editingExperience != null -> editingExperience = null
             showAddEducation -> showAddEducation = false
@@ -202,19 +231,9 @@ fun ProfileScreen(
     }
     
     Box(Modifier.fillMaxSize()) {
+        // Prefer cached profile while refreshing (stale-while-revalidate). Checking isLoading first
+        // would flash the skeleton on every tab revisit because loadProfile(forceRefresh) sets loading.
         when {
-            uiState.isLoading -> {
-                ProfileSkeleton(backdrop, isLightTheme, isGlassTheme)
-            }
-            uiState.error != null -> {
-                ProfileError(
-                    error = uiState.error!!,
-                    backdrop = backdrop,
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    onRetry = { screenViewModel.retry() }
-                )
-            }
             uiState.profile != null -> {
                 ProfileContent(
                     uiState = uiState,
@@ -240,6 +259,8 @@ fun ProfileScreen(
                     onCancelEditBio = { screenViewModel.cancelEditingBio() },
                     onBioChange = { screenViewModel.updateEditedBio(it) },
                     onToggleOpenToWork = { screenViewModel.updateOpenToOpportunities(it) },
+                    onOpenConnections = { screenViewModel.openConnectionsSheet() },
+                    onOpenFollowers = { screenViewModel.openFollowersSheet() },
                     onMessage = onMessage,
                     onOpenFeedItem = onOpenFeedItem,
                     onVotePoll = { postId, optionId -> screenViewModel.votePoll(postId, optionId) },
@@ -248,7 +269,10 @@ fun ProfileScreen(
                     // Project callbacks
                     onAddProject = { showAddProject = true },
                     onEditProject = { editingProject = it },
-                    onViewProject = { viewingProject = it },
+                    onViewProject = {
+                        projectDetailProject = it
+                        projectDetailVisible = true
+                    },
                     onToggleProjectFeatured = { screenViewModel.toggleProjectFeatured(it.id) },
                     // Experience callbacks
                     onAddExperience = { showAddExperience = true },
@@ -278,6 +302,51 @@ fun ProfileScreen(
                     }
                 )
             }
+            uiState.error != null -> {
+                ProfileError(
+                    error = uiState.error!!,
+                    backdrop = backdrop,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    onRetry = { screenViewModel.retry() }
+                )
+            }
+            uiState.isLoading -> {
+                ProfileLoadingContent(
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    visitLoaderGiftId = uiState.visitLoaderGiftIdHint,
+                    reduceAnimations = reduceAnimations
+                )
+            }
+            else -> {
+                ProfileLoadingContent(
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    visitLoaderGiftId = uiState.visitLoaderGiftIdHint,
+                    reduceAnimations = reduceAnimations
+                )
+            }
+        }
+
+        if (uiState.peopleSheet.isVisible) {
+            ProfilePeopleSheetDialog(
+                sheetState = uiState.peopleSheet,
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                isGlassTheme = isGlassTheme,
+                isDarkTheme = isDarkTheme,
+                onDismiss = { screenViewModel.dismissPeopleSheet() },
+                onRetry = { screenViewModel.retryPeopleSheet() },
+                onLoadMore = { screenViewModel.loadMorePeopleSheet() },
+                onPersonClick = onOpenProfile?.let { callback ->
+                    { personId ->
+                        screenViewModel.dismissPeopleSheet()
+                        callback(personId)
+                    }
+                }
+            )
         }
         
         // Add Project Screen
@@ -312,20 +381,32 @@ fun ProfileScreen(
             )
         }
         
-        // Project Detail Screen
-        viewingProject?.let { project ->
-            ProjectDetailScreen(
-                project = project,
-                backdrop = backdrop,
-                contentColor = contentColor,
-                accentColor = accentColor,
-                isOwner = uiState.isOwner,
-                onEdit = {
-                    viewingProject = null
-                    editingProject = project
-                },
-                onBack = { viewingProject = null }
+        AnimatedVisibility(
+            visible = projectDetailProject != null && projectDetailVisible,
+            enter = fadeIn(animationSpec = tween(180)) + scaleIn(
+                initialScale = 0.94f,
+                animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing)
+            ),
+            exit = fadeOut(animationSpec = tween(180)) + scaleOut(
+                targetScale = 0.98f,
+                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
             )
+        ) {
+            projectDetailProject?.let { project ->
+                ProjectDetailScreen(
+                    project = project,
+                    backdrop = backdrop,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    isOwner = uiState.isOwner,
+                    onEdit = {
+                        dismissProjectDetail {
+                            editingProject = project
+                        }
+                    },
+                    onBack = { dismissProjectDetail() }
+                )
+            }
         }
         
         // Add Experience Screen
@@ -673,6 +754,8 @@ private fun ProfileContent(
     onCancelEditBio: () -> Unit,
     onBioChange: (String) -> Unit,
     onToggleOpenToWork: (Boolean) -> Unit,
+    onOpenConnections: () -> Unit,
+    onOpenFollowers: () -> Unit,
     onMessage: (String) -> Unit,
     onOpenFeedItem: (FeedItem) -> Unit,
     onVotePoll: (String, String) -> Unit,
@@ -813,6 +896,8 @@ private fun ProfileContent(
                 onAcceptRequest = onAcceptRequest,
                 onRemoveConnection = onRemoveConnection,
                 onToggleFollow = onToggleFollow,
+                onOpenConnections = onOpenConnections,
+                onOpenFollowers = onOpenFollowers,
                 onMessage = onMessage,
                 onUploadAvatar = onUploadAvatar,
                 onUploadBanner = onUploadBanner
@@ -824,7 +909,6 @@ private fun ProfileContent(
             Spacer(Modifier.height(12.dp))
             AboutSection(
                 user = profile.user,
-                stats = profile.stats,
                 backdrop = backdrop,
                 contentColor = contentColor,
                 accentColor = accentColor,
@@ -1020,11 +1104,15 @@ private fun ProfileHeader(
     onAcceptRequest: () -> Unit,
     onRemoveConnection: () -> Unit,
     onToggleFollow: () -> Unit,
+    onOpenConnections: () -> Unit,
+    onOpenFollowers: () -> Unit,
     onMessage: (String) -> Unit,
     onUploadAvatar: (ByteArray) -> Unit = {},
     onUploadBanner: (ByteArray) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val profileFrameEnabled by SettingsPreferences.profileFrameEnabled(context).collectAsState(initial = false)
+    val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
     var showShareMenu by remember { mutableStateOf(false) }
     var showConnectionMenu by remember { mutableStateOf(false) }
     
@@ -1036,6 +1124,17 @@ private fun ProfileHeader(
     // Cache key to force image refresh
     var avatarCacheKey by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var bannerCacheKey by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val hasAnimatedProfileFrame = isAnimatedProfileFrame(user.profileRing)
+    val hasProfileRing = !user.profileRing.isNullOrBlank()
+    val showProfileFrame = if (isOwner) profileFrameEnabled || hasAnimatedProfileFrame else hasAnimatedProfileFrame
+    val avatarContainerSize = if (hasProfileRing) 92.dp else 88.dp
+    val avatarOuterSize = if (showProfileFrame) 164.dp else avatarContainerSize
+    val avatarImageSize = when {
+        showProfileFrame -> 86.dp
+        hasProfileRing -> 84.dp
+        else -> 88.dp
+    }
+    val avatarOffsetX = if (showProfileFrame) 10.dp else 0.dp
     
     // Image pickers
     val avatarPicker = rememberLauncherForActivityResult(
@@ -1233,9 +1332,15 @@ private fun ProfileHeader(
                     verticalAlignment = Alignment.Bottom
                 ) {
                     // Avatar
-                    Box(contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .size(avatarContainerSize)
+                            .offset(x = avatarOffsetX)
+                            .graphicsLayer { clip = false },
+                        contentAlignment = Alignment.Center
+                    ) {
                         // Profile ring
-                        if (user.profileRing != null) {
+                        if (!showProfileFrame && hasProfileRing) {
                             Box(
                                 Modifier
                                     .size(92.dp)
@@ -1256,7 +1361,7 @@ private fun ProfileHeader(
                         
                         Box(
                             Modifier
-                                .size(if (user.profileRing != null) 84.dp else 88.dp)
+                                .size(avatarImageSize)
                                 .clip(CircleShape)
                                 .background(accentColor.copy(alpha = 0.8f)),
                             contentAlignment = Alignment.Center
@@ -1285,51 +1390,17 @@ private fun ProfileHeader(
                                 )
                             }
                             
-                            // Verified badge
-                            if (user.verified) {
-                                Box(
-                                    Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF3B82F6)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    BasicText("✓", style = TextStyle(Color.White, 12.sp, FontWeight.Bold))
-                                }
-                            }
+                        }
+
+                        if (showProfileFrame) {
+                            ProfileFrameLottie(
+                                modifier = Modifier
+                                    .requiredSize(avatarOuterSize)
+                                    .graphicsLayer { clip = false },
+                                isPlaying = !reduceAnimations
+                            )
                         }
                         
-                        // Edit avatar button (owner)
-                        if (isOwner) {
-                            Box(
-                                Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .offset(x = 4.dp, y = 4.dp)
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(accentColor)
-                                    .clickable(enabled = !isUploadingAvatar) { 
-                                        avatarPicker.launch("image/*") 
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isUploadingAvatar) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        color = Color.White,
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Image(
-                                        painter = painterResource(R.drawable.ic_camera),
-                                        contentDescription = "Edit avatar",
-                                        modifier = Modifier.size(14.dp),
-                                        colorFilter = ColorFilter.tint(Color.White)
-                                    )
-                                }
-                            }
-                        }
                     }
                     
                     // Action buttons
@@ -1350,6 +1421,32 @@ private fun ProfileHeader(
                                     "Edit Profile",
                                     style = TextStyle(Color.White, 14.sp, FontWeight.SemiBold)
                                 )
+                            }
+
+                            Box(
+                                Modifier
+                                    .clip(CircleShape)
+                                    .background(accentColor.copy(alpha = 0.14f))
+                                    .clickable(enabled = !isUploadingAvatar) {
+                                        avatarPicker.launch("image/*")
+                                    }
+                                    .padding(10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isUploadingAvatar) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = accentColor,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Image(
+                                        painter = painterResource(R.drawable.ic_camera),
+                                        contentDescription = "Edit avatar",
+                                        modifier = Modifier.size(16.dp),
+                                        colorFilter = ColorFilter.tint(accentColor)
+                                    )
+                                }
                             }
                             
                             // Share button
@@ -1675,75 +1772,48 @@ private fun ProfileHeader(
                     }
                 }
                 
-                // Stats row
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     StatItem(
                         value = formatNumber(stats.connectionsCount),
                         label = "connections",
-                        contentColor = contentColor
+                        contentColor = contentColor,
+                        onClick = onOpenConnections,
+                        modifier = Modifier.weight(1f)
                     )
                     StatItem(
                         value = formatNumber(stats.followersCount),
                         label = "followers",
-                        contentColor = contentColor
+                        contentColor = contentColor,
+                        onClick = onOpenFollowers,
+                        modifier = Modifier.weight(1f)
                     )
                     StatItem(
                         value = formatNumber(stats.totalPosts),
                         label = "posts",
-                        contentColor = contentColor
+                        contentColor = contentColor,
+                        modifier = Modifier.weight(1f)
                     )
                     StatItem(
                         value = formatNumber(stats.totalLikesReceived),
                         label = "likes",
-                        contentColor = contentColor
+                        contentColor = contentColor,
+                        modifier = Modifier.weight(1f)
                     )
                 }
                 
-                // Gamification row
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Level badge
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(Color(0xFFFFD700), Color(0xFFFFA500))
-                                )
-                            )
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        BasicText(
-                            "Lvl ${stats.level}",
-                            style = TextStyle(Color.Black, 12.sp, FontWeight.Bold)
-                        )
-                    }
-                    
-                    // XP
-                    BasicText(
-                        "⚡ ${formatNumber(stats.xp)} XP",
-                        style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp)
-                    )
-                    
-                    // Enhanced Streak Badge (clickable)
-                    ProfileStreakBadge(
-                        currentStreak = stats.currentStreak,
-                        longestStreak = stats.longestStreak,
-                        totalActiveDays = stats.totalActiveDays,
-                        contentColor = contentColor,
-                        accentColor = accentColor,
-                        onClick = { /* Handled by onStreakClick callback */ }
-                    )
-                }
+                ProfileGamificationRow(
+                    stats = stats,
+                    backdrop = backdrop,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    isGlassTheme = isGlassTheme,
+                    isDarkTheme = isDarkTheme
+                )
                 
                 // Mutual info (visitor only)
                 if (!isOwner && mutualConnectionsCount > 0) {
@@ -1924,12 +1994,18 @@ private fun SocialLinkChip(
 }
 
 @Composable
-private fun StatItem(
+private fun RowScope.StatItem(
     value: String,
     label: String,
-    contentColor: Color
+    contentColor: Color,
+    onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = modifier
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         BasicText(
             value,
             style = TextStyle(contentColor, 16.sp, FontWeight.Bold)
@@ -1938,6 +2014,375 @@ private fun StatItem(
             label,
             style = TextStyle(contentColor.copy(alpha = 0.6f), 11.sp)
         )
+    }
+}
+
+@Composable
+private fun ProfilePeopleSheetDialog(
+    sheetState: ProfilePeopleSheetState,
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    isGlassTheme: Boolean,
+    isDarkTheme: Boolean,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
+    onPersonClick: ((String) -> Unit)? = null
+) {
+    val kind = sheetState.kind ?: return
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.42f))
+                .clickable { onDismiss() },
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.72f)
+                    .padding(horizontal = 12.dp, vertical = 16.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .then(
+                        when {
+                            isGlassTheme -> Modifier.drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedRectangle(28f.dp) },
+                                effects = {
+                                    vibrancy()
+                                    blur(18f.dp.toPx())
+                                    lens(10f.dp.toPx(), 18f.dp.toPx())
+                                },
+                                onDrawSurface = {
+                                    drawRect(Color.White.copy(alpha = 0.12f))
+                                }
+                            )
+                            isDarkTheme -> Modifier.background(Color(0xFF171717))
+                            else -> Modifier.background(Color.White)
+                        }
+                    )
+                    .clickable(enabled = false) { }
+                    .padding(horizontal = 18.dp, vertical = 16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .width(42.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(contentColor.copy(alpha = 0.18f))
+                )
+
+                Spacer(Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        BasicText(
+                            kind.title,
+                            style = TextStyle(contentColor, 20.sp, FontWeight.Bold)
+                        )
+                        BasicText(
+                            if (sheetState.isLoading && sheetState.total == 0) "Loading people..."
+                            else "${formatNumber(sheetState.total)} people",
+                            style = TextStyle(contentColor.copy(alpha = 0.6f), 12.sp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(contentColor.copy(alpha = 0.08f))
+                            .clickable(onClick = onDismiss),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_close),
+                            contentDescription = "Close",
+                            modifier = Modifier.size(18.dp),
+                            colorFilter = ColorFilter.tint(contentColor)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    when {
+                        sheetState.isLoading && sheetState.people.isEmpty() -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    color = accentColor,
+                                    strokeWidth = 3.dp
+                                )
+                            }
+                        }
+
+                        sheetState.error != null && sheetState.people.isEmpty() -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                BasicText(
+                                    "Could not load ${kind.title.lowercase()}",
+                                    style = TextStyle(
+                                        color = contentColor,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        textAlign = TextAlign.Center
+                                    )
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                BasicText(
+                                    sheetState.error,
+                                    style = TextStyle(
+                                        color = contentColor.copy(alpha = 0.62f),
+                                        fontSize = 13.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                )
+                                Spacer(Modifier.height(14.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(999.dp))
+                                        .background(accentColor)
+                                        .clickable(onClick = onRetry)
+                                        .padding(horizontal = 18.dp, vertical = 10.dp)
+                                ) {
+                                    BasicText(
+                                        "Try again",
+                                        style = TextStyle(Color.White, 13.sp, FontWeight.SemiBold)
+                                    )
+                                }
+                            }
+                        }
+
+                        sheetState.people.isEmpty() -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                BasicText(
+                                    kind.emptyTitle,
+                                    style = TextStyle(
+                                        color = contentColor,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        textAlign = TextAlign.Center
+                                    )
+                                )
+                                if (kind.emptyBody.isNotBlank()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    BasicText(
+                                        kind.emptyBody,
+                                        style = TextStyle(
+                                            color = contentColor.copy(alpha = 0.62f),
+                                            fontSize = 13.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        else -> {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                items(sheetState.people, key = { it.id }) { person ->
+                                    ProfilePeopleRow(
+                                        person = person,
+                                        contentColor = contentColor,
+                                        accentColor = accentColor,
+                                        onClick = onPersonClick?.let { callback ->
+                                            { callback(person.id) }
+                                        }
+                                    )
+                                }
+
+                                if (sheetState.isLoading) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(24.dp),
+                                                color = accentColor,
+                                                strokeWidth = 2.5.dp
+                                            )
+                                        }
+                                    }
+                                } else if (sheetState.error != null) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(18.dp))
+                                                .background(contentColor.copy(alpha = 0.06f))
+                                                .clickable(onClick = onRetry)
+                                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                                        ) {
+                                            BasicText(
+                                                "Retry loading more",
+                                                style = TextStyle(accentColor, 13.sp, FontWeight.Medium),
+                                                modifier = Modifier.align(Alignment.Center)
+                                            )
+                                        }
+                                    }
+                                } else if (sheetState.hasMore) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(18.dp))
+                                                .background(accentColor.copy(alpha = 0.12f))
+                                                .clickable(onClick = onLoadMore)
+                                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                                        ) {
+                                            BasicText(
+                                                "Load more",
+                                                style = TextStyle(accentColor, 13.sp, FontWeight.SemiBold),
+                                                modifier = Modifier.align(Alignment.Center)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfilePeopleRow(
+    person: ProfilePeopleListItem,
+    contentColor: Color,
+    accentColor: Color,
+    onClick: (() -> Unit)? = null
+) {
+    val secondaryLine = when {
+        !person.headline.isNullOrBlank() -> person.headline
+        !person.college.isNullOrBlank() -> person.college
+        else -> "Vormex member"
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(contentColor.copy(alpha = 0.06f))
+            .then(
+                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+            )
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(accentColor.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!person.profileImage.isNullOrBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(person.profileImage)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = person.name ?: "Profile",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                val initials = (person.name ?: person.username ?: "U")
+                    .split(" ")
+                    .mapNotNull { it.firstOrNull()?.uppercase() }
+                    .take(2)
+                    .joinToString("")
+                BasicText(
+                    initials,
+                    style = TextStyle(accentColor, 15.sp, FontWeight.Bold)
+                )
+            }
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                BasicText(
+                    text = person.name ?: person.username ?: "Unknown member",
+                    style = TextStyle(contentColor, 14.sp, FontWeight.SemiBold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                if (person.isOnline) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF22C55E))
+                    )
+                }
+            }
+
+            person.username?.takeIf { it.isNotBlank() }?.let { username ->
+                BasicText(
+                    text = "@$username",
+                    style = TextStyle(contentColor.copy(alpha = 0.52f), 11.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            BasicText(
+                text = secondaryLine,
+                style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        if (onClick != null) {
+            BasicText(
+                "View",
+                style = TextStyle(accentColor, 12.sp, FontWeight.Medium)
+            )
+        }
     }
 }
 
@@ -2410,214 +2855,57 @@ private fun formatNumber(num: Int): String {
     }
 }
 
-// ==================== Skeleton Loading ====================
+// ==================== Loading (lightweight; avoids heavy shimmer + blur skeleton) ====================
 
 @Composable
-private fun profileShimmerBrush(
-    isLightTheme: Boolean,
-    isGlassTheme: Boolean
-): Brush {
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val translateAnim by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shimmerTranslate"
-    )
-    
-    val colors =
-        if (isGlassTheme) {
-            // Soft translucent whites over the glass backdrop
-            listOf(
-                Color.White.copy(alpha = 0.25f),
-                Color.White.copy(alpha = 0.10f),
-                Color.White.copy(alpha = 0.25f)
-            )
-        } else if (isLightTheme) {
-            listOf(
-                Color(0xFFE0E0E0),
-                Color(0xFFF5F5F5),
-                Color(0xFFE0E0E0)
-            )
-        } else {
-            listOf(
-                Color(0xFF2A2A2A),
-                Color(0xFF3A3A3A),
-                Color(0xFF2A2A2A)
-            )
-        }
-    
-    return Brush.linearGradient(
-        colors = colors,
-        start = Offset(translateAnim - 200f, 0f),
-        end = Offset(translateAnim, 0f)
-    )
-}
-
-@Composable
-private fun ProfileSkeleton(
-    backdrop: LayerBackdrop,
-    isLightTheme: Boolean,
-    isGlassTheme: Boolean
+private fun ProfileLoadingContent(
+    contentColor: Color,
+    accentColor: Color,
+    visitLoaderGiftId: String? = null,
+    reduceAnimations: Boolean = false
 ) {
-    val shimmer = profileShimmerBrush(isLightTheme = isLightTheme, isGlassTheme = isGlassTheme)
-    
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                when {
-                    isGlassTheme -> Color.Transparent
-                    isLightTheme -> Color(0xFFF5F5F7)
-                    else -> Color(0xFF121218)
-                }
-            )
-    ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 100.dp)
-        ) {
-            // Header skeleton
-            item {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(24f.dp) },
-                            effects = { vibrancy(); blur(12f.dp.toPx()) },
-                            onDrawSurface = { drawRect(Color.White.copy(alpha = 0.08f)) }
-                        )
-                ) {
-                    Column {
-                        // Banner skeleton
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(120.dp)
-                                .background(shimmer)
-                        )
-                        
-                        Column(Modifier.padding(16.dp)) {
-                            // Avatar skeleton
-                            Box(
-                                Modifier
-                                    .offset(y = (-40).dp)
-                                    .size(88.dp)
-                                    .clip(CircleShape)
-                                    .background(shimmer)
-                            )
-                            
-                            // Name skeleton
-                            Box(
-                                Modifier
-                                    .offset(y = (-32).dp)
-                                    .width(150.dp)
-                                    .height(24.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(shimmer)
-                            )
-                            
-                            // Username skeleton
-                            Box(
-                                Modifier
-                                    .offset(y = (-24).dp)
-                                    .width(100.dp)
-                                    .height(16.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(shimmer)
-                            )
-                            
-                            // Headline skeleton
-                            Box(
-                                Modifier
-                                    .offset(y = (-16).dp)
-                                    .fillMaxWidth(0.8f)
-                                    .height(14.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(shimmer)
-                            )
-                            
-                            Spacer(Modifier.height(16.dp))
-                            
-                            // Stats skeleton
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(24.dp)
-                            ) {
-                                repeat(4) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Box(
-                                            Modifier
-                                                .width(40.dp)
-                                                .height(18.dp)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(shimmer)
-                                        )
-                                        Spacer(Modifier.height(4.dp))
-                                        Box(
-                                            Modifier
-                                                .width(60.dp)
-                                                .height(12.dp)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(shimmer)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Section skeletons
-            items(4) {
-                Spacer(Modifier.height(12.dp))
-                SectionSkeleton(backdrop, shimmer)
-            }
-        }
-    }
-}
-
-@Composable
-private fun SectionSkeleton(backdrop: LayerBackdrop, shimmer: Brush) {
+    val rawRes = ProfileLoaderGifts.rawResForGiftId(visitLoaderGiftId)
+    val showLottie = rawRes != null && !reduceAnimations
     Box(
         Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedRectangle(20f.dp) },
-                effects = { vibrancy(); blur(12f.dp.toPx()) },
-                onDrawSurface = { drawRect(Color.White.copy(alpha = 0.08f)) }
-            )
-            .padding(16.dp)
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Column {
-            // Title skeleton
-            Box(
-                Modifier
-                    .width(120.dp)
-                    .height(20.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(shimmer)
-            )
-            
-            Spacer(Modifier.height(16.dp))
-            
-            // Content skeleton
-            repeat(3) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(12.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(shimmer)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (showLottie && rawRes != null) {
+                val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(rawRes))
+                val progress by animateLottieCompositionAsState(
+                    composition = composition,
+                    iterations = LottieConstants.IterateForever,
+                    isPlaying = true
                 )
-                Spacer(Modifier.height(8.dp))
+                LottieAnimation(
+                    composition = composition,
+                    progress = { progress },
+                    modifier = Modifier.size(120.dp),
+                    alignment = Alignment.Center,
+                    contentScale = ContentScale.Fit,
+                    clipToCompositionBounds = true
+                )
+            } else {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(40.dp),
+                    color = accentColor,
+                    strokeWidth = 3.dp
+                )
             }
+            BasicText(
+                "Loading profile…",
+                style = TextStyle(
+                    color = contentColor.copy(alpha = 0.72f),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            )
         }
     }
 }
@@ -2675,103 +2963,200 @@ private fun ProfileError(
     }
 }
 
-// Profile Streak Badge - Interactive streak display
 @Composable
-private fun ProfileStreakBadge(
-    currentStreak: Int,
-    longestStreak: Int,
-    totalActiveDays: Int,
+private fun ProfileGamificationRow(
+    stats: ProfileStats,
+    backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
-    onClick: () -> Unit
+    isGlassTheme: Boolean,
+    isDarkTheme: Boolean
 ) {
-    val isOnFire = currentStreak >= 3
-    val streakColor = when {
-        currentStreak >= 30 -> Color(0xFFFF4500) // Red-orange for long streaks
-        currentStreak >= 7 -> Color(0xFFFF8C00) // Orange for week+ streaks
-        currentStreak >= 3 -> Color(0xFFFFD700) // Gold for 3+ day streaks
-        currentStreak > 0 -> Color(0xFFFFA500) // Orange for active streaks
-        else -> contentColor.copy(alpha = 0.5f)
-    }
-    
-    Row(
+    val streakColor = profileStreakAccentColor(stats.currentStreak, contentColor)
+
+    val labelStyle = TextStyle(
+        color = contentColor.copy(alpha = 0.45f),
+        fontSize = 10.sp,
+        fontWeight = FontWeight.SemiBold
+    )
+
+    Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(
-                if (isOnFire)
-                    Brush.horizontalGradient(
-                        listOf(
-                            Color(0xFFFF6B35).copy(alpha = 0.3f),
-                            Color(0xFFFF4500).copy(alpha = 0.2f)
-                        )
+            .fillMaxWidth()
+            .padding(top = 10.dp)
+            .then(
+                when {
+                    isGlassTheme -> Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(20f.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(12f.dp.toPx())
+                            lens(6f.dp.toPx(), 12f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color.White.copy(alpha = 0.08f))
+                        }
                     )
-                else
-                    Brush.horizontalGradient(
-                        listOf(
-                            contentColor.copy(alpha = 0.1f),
-                            contentColor.copy(alpha = 0.05f)
-                        )
-                    )
+                    isDarkTheme -> Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.White.copy(alpha = 0.06f))
+                    else -> Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.Black.copy(alpha = 0.035f))
+                }
             )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            .border(1.dp, contentColor.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
     ) {
-        // Animated fire emoji for active streaks
-        if (currentStreak > 0) {
-            val infiniteTransition = rememberInfiniteTransition(label = "streak")
-            val scale by infiniteTransition.animateFloat(
-                initialValue = 1f,
-                targetValue = if (isOnFire) 1.15f else 1.05f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(800, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "fire_scale"
-            )
-            
-            BasicText(
-                "🔥",
-                style = TextStyle(fontSize = (14 * scale).sp)
-            )
-        } else {
-            BasicText(
-                "❄️",
-                style = TextStyle(fontSize = 14.sp)
-            )
-        }
-        
-        // Streak count with styling
-        Column {
-            BasicText(
-                text = if (currentStreak > 0) "$currentStreak day${if (currentStreak > 1) "s" else ""}"
-                       else "No streak",
-                style = TextStyle(
-                    color = streakColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            )
-            
-            if (currentStreak > 0 && longestStreak > currentStreak) {
-                BasicText(
-                    text = "Best: $longestStreak",
-                    style = TextStyle(
-                        color = contentColor.copy(alpha = 0.5f),
-                        fontSize = 9.sp
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Level
+            Column(
+                Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                BasicText("LEVEL", style = labelStyle)
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFFFFE566), Color(0xFFFFA500))
+                            )
+                        )
+                        .padding(horizontal = 14.dp, vertical = 5.dp)
+                ) {
+                    BasicText(
+                        "${stats.level}",
+                        style = TextStyle(
+                            color = Color(0xFF1A1408),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     )
+                }
+            }
+
+            GamificationVDivider(contentColor)
+
+            // XP
+            Column(
+                Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                BasicText("EXPERIENCE", style = labelStyle)
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    BasicText(
+                        "⚡",
+                        style = TextStyle(
+                            color = accentColor.copy(alpha = 0.85f),
+                            fontSize = 15.sp
+                        )
+                    )
+                    BasicText(
+                        formatNumber(stats.xp),
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+                BasicText(
+                    "next +${formatNumber(stats.xpToNextLevel)} XP",
+                    style = TextStyle(
+                        color = contentColor.copy(alpha = 0.42f),
+                        fontSize = 9.sp
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
+
+            GamificationVDivider(contentColor)
+
+            // Streak
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                BasicText("STREAK", style = labelStyle)
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    if (stats.currentStreak > 0) {
+                        StreakFireLottie(modifier = Modifier.size(36.dp))
+                        Spacer(Modifier.width(4.dp))
+                    } else {
+                        BasicText("❄️", style = TextStyle(fontSize = 14.sp))
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    Column(horizontalAlignment = Alignment.Start) {
+                        BasicText(
+                            text = if (stats.currentStreak > 0) {
+                                "${stats.currentStreak} day${if (stats.currentStreak > 1) "s" else ""}"
+                            } else {
+                                "No streak"
+                            },
+                            style = TextStyle(
+                                color = streakColor,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (stats.currentStreak > 0 && stats.longestStreak > stats.currentStreak) {
+                            BasicText(
+                                "Best ${stats.longestStreak}",
+                                style = TextStyle(
+                                    color = contentColor.copy(alpha = 0.42f),
+                                    fontSize = 9.sp
+                                )
+                            )
+                        } else if (stats.totalActiveDays > 0) {
+                            BasicText(
+                                "${formatNumber(stats.totalActiveDays)} active days",
+                                style = TextStyle(
+                                    color = contentColor.copy(alpha = 0.42f),
+                                    fontSize = 9.sp
+                                )
+                            )
+                        }
+                    }
+                }
+            }
         }
-        
-        // Chevron indicator
-        BasicText(
-            "›",
-            style = TextStyle(
-                color = contentColor.copy(alpha = 0.4f),
-                fontSize = 14.sp
-            )
-        )
     }
+}
+
+@Composable
+private fun GamificationVDivider(contentColor: Color) {
+    Box(
+        Modifier
+            .width(1.dp)
+            .height(46.dp)
+            .background(contentColor.copy(alpha = 0.12f))
+    )
+}
+
+private fun profileStreakAccentColor(currentStreak: Int, contentColor: Color): Color = when {
+    currentStreak >= 30 -> Color(0xFFFF4500)
+    currentStreak >= 7 -> Color(0xFFFF8C00)
+    currentStreak >= 3 -> Color(0xFFFFD700)
+    currentStreak > 0 -> Color(0xFFFFA500)
+    else -> contentColor.copy(alpha = 0.55f)
 }

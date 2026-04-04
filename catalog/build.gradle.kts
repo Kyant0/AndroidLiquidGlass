@@ -161,6 +161,9 @@ dependencies {
     implementation(libs.coil.compose)
     implementation("io.coil-kt:coil-gif:2.6.0")
 
+    // Lottie (e.g. streak fire on profile)
+    implementation(libs.lottie.compose)
+
     // Room cache
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

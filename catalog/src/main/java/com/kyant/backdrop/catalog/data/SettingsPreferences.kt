@@ -42,7 +42,10 @@ object SettingsPreferences {
     private val DYNAMIC_COLORS = booleanPreferencesKey("dynamic_colors")
     private val FONT_SIZE = stringPreferencesKey("font_size") // "small", "medium", "large"
     private val REDUCE_ANIMATIONS = booleanPreferencesKey("reduce_animations")
+    private val PROFILE_FRAME_ENABLED = booleanPreferencesKey("profile_frame_enabled")
     private val STAY_ACTIVE_BANNER_DISMISSED_AT = longPreferencesKey("stay_active_banner_dismissed_at")
+    /** Equipped profile visit loader gift id (e.g. `big_bad_wolfie`). */
+    private val EQUIPPED_PROFILE_LOADER_GIFT = stringPreferencesKey("equipped_profile_loader_gift")
     
     // ==================== NOTIFICATION GETTERS ====================
     
@@ -122,8 +125,14 @@ object SettingsPreferences {
     fun reduceAnimations(context: Context): Flow<Boolean> =
         context.settingsDataStore.data.map { it[REDUCE_ANIMATIONS] ?: false }
 
+    fun profileFrameEnabled(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[PROFILE_FRAME_ENABLED] ?: false }
+
     fun stayActiveBannerDismissedAt(context: Context): Flow<Long> =
         context.settingsDataStore.data.map { it[STAY_ACTIVE_BANNER_DISMISSED_AT] ?: 0L }
+
+    fun equippedProfileLoaderGiftId(context: Context): Flow<String?> =
+        context.settingsDataStore.data.map { it[EQUIPPED_PROFILE_LOADER_GIFT] }
     
     // ==================== NOTIFICATION SETTERS ====================
     
@@ -227,8 +236,19 @@ object SettingsPreferences {
         context.settingsDataStore.edit { it[REDUCE_ANIMATIONS] = value }
     }
 
+    suspend fun setProfileFrameEnabled(context: Context, value: Boolean) {
+        context.settingsDataStore.edit { it[PROFILE_FRAME_ENABLED] = value }
+    }
+
     suspend fun setStayActiveBannerDismissedAt(context: Context, value: Long) {
         context.settingsDataStore.edit { it[STAY_ACTIVE_BANNER_DISMISSED_AT] = value }
+    }
+
+    suspend fun setEquippedProfileLoaderGiftId(context: Context, giftId: String?) {
+        context.settingsDataStore.edit {
+            if (giftId.isNullOrBlank()) it.remove(EQUIPPED_PROFILE_LOADER_GIFT)
+            else it[EQUIPPED_PROFILE_LOADER_GIFT] = giftId
+        }
     }
     
     // ==================== CLEAR ALL ====================

@@ -29,6 +29,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -418,8 +419,11 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             if (token != null) {
                 ensurePostRealtimeConnected()
                 _uiState.value = _uiState.value.copy(isLoggedIn = true)
+                // Critical path first: user + feed (home scroll). Defer stories/streaks so the first
+                // paint and feed request are not competing with as many parallel HTTP calls.
                 loadCurrentUser()
                 loadFeed()
+                delay(280)
                 loadStories()
                 loadStreakData()
             } else {
@@ -710,7 +714,12 @@ class FeedViewModel(private val context: Context) : ViewModel() {
 
         viewModelScope.launch {
             isFeedRequestInFlight = true
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            val hasCachedFeed = _uiState.value.posts.isNotEmpty()
+            // Stale-while-revalidate: keep showing previous posts while refreshing (no full-list loading flash).
+            _uiState.value = _uiState.value.copy(
+                isLoading = !hasCachedFeed,
+                error = null
+            )
             
             ApiClient.getFeed(context)
                 .onSuccess { response ->
@@ -728,7 +737,12 @@ class FeedViewModel(private val context: Context) : ViewModel() {
                 .onFailure { e ->
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = e.message ?: "Failed to load feed"
+                        // Only block the feed with an error row when nothing is cached to show
+                        error = if (_uiState.value.posts.isEmpty()) {
+                            e.message ?: "Failed to load feed"
+                        } else {
+                            null
+                        }
                     )
                 }
             isFeedRequestInFlight = false

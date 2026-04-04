@@ -561,6 +561,49 @@ data class PendingConnectionRequestsResponse(
     val hasMore: Boolean = false
 )
 
+@Serializable
+data class ProfileRelationshipUser(
+    val id: String,
+    val username: String? = null,
+    val name: String? = null,
+    val profileImage: String? = null,
+    val headline: String? = null,
+    val college: String? = null,
+    val isOnline: Boolean = false
+)
+
+@Serializable
+data class ProfileConnectionItem(
+    val id: String,
+    val createdAt: String = "",
+    val status: String = "ACCEPTED",
+    val user: ProfileRelationshipUser
+)
+
+@Serializable
+data class ProfileConnectionsResponse(
+    val connections: List<ProfileConnectionItem> = emptyList(),
+    val total: Int = 0,
+    val page: Int = 1,
+    val totalPages: Int = 1,
+    val hasMore: Boolean = false
+)
+
+@Serializable
+data class ProfileFollowerItem(
+    val id: String,
+    val createdAt: String = "",
+    val user: ProfileRelationshipUser
+)
+
+@Serializable
+data class FollowersListResponse(
+    val followers: List<ProfileFollowerItem> = emptyList(),
+    val total: Int = 0,
+    val page: Int = 1,
+    val hasMore: Boolean = false
+)
+
 // ==================== Profile Models ====================
 
 @Serializable
@@ -594,6 +637,8 @@ data class ProfileUser(
     val verified: Boolean = false,
     val interests: List<String> = emptyList(),
     val profileRing: String? = null,
+    /** When set, visitors see this loader while opening this user's profile (client + optional API). */
+    val visitLoaderGiftId: String? = null,
     val hasClaimedWelcomeGift: Boolean = false,
     val createdAt: String = ""
 )
@@ -1004,6 +1049,7 @@ data class ProfileUpdateRequest(
     val interests: List<String>? = null,
     val profileRing: String? = null,
     val hasClaimedWelcomeGift: Boolean? = null,
+    val visitLoaderGiftId: String? = null,
     val college: String? = null,
     val branch: String? = null
 )

@@ -68,6 +68,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -87,6 +88,11 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 import coil.compose.AsyncImage
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.catalog.R
@@ -789,15 +795,7 @@ private fun ChatThreadScreen(
                 }
                 showEmptyThread -> {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        ChatThreadEmptyState(
-                            contentColor = contentColor,
-                            accentColor = accentColor,
-                            onStarterSelected = { starter ->
-                                inputText = starter
-                                viewModel.clearAiSuggestions()
-                                viewModel.sendTyping(true)
-                            }
-                        )
+                        ChatThreadEmptyState()
                     }
                 }
                 else -> {
@@ -1287,77 +1285,28 @@ private fun ChatThreadLoadingState(
 }
 
 @Composable
-private fun ChatThreadEmptyState(
-    contentColor: Color,
-    accentColor: Color,
-    onStarterSelected: (String) -> Unit
-) {
-    Column(
+private fun ChatThreadEmptyState() {
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.contact_us))
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations = LottieConstants.IterateForever
+    )
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        contentAlignment = Alignment.Center
     ) {
-        BasicText(
-            "👋",
-            modifier = Modifier.fillMaxWidth(),
-            style = TextStyle(fontSize = 20.sp, textAlign = TextAlign.Center)
-        )
-        BasicText(
-            text = "Start the conversation",
-            modifier = Modifier.fillMaxWidth(),
-            style = TextStyle(
-                color = contentColor,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center
+        if (composition != null) {
+            LottieAnimation(
+                composition = composition,
+                progress = { progress },
+                modifier = Modifier.size(220.dp),
+                contentScale = ContentScale.Fit,
+                clipToCompositionBounds = true
             )
-        )
-        BasicText(
-            text = "Send the first message to begin chatting on Vormex.",
-            modifier = Modifier.fillMaxWidth(),
-            style = TextStyle(
-                color = contentColor.copy(alpha = 0.62f),
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center
-            )
-        )
-        Spacer(Modifier.height(4.dp))
-        starterMessages.forEach { starter ->
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                ChatStarterChip(
-                    text = starter,
-                    contentColor = contentColor,
-                    accentColor = accentColor,
-                    onClick = { onStarterSelected(starter) }
-                )
-            }
         }
-    }
-}
-
-@Composable
-private fun ChatStarterChip(
-    text: String,
-    contentColor: Color,
-    accentColor: Color,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(accentColor.copy(alpha = 0.14f))
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        BasicText(
-            text,
-            style = TextStyle(contentColor, 12.sp, fontWeight = FontWeight.Medium)
-        )
     }
 }
 
@@ -1406,11 +1355,6 @@ private fun rememberLoaderPulseAlpha(): Float {
 
 // Common emoji reactions
 private val quickReactions = listOf("❤️", "👍", "😂", "😮", "😢", "🔥")
-private val starterMessages = listOf(
-    "Hey, good to connect",
-    "What are you building right now?",
-    "What are your goals on Vormex?"
-)
 
 @Composable
 private fun MessageBubble(

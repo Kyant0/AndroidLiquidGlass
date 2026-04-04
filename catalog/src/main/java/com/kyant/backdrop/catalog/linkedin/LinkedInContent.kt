@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -46,12 +47,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.gestures.FlingBehavior
 import androidx.compose.foundation.gestures.ScrollableDefaults
-import androidx.compose.foundation.gestures.ScrollScope
-import androidx.compose.animation.core.AnimationState
-import androidx.compose.animation.core.animateDecay
-import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -98,6 +94,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -117,6 +114,11 @@ import kotlin.math.roundToInt
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -130,6 +132,7 @@ import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.models.Comment
 import com.kyant.backdrop.catalog.network.models.FullProfileResponse
 import com.kyant.backdrop.catalog.network.models.PendingConnectionRequest
+import com.kyant.backdrop.catalog.network.models.ProfileUpdateRequest
 import com.kyant.backdrop.catalog.network.models.CelebrationType
 import com.kyant.backdrop.catalog.network.models.PollOption
 import com.kyant.backdrop.catalog.network.models.Post
@@ -159,6 +162,9 @@ import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.kyant.backdrop.catalog.chat.ChatViewModel
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 // Pacifico font family
 private val PacificoFontFamily = FontFamily(
@@ -426,6 +432,8 @@ fun LinkedInContent(
     val accentColor = glassAccentPalette(accentPaletteKey).color
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var showFullMoreScreen by rememberSaveable { mutableStateOf(false) }
+    var moreHubAnimationKey by rememberSaveable { mutableIntStateOf(0) }
     var viewingProfileUserId by remember { mutableStateOf<String?>(null) }
     var openChatWithUserId by remember { mutableStateOf<String?>(null) }
     // Track if user is viewing a personal chat thread (for hiding bottom nav)
@@ -545,8 +553,16 @@ fun LinkedInContent(
         }
     }
 
+    BackHandler(enabled = !hasOverlayBackNavigation && selectedTab == 3 && showFullMoreScreen) {
+        showFullMoreScreen = false
+    }
+
     // Android back gesture: from non-Home bottom tabs, go back to Home first.
-    BackHandler(enabled = !hasOverlayBackNavigation && selectedTab != 0) {
+    BackHandler(
+        enabled = !hasOverlayBackNavigation &&
+            selectedTab != 0 &&
+            !(selectedTab == 3 && showFullMoreScreen)
+    ) {
         selectedTab = 0
     }
 
@@ -645,6 +661,9 @@ fun LinkedInContent(
         if (selectedTab != 2 && isInChatThread) {
             isInChatThread = false
         }
+        if (selectedTab != 3 && showFullMoreScreen) {
+            showFullMoreScreen = false
+        }
     }
 
     // Find/Profile/Reels state shared across tab switches so those sections stay warm.
@@ -691,29 +710,24 @@ fun LinkedInContent(
         }
     }
 
+    // Stagger background prefetches so cold start is not a thundering herd competing with
+    // FeedViewModel (feed + user + socket). Reels prefetch (video bytes) runs last.
     LaunchedEffect(uiState.isLoggedIn) {
-        if (uiState.isLoggedIn) {
-            chatViewModel.preloadChats()
+        if (!uiState.isLoggedIn) {
+            rewardCardsViewModel.maybeLoadOnAppOpen(false)
+            return@LaunchedEffect
         }
-    }
-
-    LaunchedEffect(uiState.isLoggedIn) {
-        if (uiState.isLoggedIn) {
-            ownProfileViewModel.prefetchOwnProfile()
-            findPeopleViewModel.prefetchInitialData()
-            reelsViewModel.prefetchAppStartData()
-        }
-    }
-    
-    // Load retention data when user logs in
-    LaunchedEffect(uiState.isLoggedIn) {
-        if (uiState.isLoggedIn) {
-            retentionViewModel.ensureRetentionLoaded()
-        }
-    }
-    
-    LaunchedEffect(uiState.isLoggedIn) {
-        rewardCardsViewModel.maybeLoadOnAppOpen(uiState.isLoggedIn)
+        delay(120)
+        chatViewModel.preloadChats()
+        delay(120)
+        ownProfileViewModel.prefetchOwnProfile()
+        delay(120)
+        findPeopleViewModel.prefetchInitialData()
+        delay(280)
+        retentionViewModel.ensureRetentionLoaded()
+        delay(220)
+        reelsViewModel.prefetchAppStartData()
+        rewardCardsViewModel.maybeLoadOnAppOpen(true)
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -1096,6 +1110,9 @@ fun LinkedInContent(
                             connectionRequests = rewardsState.pendingConnectionRequests,
                             isLoadingConnectionRequests = rewardsState.isLoadingPendingConnectionRequests,
                             connectionRequestsError = rewardsState.pendingConnectionRequestsError,
+                            showFullMoreScreen = showFullMoreScreen,
+                            quickHubAnimationKey = moreHubAnimationKey,
+                            onOpenFullMoreScreen = { showFullMoreScreen = true },
                             onNavigateToProfile = { selectedTab = 4 },
                             onNavigateToConnectionRequests = { showConnectionRequestsScreen = true },
                             onNavigateToGroups = { showGroupsScreen = true },
@@ -1128,6 +1145,7 @@ fun LinkedInContent(
                                 profileViewModel = ownProfileViewModel,
                                 onNavigateBack = { selectedTab = 0 },
                                 onEditProfile = { showOnboardingScreen = true },
+                                onOpenProfile = { nextUserId -> viewingProfileUserId = nextUserId },
                                 onOpenFeedItem = { item ->
                                     when (item.entityType?.lowercase()) {
                                         "reel" -> {
@@ -1211,7 +1229,12 @@ fun LinkedInContent(
             ) {
                 LiquidBottomTabs(
                     selectedTabIndex = { selectedTab },
-                    onTabSelected = { selectedTab = it },
+                    onTabSelected = {
+                        selectedTab = it
+                        if (it == 3) {
+                            showFullMoreScreen = false
+                        }
+                    },
                     backdrop = backdrop,
                     tabsCount = 5,
                     modifier = Modifier
@@ -1272,7 +1295,11 @@ fun LinkedInContent(
                     )
                     BasicText("Post", style = TextStyle(contentColor, 10.sp))
                 }
-                LiquidBottomTab(onClick = { selectedTab = 3 }) {
+                LiquidBottomTab(onClick = {
+                    moreHubAnimationKey += 1
+                    showFullMoreScreen = false
+                    selectedTab = 3
+                }) {
                     FooterMoreIcon(
                         color = contentColor,
                         size = 22.dp
@@ -1306,7 +1333,7 @@ fun LinkedInContent(
                                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    BasicText("🔥", style = TextStyle(fontSize = 8.sp))
+                                    StreakFireLottie(modifier = Modifier.size(12.dp))
                                     BasicText(
                                         "${uiState.connectionStreak}",
                                         style = TextStyle(Color.White, 9.sp, FontWeight.Bold)
@@ -1602,6 +1629,7 @@ fun LinkedInContent(
                             contentColor = contentColor,
                             accentColor = accentColor,
                             onNavigateBack = { viewingProfileUserId = null },
+                            onOpenProfile = { nextUserId -> viewingProfileUserId = nextUserId },
                             onMessage = { otherUserId ->
                                 viewingProfileUserId = null
                                 openChatWithUserId = otherUserId
@@ -2258,10 +2286,7 @@ private fun LinkedInTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                BasicText(
-                    "🔥",
-                    style = TextStyle(fontSize = 18.sp)
-                )
+                StreakFireLottie(modifier = Modifier.size(22.dp))
                 BasicText(
                     loginStreak.coerceAtLeast(0).toString(),
                     style = TextStyle(
@@ -2456,36 +2481,9 @@ private fun FeedScreen(
         }
     }
     
-    // Custom smooth fling behavior for buttery scrolling
-    val smoothFlingBehavior = remember {
-        object : FlingBehavior {
-            override suspend fun ScrollScope.performFling(initialVelocity: Float): Float {
-                // Use exponential decay with lower friction for smoother, longer-lasting scrolls
-                val decay = exponentialDecay<Float>(
-                    frictionMultiplier = 0.8f, // Lower = smoother/longer scroll
-                    absVelocityThreshold = 0.5f // Lower threshold = scroll continues longer
-                )
-                var remainingVelocity = initialVelocity
-                var lastValue = 0f
-                
-                androidx.compose.animation.core.AnimationState(
-                    initialValue = 0f,
-                    initialVelocity = initialVelocity
-                ).animateDecay(decay) {
-                    val delta = value - lastValue
-                    lastValue = value
-                    val consumed = scrollBy(delta)
-                    // If we hit a boundary, stop the animation
-                    if (kotlin.math.abs(delta - consumed) > 0.5f) {
-                        cancelAnimation()
-                    }
-                    remainingVelocity = velocity
-                }
-                return remainingVelocity
-            }
-        }
-    }
-    
+    // System default fling matches native RecyclerView-style physics and avoids custom decay work during scroll.
+    val listFlingBehavior = ScrollableDefaults.flingBehavior()
+
     // Pull-to-refresh with haptic feedback and minimal line indicator
     // Twitter/X style - thin animated gradient line at top
     PullToRefreshBox(
@@ -2517,7 +2515,7 @@ private fun FeedScreen(
             modifier = Modifier
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            flingBehavior = if (reduceAnimations) ScrollableDefaults.flingBehavior() else smoothFlingBehavior
+            flingBehavior = listFlingBehavior
         ) {
             item { Spacer(Modifier.height(4.dp)) }
         
@@ -3644,6 +3642,133 @@ private fun MoreScreen(
     connectionRequests: List<PendingConnectionRequest> = emptyList(),
     isLoadingConnectionRequests: Boolean = false,
     connectionRequestsError: String? = null,
+    showFullMoreScreen: Boolean = false,
+    quickHubAnimationKey: Int = 0,
+    onOpenFullMoreScreen: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
+    onNavigateToConnectionRequests: () -> Unit = {},
+    onNavigateToGroups: () -> Unit = {},
+    onNavigateToCircles: () -> Unit = {},
+    onNavigateToReels: () -> Unit = {},
+    onNavigateToWeeklyGoals: () -> Unit = {},
+    onNavigateToStreakDetails: () -> Unit = {},
+    onNavigateToTopNetworkers: () -> Unit = {},
+    onNavigateToOnboarding: () -> Unit = {},
+    onNavigateToSavedPosts: () -> Unit = {},
+    onNavigateToGrowthHub: () -> Unit = {},
+    onNavigateToNotificationSettings: () -> Unit = {},
+    onNavigateToPrivacySettings: () -> Unit = {},
+    onNavigateToAppearanceSettings: () -> Unit = {},
+    onNavigateToHelp: () -> Unit = {},
+    onNavigateToInviteFriends: () -> Unit = {},
+    onNavigateToAbout: () -> Unit = {},
+    onNavigateToContact: () -> Unit = {},
+    onLogout: () -> Unit = {}
+) {
+    val pendingRequestsCount = connectionRequests.size
+    val pendingRequestsBadge = when {
+        pendingRequestsCount <= 0 -> null
+        pendingRequestsCount > 99 -> "99+"
+        else -> pendingRequestsCount.toString()
+    }
+    val quickActions = listOf(
+        MoreQuickAction(
+            title = "Connection requests",
+            label = "Requests",
+            icon = Icons.Outlined.PersonAddAlt1,
+            badgeLabel = pendingRequestsBadge,
+            showIndicatorDot = pendingRequestsCount > 0,
+            onClick = onNavigateToConnectionRequests
+        ),
+        MoreQuickAction(
+            title = "Saved",
+            label = "Saved",
+            icon = Icons.Outlined.BookmarkBorder,
+            onClick = onNavigateToSavedPosts
+        ),
+        MoreQuickAction(
+            title = "Reels",
+            label = "Reels",
+            icon = Icons.Outlined.SmartDisplay,
+            onClick = onNavigateToReels
+        ),
+        MoreQuickAction(
+            title = "Groups",
+            label = "Groups",
+            icon = Icons.Outlined.Groups,
+            onClick = onNavigateToGroups
+        ),
+        MoreQuickAction(
+            title = "Growth hub",
+            label = "Growth",
+            icon = Icons.Outlined.School,
+            onClick = onNavigateToGrowthHub
+        ),
+        MoreQuickAction(
+            title = "Notifications",
+            label = "Alerts",
+            icon = Icons.Outlined.NotificationsNone,
+            onClick = onNavigateToNotificationSettings
+        )
+    )
+
+    if (showFullMoreScreen) {
+        MoreFullScreen(
+            backdrop = backdrop,
+            contentColor = contentColor,
+            accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
+            retentionState = retentionState,
+            currentUser = currentUser,
+            connectionRequests = connectionRequests,
+            isLoadingConnectionRequests = isLoadingConnectionRequests,
+            connectionRequestsError = connectionRequestsError,
+            hiddenQuickActionTitles = quickActions.mapTo(linkedSetOf()) { it.title },
+            onNavigateToProfile = onNavigateToProfile,
+            onNavigateToConnectionRequests = onNavigateToConnectionRequests,
+            onNavigateToGroups = onNavigateToGroups,
+            onNavigateToCircles = onNavigateToCircles,
+            onNavigateToReels = onNavigateToReels,
+            onNavigateToWeeklyGoals = onNavigateToWeeklyGoals,
+            onNavigateToStreakDetails = onNavigateToStreakDetails,
+            onNavigateToTopNetworkers = onNavigateToTopNetworkers,
+            onNavigateToOnboarding = onNavigateToOnboarding,
+            onNavigateToSavedPosts = onNavigateToSavedPosts,
+            onNavigateToGrowthHub = onNavigateToGrowthHub,
+            onNavigateToNotificationSettings = onNavigateToNotificationSettings,
+            onNavigateToPrivacySettings = onNavigateToPrivacySettings,
+            onNavigateToAppearanceSettings = onNavigateToAppearanceSettings,
+            onNavigateToHelp = onNavigateToHelp,
+            onNavigateToInviteFriends = onNavigateToInviteFriends,
+            onNavigateToAbout = onNavigateToAbout,
+            onNavigateToContact = onNavigateToContact,
+            onLogout = onLogout
+        )
+    } else {
+        MoreQuickAccessHub(
+            backdrop = backdrop,
+            contentColor = contentColor,
+            accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
+            quickActions = quickActions,
+            animationKey = quickHubAnimationKey,
+            onOpenFullMoreScreen = onOpenFullMoreScreen
+        )
+    }
+}
+
+@Composable
+private fun MoreFullScreen(
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    isGlassTheme: Boolean,
+    retentionState: RetentionUiState,
+    currentUser: com.kyant.backdrop.catalog.network.models.User? = null,
+    connectionRequests: List<PendingConnectionRequest> = emptyList(),
+    isLoadingConnectionRequests: Boolean = false,
+    connectionRequestsError: String? = null,
+    hiddenQuickActionTitles: Set<String> = emptySet(),
     onNavigateToProfile: () -> Unit = {},
     onNavigateToConnectionRequests: () -> Unit = {},
     onNavigateToGroups: () -> Unit = {},
@@ -3867,8 +3992,17 @@ private fun MoreScreen(
         )
     )
 
+    val visibleSections = sections.mapNotNull { section ->
+        val visibleItems = section.items.filterNot { it.title in hiddenQuickActionTitles }
+        if (visibleItems.isNotEmpty()) {
+            section.copy(items = visibleItems)
+        } else {
+            null
+        }
+    }
+
     val normalizedQuery = searchQuery.trim()
-    val filteredSections = sections.mapNotNull { section ->
+    val filteredSections = visibleSections.mapNotNull { section ->
         val filteredItems = if (normalizedQuery.isBlank()) {
             section.items
         } else {
@@ -3922,6 +4056,26 @@ private fun MoreScreen(
                 cursorColor = accentColor
             )
 
+            val showProfileCustomizationsSection = normalizedQuery.isBlank() ||
+                normalizedQuery.contains("gift", ignoreCase = true) ||
+                normalizedQuery.contains("wolf", ignoreCase = true) ||
+                normalizedQuery.contains("loader", ignoreCase = true) ||
+                normalizedQuery.contains("frame", ignoreCase = true) ||
+                normalizedQuery.contains("avatar", ignoreCase = true) ||
+                normalizedQuery.contains("profile", ignoreCase = true)
+            if (showProfileCustomizationsSection) {
+                MoreProfileCustomizationsSection(
+                    backdrop = backdrop,
+                    isGlassTheme = isGlassTheme,
+                    sectionSurfaceColor = sectionSurfaceColor,
+                    dividerColor = dividerColor,
+                    contentColor = contentColor,
+                    secondaryTextColor = secondaryTextColor,
+                    accentColor = accentColor,
+                    sectionHeaderColor = sectionHeaderColor
+                )
+            }
+
             filteredSections.forEach { section ->
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     MoreSectionHeader(section.title, sectionHeaderColor)
@@ -3953,7 +4107,7 @@ private fun MoreScreen(
                 }
             }
 
-            if (filteredSections.isEmpty()) {
+            if (filteredSections.isEmpty() && !showProfileCustomizationsSection) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -4002,6 +4156,340 @@ private fun MoreScreen(
     }
 }
 
+private data class MoreQuickAction(
+    val title: String,
+    val label: String,
+    val icon: ImageVector,
+    val badgeLabel: String? = null,
+    val showIndicatorDot: Boolean = false,
+    val onClick: () -> Unit
+)
+
+@Composable
+private fun MoreQuickAccessHub(
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    isGlassTheme: Boolean,
+    quickActions: List<MoreQuickAction>,
+    animationKey: Int,
+    onOpenFullMoreScreen: () -> Unit
+) {
+    val composition by rememberLottieComposition(
+        LottieCompositionSpec.RawRes(R.raw.free_interactive_radial_menu)
+    )
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations = LottieConstants.IterateForever
+    )
+    val scope = rememberCoroutineScope()
+    var expanded by remember(animationKey) { mutableStateOf(false) }
+    var isTransitioning by remember(animationKey) { mutableStateOf(false) }
+    val isDarkSurface = contentColor == Color.White
+    val actionSurfaceColor = if (isDarkSurface) {
+        Color.White.copy(alpha = if (isGlassTheme) 0.12f else 0.08f)
+    } else {
+        Color.White.copy(alpha = if (isGlassTheme) 0.22f else 0.72f)
+    }
+    val actionBorderColor = if (isDarkSurface) {
+        Color.White.copy(alpha = 0.18f)
+    } else {
+        Color.Black.copy(alpha = 0.08f)
+    }
+    val radius = 122f
+    val angleStep = 360f / quickActions.size.coerceAtLeast(1)
+    val lottieScale by animateFloatAsState(
+        targetValue = if (expanded) 1f else 0.82f,
+        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+        label = "more_hub_lottie_scale"
+    )
+    val lottieAlpha by animateFloatAsState(
+        targetValue = if (expanded) 1f else 0.55f,
+        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+        label = "more_hub_lottie_alpha"
+    )
+    val centerScale by animateFloatAsState(
+        targetValue = if (expanded) 1f else 0.82f,
+        animationSpec = tween(durationMillis = 340, easing = FastOutSlowInEasing),
+        label = "more_hub_center_scale"
+    )
+    val centerRotation by animateFloatAsState(
+        targetValue = if (expanded) 0f else -135f,
+        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        label = "more_hub_center_rotation"
+    )
+
+    LaunchedEffect(animationKey) {
+        isTransitioning = false
+        expanded = false
+        delay(90)
+        expanded = true
+    }
+
+    fun launchHubAction(openFullMore: Boolean, action: () -> Unit) {
+        if (isTransitioning) return
+        isTransitioning = true
+        expanded = false
+        scope.launch {
+            delay(180)
+            action()
+            if (!openFullMore) {
+                delay(240)
+                expanded = true
+                isTransitioning = false
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier.size(360.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (composition != null) {
+                LottieAnimation(
+                    composition = composition,
+                    progress = { progress },
+                    modifier = Modifier
+                        .size(282.dp)
+                        .graphicsLayer {
+                            alpha = lottieAlpha
+                            scaleX = lottieScale
+                            scaleY = lottieScale
+                        },
+                    contentScale = ContentScale.Fit,
+                    clipToCompositionBounds = true
+                )
+            }
+
+            quickActions.forEachIndexed { index, action ->
+                val itemProgress by animateFloatAsState(
+                    targetValue = if (expanded) 1f else 0f,
+                    animationSpec = tween(
+                        durationMillis = 420,
+                        delayMillis = 70 + (index * 45),
+                        easing = FastOutSlowInEasing
+                    ),
+                    label = "more_hub_item_$index"
+                )
+                val angleDegrees = -90f + (index * angleStep)
+                val angleRadians = angleDegrees * (PI / 180.0)
+                val targetX = (radius * cos(angleRadians)).toFloat()
+                val targetY = (radius * sin(angleRadians)).toFloat()
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(
+                            x = (targetX * itemProgress).dp,
+                            y = (targetY * itemProgress).dp
+                        )
+                        .graphicsLayer {
+                            alpha = itemProgress
+                            val scale = 0.52f + (itemProgress * 0.48f)
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                ) {
+                    MoreRadialShortcutBubble(
+                        action = action,
+                        backdrop = backdrop,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        isGlassTheme = isGlassTheme,
+                        surfaceColor = actionSurfaceColor,
+                        borderColor = actionBorderColor,
+                        onClick = {
+                            launchHubAction(openFullMore = false) {
+                                action.onClick()
+                            }
+                        }
+                    )
+                }
+            }
+
+            MoreRadialCenterButton(
+                modifier = Modifier.graphicsLayer {
+                    scaleX = centerScale
+                    scaleY = centerScale
+                    rotationZ = centerRotation
+                },
+                backdrop = backdrop,
+                contentColor = contentColor,
+                accentColor = accentColor,
+                isGlassTheme = isGlassTheme,
+                onClick = {
+                    launchHubAction(openFullMore = true) {
+                        onOpenFullMoreScreen()
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun MoreRadialShortcutBubble(
+    action: MoreQuickAction,
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    isGlassTheme: Boolean,
+    surfaceColor: Color,
+    borderColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier.size(width = 88.dp, height = 96.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(68.dp)
+                    .clip(CircleShape)
+                    .then(
+                        if (isGlassTheme) {
+                            Modifier.drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { Capsule() },
+                                effects = {
+                                    vibrancy()
+                                    blur(16f.dp.toPx())
+                                    lens(8f.dp.toPx(), 14f.dp.toPx())
+                                },
+                                onDrawSurface = {
+                                    drawRect(surfaceColor)
+                                }
+                            )
+                        } else {
+                            Modifier.background(surfaceColor)
+                        }
+                    )
+                    .border(1.dp, borderColor, CircleShape)
+                    .clickable(onClick = onClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = action.icon,
+                    contentDescription = action.title,
+                    tint = contentColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            BasicText(
+                action.label,
+                style = TextStyle(
+                    color = contentColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 12.sp
+                ),
+                maxLines = 2
+            )
+        }
+
+        action.badgeLabel?.let { badge ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-2).dp, y = 4.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(accentColor)
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                BasicText(
+                    badge,
+                    style = TextStyle(
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+        }
+
+        if (action.showIndicatorDot && action.badgeLabel == null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-2).dp, y = 6.dp)
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(accentColor)
+            )
+        }
+    }
+}
+
+@Composable
+private fun MoreRadialCenterButton(
+    modifier: Modifier = Modifier,
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    isGlassTheme: Boolean,
+    onClick: () -> Unit
+) {
+    val centerSurfaceColor = accentColor.copy(alpha = if (contentColor == Color.White) 0.28f else 0.18f)
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = modifier
+                .size(92.dp)
+                .clip(CircleShape)
+                .then(
+                    if (isGlassTheme) {
+                        Modifier.drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { Capsule() },
+                            effects = {
+                                vibrancy()
+                                blur(18f.dp.toPx())
+                                lens(10f.dp.toPx(), 18f.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(centerSurfaceColor)
+                            }
+                        )
+                    } else {
+                        Modifier.background(centerSurfaceColor)
+                    }
+                )
+                .border(1.dp, accentColor.copy(alpha = 0.35f), CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Add,
+                contentDescription = "More",
+                tint = contentColor,
+                modifier = Modifier.size(34.dp)
+            )
+        }
+        BasicText(
+            "More",
+            style = TextStyle(
+                color = contentColor,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        )
+    }
+}
+
 private data class MoreSettingsItem(
     val title: String,
     val subtitle: String,
@@ -4016,6 +4504,206 @@ private data class MoreSettingsSection(
     val title: String,
     val items: List<MoreSettingsItem>
 )
+
+@Composable
+private fun MoreProfileCustomizationsSection(
+    backdrop: LayerBackdrop,
+    isGlassTheme: Boolean,
+    sectionSurfaceColor: Color,
+    dividerColor: Color,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    sectionHeaderColor: Color
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val equipped by SettingsPreferences.equippedProfileLoaderGiftId(context).collectAsState(initial = null)
+    val profileFrameEnabled by SettingsPreferences.profileFrameEnabled(context).collectAsState(initial = false)
+    val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
+    val isGiftEquipped = equipped == ProfileLoaderGifts.BIG_BAD_WOLFIE
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        MoreSectionHeader("Profile customizations", sectionHeaderColor)
+
+        MoreProfileCustomizationCard(
+            title = "Profile Frame",
+            subtitle = if (reduceAnimations && profileFrameEnabled) {
+                "Shows around your avatar on your profile. Equipped, but paused while Reduce Animations is on."
+            } else {
+                "Shows an animated frame around your avatar on your profile."
+            },
+            isEquipped = profileFrameEnabled,
+            backdrop = backdrop,
+            isGlassTheme = isGlassTheme,
+            sectionSurfaceColor = sectionSurfaceColor,
+            dividerColor = dividerColor,
+            contentColor = contentColor,
+            secondaryTextColor = secondaryTextColor,
+            accentColor = accentColor,
+            onToggle = {
+                scope.launch {
+                    val nextEnabled = !profileFrameEnabled
+                    SettingsPreferences.setProfileFrameEnabled(context, nextEnabled)
+                    ApiClient.updateProfile(
+                        context,
+                        ProfileUpdateRequest(
+                            profileRing = if (nextEnabled) PROFILE_FRAME_RING_ID else null
+                        ),
+                        explicitNullFields = if (nextEnabled) emptySet() else setOf("profileRing")
+                    ).onFailure { e ->
+                        SettingsPreferences.setProfileFrameEnabled(context, profileFrameEnabled)
+                        Toast.makeText(
+                            context,
+                            e.message ?: "Couldn't sync profile frame",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+        )
+
+        MoreProfileCustomizationCard(
+            title = "Big Bad Wolfie",
+            subtitle = "Visitors see this animation while your profile loads. Equip to use it.",
+            isEquipped = isGiftEquipped,
+            backdrop = backdrop,
+            isGlassTheme = isGlassTheme,
+            sectionSurfaceColor = sectionSurfaceColor,
+            dividerColor = dividerColor,
+            contentColor = contentColor,
+            secondaryTextColor = secondaryTextColor,
+            accentColor = accentColor,
+            onToggle = {
+                scope.launch {
+                    if (isGiftEquipped) {
+                        SettingsPreferences.setEquippedProfileLoaderGiftId(context, null)
+                        ApiClient.getCurrentUserId(context)?.let {
+                            ProfileLoaderGiftMemory.put(it, null)
+                        }
+                        ApiClient.updateProfile(
+                            context,
+                            ProfileUpdateRequest(visitLoaderGiftId = null),
+                            explicitNullFields = setOf("visitLoaderGiftId")
+                        ).onFailure { e ->
+                            Toast.makeText(
+                                context,
+                                e.message ?: "Couldn't sync gift",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        SettingsPreferences.setEquippedProfileLoaderGiftId(
+                            context,
+                            ProfileLoaderGifts.BIG_BAD_WOLFIE
+                        )
+                        ApiClient.getCurrentUserId(context)?.let {
+                            ProfileLoaderGiftMemory.put(it, ProfileLoaderGifts.BIG_BAD_WOLFIE)
+                        }
+                        ApiClient.updateProfile(
+                            context,
+                            ProfileUpdateRequest(visitLoaderGiftId = ProfileLoaderGifts.BIG_BAD_WOLFIE)
+                        ).onFailure { e ->
+                            Toast.makeText(
+                                context,
+                                e.message ?: "Couldn't sync gift",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun MoreProfileCustomizationCard(
+    title: String,
+    subtitle: String,
+    isEquipped: Boolean,
+    backdrop: LayerBackdrop,
+    isGlassTheme: Boolean,
+    sectionSurfaceColor: Color,
+    dividerColor: Color,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    onToggle: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .then(
+                if (isGlassTheme) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(18.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(14f.dp.toPx())
+                            lens(6f.dp.toPx(), 12f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(sectionSurfaceColor)
+                        }
+                    )
+                } else {
+                    Modifier.background(sectionSurfaceColor)
+                }
+            )
+            .border(1.dp, dividerColor, RoundedCornerShape(18.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                BasicText(
+                    title,
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+                BasicText(
+                    subtitle,
+                    style = TextStyle(secondaryTextColor, 12.sp),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        if (isEquipped) contentColor.copy(alpha = 0.12f) else accentColor
+                    )
+                    .clickable(onClick = onToggle)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                BasicText(
+                    if (isEquipped) "Unequip" else "Equip",
+                    style = TextStyle(
+                        color = if (isEquipped) contentColor else Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun MoreSearchBar(
@@ -6512,7 +7200,7 @@ private fun ApiPostCard(
             if (isVideoPost && !post.videoUrl.isNullOrEmpty()) {
                 Box(
                     Modifier
-                        .padding(horizontal = 10.dp)
+                        .fillMaxWidth()
                         .clip(innerSectionShape)
                         .background(mediaContainerColor)
                 ) {
@@ -6528,7 +7216,7 @@ private fun ApiPostCard(
             } else if (post.mediaUrls.isNotEmpty() && normalizedPostType != "ARTICLE" && !celebrationGifShown) {
                 Box(
                     Modifier
-                        .padding(horizontal = 10.dp)
+                        .fillMaxWidth()
                         .clip(innerSectionShape)
                         .background(mediaContainerColor)
                 ) {

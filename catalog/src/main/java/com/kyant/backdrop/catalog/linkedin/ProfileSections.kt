@@ -2,6 +2,8 @@ package com.kyant.backdrop.catalog.linkedin
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,8 +25,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,6 +47,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -53,7 +56,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -68,6 +70,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.math.absoluteValue
 
 // ==================== Section Card Wrapper ====================
 
@@ -144,7 +147,6 @@ private fun SectionCard(
 @Composable
 fun AboutSection(
     user: ProfileUser,
-    stats: ProfileStats,
     backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
@@ -279,19 +281,13 @@ fun AboutSection(
                 }
             }
             
-            // Quick stats grid
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                QuickStatBox("", "${stats.totalActiveDays}", "Active Days", contentColor, accentColor, R.drawable.ic_calendar)
-                QuickStatBox("", "${stats.totalPosts}", "Posts", contentColor, accentColor, R.drawable.ic_post)
-                QuickStatBox("", "${stats.totalArticles}", "Articles", contentColor, accentColor, R.drawable.ic_article)
-                QuickStatBox("", "${stats.totalLikesReceived}", "Likes", contentColor, accentColor, R.drawable.ic_favorite)
-            }
-            
-            // Education summary
-            if (!user.college.isNullOrEmpty()) {
+            val eduDetails = listOfNotNull(
+                user.degree,
+                user.branch?.takeIf { it.isNotEmpty() },
+                user.currentYear?.let { "Year $it" },
+                user.graduationYear?.let { "Class of $it" }
+            ).joinToString(" • ")
+            if (eduDetails.isNotEmpty()) {
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -307,24 +303,10 @@ fun AboutSection(
                             colorFilter = ColorFilter.tint(contentColor)
                         )
                         Spacer(Modifier.width(12.dp))
-                        Column {
-                            BasicText(
-                                user.college ?: "",
-                                style = TextStyle(contentColor, 14.sp, FontWeight.Medium)
-                            )
-                            val eduDetails = listOfNotNull(
-                                user.degree,
-                                user.branch?.takeIf { it.isNotEmpty() },
-                                user.currentYear?.let { "Year $it" },
-                                user.graduationYear?.let { "Class of $it" }
-                            ).joinToString(" • ")
-                            if (eduDetails.isNotEmpty()) {
-                                BasicText(
-                                    eduDetails,
-                                    style = TextStyle(contentColor.copy(alpha = 0.6f), 12.sp)
-                                )
-                            }
-                        }
+                        BasicText(
+                            eduDetails,
+                            style = TextStyle(contentColor, 14.sp, FontWeight.Medium)
+                        )
                     }
                 }
             }
@@ -353,10 +335,6 @@ fun AboutSection(
                                 FontWeight.Medium
                             )
                         )
-                        BasicText(
-                            "Let recruiters know you're open to opportunities",
-                            style = TextStyle(contentColor.copy(alpha = 0.6f), 11.sp)
-                        )
                     }
                     Box(
                         Modifier
@@ -375,37 +353,6 @@ fun AboutSection(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun QuickStatBox(
-    icon: String,
-    value: String,
-    label: String,
-    contentColor: Color,
-    accentColor: Color,
-    iconRes: Int? = null  // Optional drawable resource
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(contentColor.copy(alpha = 0.05f))
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        if (iconRes != null) {
-            Image(
-                painter = painterResource(iconRes),
-                contentDescription = label,
-                modifier = Modifier.size(18.dp),
-                colorFilter = ColorFilter.tint(contentColor)
-            )
-        } else {
-            BasicText(icon, style = TextStyle(fontSize = 16.sp))
-        }
-        BasicText(value, style = TextStyle(contentColor, 16.sp, FontWeight.Bold))
-        BasicText(label, style = TextStyle(contentColor.copy(alpha = 0.6f), 10.sp))
     }
 }
 
@@ -594,12 +541,8 @@ fun GitHubSection(
                     )
                     Spacer(Modifier.height(8.dp))
                     BasicText(
-                        "Connect your GitHub",
+                        "Connect GitHub",
                         style = TextStyle(contentColor, 14.sp, FontWeight.Medium)
-                    )
-                    BasicText(
-                        "Show your contributions and top repositories",
-                        style = TextStyle(contentColor.copy(alpha = 0.6f), 12.sp)
                     )
                     Spacer(Modifier.height(12.dp))
                     Box(
@@ -681,7 +624,16 @@ fun ActivityCalendarSection(
                 // Streak info
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column {
-                        BasicText("🔥 ${stats.currentStreak}", style = TextStyle(contentColor, 14.sp, FontWeight.Bold))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            StreakFireLottie(modifier = Modifier.size(20.dp))
+                            BasicText(
+                                "${stats.currentStreak}",
+                                style = TextStyle(contentColor, 14.sp, FontWeight.Bold)
+                            )
+                        }
                         BasicText("Current", style = TextStyle(contentColor.copy(alpha = 0.5f), 10.sp))
                     }
                     Column {
@@ -835,7 +787,7 @@ fun SkillsSection(
         if (skills.isEmpty()) {
             EmptySectionPlaceholder(
                 icon = "💡",
-                message = "No skills added yet",
+                message = "No skills yet",
                 contentColor = contentColor
             )
         } else {
@@ -916,7 +868,17 @@ fun ProjectsSection(
     onViewProject: (Project) -> Unit = {},
     onToggleFeatured: (Project) -> Unit = {}
 ) {
-    val context = LocalContext.current
+    val orderedProjects = remember(projects) {
+        projects.sortedWith(
+            compareByDescending<Project> { it.featured }
+                .thenByDescending { it.isCurrent }
+                .thenByDescending { it.startDate }
+        )
+    }
+    val pagerState = rememberPagerState(
+        initialPage = 0,
+        pageCount = { orderedProjects.size }
+    )
     
     SectionCard(
         title = "Projects & Work",
@@ -938,7 +900,7 @@ fun ProjectsSection(
                     BasicText("✨", style = TextStyle(fontSize = 32.sp))
                     Spacer(Modifier.height(8.dp))
                     BasicText(
-                        "No work showcased yet",
+                        "No work yet",
                         style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp)
                     )
                     Spacer(Modifier.height(12.dp))
@@ -958,89 +920,301 @@ fun ProjectsSection(
             } else {
                 EmptySectionPlaceholder(
                     icon = "✨",
-                    message = "No work showcased yet",
+                    message = "No work yet",
                     contentColor = contentColor
                 )
             }
         } else {
-            // Featured projects section
-            val featured = projects.filter { it.featured }
-            val regular = projects.filter { !it.featured }
-            
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Featured Work (if any)
-                if (featured.isNotEmpty()) {
-                    Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        ) {
-                            BasicText("⭐", style = TextStyle(fontSize = 12.sp))
-                            Spacer(Modifier.width(4.dp))
-                            BasicText(
-                                "Featured Work",
-                                style = TextStyle(
-                                    Color(0xFFFFD700),
-                                    12.sp,
-                                    FontWeight.SemiBold
-                                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        BasicText(
+                            text = if (orderedProjects.size > 1) "Swipe through projects" else "Project spotlight",
+                            style = TextStyle(
+                                color = contentColor,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            featured.forEach { project ->
-                                ProjectCard(
-                                    project = project,
-                                    backdrop = backdrop,
-                                    contentColor = contentColor,
-                                    accentColor = accentColor,
-                                    isOwner = isOwner,
-                                    onView = { onViewProject(project) },
-                                    onEdit = { onEditProject(project) },
-                                    onToggleFeatured = { onToggleFeatured(project) }
-                                )
-                            }
-                        }
+                        )
+                        BasicText(
+                            text = if (orderedProjects.size > 1) "Move right to explore the rest"
+                            else "A richer card for this work",
+                            style = TextStyle(
+                                color = contentColor.copy(alpha = 0.58f),
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+
+                    if (orderedProjects.size > 1) {
+                        ProjectPagerCounter(
+                            currentPage = pagerState.currentPage,
+                            totalPages = orderedProjects.size,
+                            accentColor = accentColor,
+                            contentColor = contentColor
+                        )
+                    } else if (orderedProjects.firstOrNull()?.featured == true) {
+                        ProjectBadge(
+                            iconRes = R.drawable.ic_sparkles,
+                            label = "Featured",
+                            tint = Color(0xFFFFD66B),
+                            background = Color(0xFFFFD66B).copy(alpha = 0.16f)
+                        )
                     }
                 }
-                
-                // All Projects (non-featured)
-                if (regular.isNotEmpty()) {
-                    Column {
-                        if (featured.isNotEmpty()) {
-                            BasicText(
-                                "All Projects",
-                                style = TextStyle(
-                                    contentColor.copy(alpha = 0.5f),
-                                    12.sp,
-                                    FontWeight.SemiBold
-                                ),
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            regular.forEach { project ->
-                                ProjectCard(
-                                    project = project,
-                                    backdrop = backdrop,
-                                    contentColor = contentColor,
-                                    accentColor = accentColor,
-                                    isOwner = isOwner,
-                                    onView = { onViewProject(project) },
-                                    onEdit = { onEditProject(project) },
-                                    onToggleFeatured = { onToggleFeatured(project) }
-                                )
-                            }
-                        }
-                    }
+
+                HorizontalPager(
+                    state = pagerState,
+                    pageSpacing = 14.dp,
+                    contentPadding = PaddingValues(end = if (orderedProjects.size > 1) 28.dp else 0.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(430.dp)
+                ) { page ->
+                    val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
+                    val settledOffset = pageOffset.coerceIn(0f, 1f)
+                    val motionProgress = 1f - settledOffset
+
+                    ProjectCard(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                alpha = 0.7f + (0.3f * motionProgress)
+                                scaleX = 0.94f + (0.06f * motionProgress)
+                                scaleY = 0.96f + (0.04f * motionProgress)
+                                translationY = (1f - motionProgress) * 22f
+                            },
+                        project = orderedProjects[page],
+                        backdrop = backdrop,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        isOwner = isOwner,
+                        onView = { onViewProject(orderedProjects[page]) },
+                        onEdit = { onEditProject(orderedProjects[page]) },
+                        onToggleFeatured = { onToggleFeatured(orderedProjects[page]) }
+                    )
+                }
+
+                if (orderedProjects.size > 1) {
+                    ProjectPagerIndicator(
+                        currentPage = pagerState.currentPage,
+                        totalPages = orderedProjects.size,
+                        accentColor = accentColor,
+                        contentColor = contentColor
+                    )
                 }
             }
         }
     }
 }
 
+@Composable
+private fun ProjectPagerCounter(
+    currentPage: Int,
+    totalPages: Int,
+    accentColor: Color,
+    contentColor: Color
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(accentColor.copy(alpha = 0.16f))
+            .border(1.dp, accentColor.copy(alpha = 0.24f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        BasicText(
+            text = "${currentPage + 1}/$totalPages",
+            style = TextStyle(
+                color = if (totalPages > 1) accentColor else contentColor,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        )
+    }
+}
+
+@Composable
+private fun ProjectPagerIndicator(
+    currentPage: Int,
+    totalPages: Int,
+    accentColor: Color,
+    contentColor: Color
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(totalPages) { index ->
+            val isSelected = index == currentPage
+            val width by animateFloatAsState(
+                targetValue = if (isSelected) 24f else 8f,
+                animationSpec = tween(durationMillis = 260),
+                label = "projectPagerWidth$index"
+            )
+            val alpha by animateFloatAsState(
+                targetValue = if (isSelected) 1f else 0.28f,
+                animationSpec = tween(durationMillis = 260),
+                label = "projectPagerAlpha$index"
+            )
+
+            Box(
+                modifier = Modifier
+                    .width(width.dp)
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(
+                        if (isSelected) accentColor.copy(alpha = alpha)
+                        else contentColor.copy(alpha = alpha)
+                    )
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProjectBadge(
+    iconRes: Int,
+    label: String,
+    tint: Color,
+    background: Color
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(background)
+            .border(1.dp, tint.copy(alpha = 0.24f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = label,
+            modifier = Modifier.size(12.dp),
+            colorFilter = ColorFilter.tint(tint)
+        )
+        BasicText(
+            text = label,
+            style = TextStyle(
+                color = tint,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        )
+    }
+}
+
+@Composable
+private fun ProjectMetaChip(
+    iconRes: Int,
+    text: String,
+    tint: Color,
+    background: Color,
+    contentColor: Color
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(background)
+            .border(1.dp, tint.copy(alpha = 0.16f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = text,
+            modifier = Modifier.size(12.dp),
+            colorFilter = ColorFilter.tint(tint)
+        )
+        BasicText(
+            text = text,
+            style = TextStyle(
+                color = contentColor,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun ProjectHeaderAction(
+    iconRes: Int,
+    tint: Color,
+    background: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(background)
+            .border(1.dp, tint.copy(alpha = 0.18f), CircleShape)
+            .clickable(onClick = onClick)
+            .padding(8.dp)
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            colorFilter = ColorFilter.tint(tint)
+        )
+    }
+}
+
+@Composable
+private fun ProjectActionButton(
+    iconRes: Int,
+    label: String,
+    tint: Color,
+    background: Color,
+    borderColor: Color = tint.copy(alpha = 0.24f),
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(background)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = label,
+            modifier = Modifier.size(14.dp),
+            colorFilter = ColorFilter.tint(tint)
+        )
+        BasicText(
+            text = label,
+            style = TextStyle(
+                color = tint,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        )
+    }
+}
+
+private fun projectTimelineLabel(project: Project): String {
+    val endLabel = if (project.isCurrent) "Present" else project.endDate?.let { formatDate(it) }.orEmpty()
+    return listOf(formatDate(project.startDate), endLabel)
+        .filter { it.isNotBlank() }
+        .joinToString(" — ")
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProjectCard(
+    modifier: Modifier = Modifier,
     project: Project,
     backdrop: LayerBackdrop,
     contentColor: Color,
@@ -1051,13 +1225,16 @@ private fun ProjectCard(
     onToggleFeatured: () -> Unit
 ) {
     val context = LocalContext.current
+    val heroAccent = if (project.featured) Color(0xFFFFD66B) else accentColor
+    val cardBorder = if (project.featured) heroAccent.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.08f)
+    val subduedSurface = Color.White.copy(alpha = 0.08f)
+    val hasLinks = !project.projectUrl.isNullOrBlank() || !project.githubUrl.isNullOrBlank() || !project.otherLinks.isNullOrEmpty()
     
     Box(
-        Modifier
-            .fillMaxWidth()
+        modifier
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { RoundedRectangle(12f.dp) },
+                shape = { RoundedRectangle(24f.dp) },
                 effects = {
                     vibrancy()
                     blur(16f.dp.toPx())
@@ -1066,18 +1243,17 @@ private fun ProjectCard(
                     drawRect(Color.White.copy(alpha = 0.08f))
                 }
             )
-            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, cardBorder, RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(24.dp))
             .clickable(onClick = onView)
     ) {
-        Column {
-            // Project Image (if available)
-            if (project.images.isNotEmpty()) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(188.dp)
+            ) {
+                if (project.images.isNotEmpty()) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(project.images.first())
@@ -1087,182 +1263,270 @@ private fun ProjectCard(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
-                    
-                    // Featured badge overlay
-                    if (project.featured) {
-                        Box(
-                            Modifier
-                                .align(Alignment.TopStart)
-                                .padding(8.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFFFD700).copy(alpha = 0.9f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                BasicText("⭐", style = TextStyle(fontSize = 10.sp))
-                                Spacer(Modifier.width(2.dp))
-                                BasicText(
-                                    "Featured",
-                                    style = TextStyle(Color.Black, 10.sp, FontWeight.Medium)
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        heroAccent.copy(alpha = 0.44f),
+                                        Color.White.copy(alpha = 0.08f),
+                                        contentColor.copy(alpha = 0.1f)
+                                    )
                                 )
-                            }
-                        }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(
+                                when {
+                                    !project.githubUrl.isNullOrBlank() -> R.drawable.ic_code
+                                    !project.projectUrl.isNullOrBlank() -> R.drawable.ic_globe
+                                    else -> R.drawable.ic_work
+                                }
+                            ),
+                            contentDescription = null,
+                            modifier = Modifier.size(42.dp),
+                            colorFilter = ColorFilter.tint(heroAccent)
+                        )
                     }
                 }
-            }
-            
-            Column(Modifier.padding(12.dp)) {
-                // Header
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.Black.copy(alpha = 0.12f),
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.42f)
+                                )
+                            )
+                        )
+                )
+
                 Row(
-                    Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Top
                 ) {
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            BasicText(
-                                project.name,
-                                style = TextStyle(contentColor, 15.sp, FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (project.featured) {
+                            ProjectBadge(
+                                iconRes = R.drawable.ic_sparkles,
+                                label = "Featured",
+                                tint = heroAccent,
+                                background = Color.Black.copy(alpha = 0.3f)
                             )
-                            if (project.featured && project.images.isEmpty()) {
-                                Spacer(Modifier.width(6.dp))
-                                BasicText("⭐", style = TextStyle(fontSize = 12.sp))
-                            }
                         }
-                        project.role?.let { role ->
-                            BasicText(
-                                role,
-                                style = TextStyle(accentColor, 12.sp)
+                        if (project.isCurrent) {
+                            ProjectBadge(
+                                iconRes = R.drawable.ic_check,
+                                label = "Active",
+                                tint = Color.White,
+                                background = Color.White.copy(alpha = 0.14f)
                             )
                         }
                     }
-                    
-                    // Action buttons
+
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        // Featured toggle (owner only)
                         if (isOwner) {
-                            Box(
-                                Modifier
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (project.featured) Color(0xFFFFD700).copy(alpha = 0.2f)
-                                        else contentColor.copy(alpha = 0.1f)
-                                    )
-                                    .clickable(onClick = onToggleFeatured)
-                                    .padding(6.dp)
-                            ) {
-                                BasicText(
-                                    if (project.featured) "⭐" else "☆",
-                                    style = TextStyle(
-                                        if (project.featured) Color(0xFFFFD700) else contentColor.copy(alpha = 0.5f),
-                                        12.sp
-                                    )
-                                )
-                            }
-                        }
-                        
-                        // Edit button (owner only)
-                        if (isOwner) {
-                            Box(
-                                Modifier
-                                    .clip(CircleShape)
-                                    .background(contentColor.copy(alpha = 0.1f))
-                                    .clickable(onClick = onEdit)
-                                    .padding(6.dp)
-                            ) {
-                                BasicText("✎", style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp))
-                            }
-                        }
-                        
-                        // Source/Repository link
-                        project.githubUrl?.let { url ->
-                            Box(
-                                Modifier
-                                    .clip(CircleShape)
-                                    .background(contentColor.copy(alpha = 0.1f))
-                                    .clickable {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                    }
-                                    .padding(6.dp)
-                            ) {
-                                BasicText("📂", style = TextStyle(fontSize = 12.sp))
-                            }
-                        }
-                        
-                        // Live/Portfolio link
-                        project.projectUrl?.let { url ->
-                            Box(
-                                Modifier
-                                    .clip(CircleShape)
-                                    .background(accentColor.copy(alpha = 0.2f))
-                                    .clickable {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                    }
-                                    .padding(6.dp)
-                            ) {
-                                BasicText("↗", style = TextStyle(accentColor, 12.sp))
-                            }
+                            ProjectHeaderAction(
+                                iconRes = R.drawable.ic_sparkles,
+                                tint = if (project.featured) heroAccent else Color.White,
+                                background = Color.Black.copy(alpha = 0.26f),
+                                onClick = onToggleFeatured
+                            )
+                            ProjectHeaderAction(
+                                iconRes = R.drawable.ic_edit,
+                                tint = Color.White,
+                                background = Color.Black.copy(alpha = 0.26f),
+                                onClick = onEdit
+                            )
                         }
                     }
                 }
-                
-                // Description
-                if (project.description.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     BasicText(
-                        project.description,
-                        style = TextStyle(contentColor.copy(alpha = 0.8f), 13.sp),
+                        text = project.name,
+                        style = TextStyle(
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                    project.role?.takeIf { it.isNotBlank() }?.let { role ->
+                        BasicText(
+                            text = role,
+                            style = TextStyle(
+                                color = Color.White.copy(alpha = 0.82f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
-                
-                // Skills & Tags (show up to 3, then +N)
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    project.role?.takeIf { it.isNotBlank() }?.let { role ->
+                        ProjectMetaChip(
+                            iconRes = R.drawable.ic_work,
+                            text = role,
+                            tint = heroAccent,
+                            background = heroAccent.copy(alpha = 0.14f),
+                            contentColor = contentColor
+                        )
+                    }
+
+                    ProjectMetaChip(
+                        iconRes = R.drawable.ic_calendar,
+                        text = projectTimelineLabel(project),
+                        tint = contentColor.copy(alpha = 0.72f),
+                        background = subduedSurface,
+                        contentColor = contentColor
+                    )
+
+                    if (project.images.isNotEmpty()) {
+                        ProjectMetaChip(
+                            iconRes = R.drawable.ic_image,
+                            text = "${project.images.size} image${if (project.images.size > 1) "s" else ""}",
+                            tint = contentColor.copy(alpha = 0.72f),
+                            background = subduedSurface,
+                            contentColor = contentColor
+                        )
+                    }
+
+                    if (!project.otherLinks.isNullOrEmpty()) {
+                        ProjectMetaChip(
+                            iconRes = R.drawable.ic_link,
+                            text = "${project.otherLinks.size} link${if (project.otherLinks.size > 1) "s" else ""}",
+                            tint = contentColor.copy(alpha = 0.72f),
+                            background = subduedSurface,
+                            contentColor = contentColor
+                        )
+                    }
+                }
+
+                if (project.description.isNotBlank()) {
+                    BasicText(
+                        text = project.description,
+                        style = TextStyle(
+                            color = contentColor.copy(alpha = 0.82f),
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp
+                        ),
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
                 if (project.techStack.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val displayTags = project.techStack.take(3)
-                        val remaining = project.techStack.size - 3
-                        
-                        displayTags.forEach { tag ->
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(accentColor.copy(alpha = 0.1f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                BasicText(
-                                    tag,
-                                    style = TextStyle(accentColor, 10.sp)
-                                )
-                            }
+                        project.techStack.take(5).forEach { tag ->
+                            ProjectMetaChip(
+                                iconRes = R.drawable.ic_code,
+                                text = tag,
+                                tint = heroAccent,
+                                background = heroAccent.copy(alpha = 0.12f),
+                                contentColor = contentColor
+                            )
                         }
-                        
+
+                        val remaining = project.techStack.size - 5
                         if (remaining > 0) {
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(contentColor.copy(alpha = 0.1f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                BasicText(
-                                    "+$remaining",
-                                    style = TextStyle(contentColor.copy(alpha = 0.6f), 10.sp)
-                                )
-                            }
+                            ProjectMetaChip(
+                                iconRes = R.drawable.ic_sparkles,
+                                text = "+$remaining",
+                                tint = contentColor.copy(alpha = 0.72f),
+                                background = subduedSurface,
+                                contentColor = contentColor
+                            )
                         }
                     }
                 }
-                
-                // Date range
-                Spacer(Modifier.height(6.dp))
-                BasicText(
-                    "${formatDate(project.startDate)} — ${if (project.isCurrent) "Present" else project.endDate?.let { formatDate(it) } ?: ""}",
-                    style = TextStyle(contentColor.copy(alpha = 0.5f), 11.sp)
-                )
+
+                Spacer(Modifier.weight(1f))
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    ProjectActionButton(
+                        iconRes = R.drawable.ic_visibility,
+                        label = "View",
+                        tint = contentColor,
+                        background = subduedSurface,
+                        borderColor = Color.White.copy(alpha = 0.08f),
+                        onClick = onView
+                    )
+
+                    project.projectUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                        ProjectActionButton(
+                            iconRes = R.drawable.ic_open_in_browser,
+                            label = "Live",
+                            tint = heroAccent,
+                            background = heroAccent.copy(alpha = 0.14f),
+                            onClick = {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }
+                        )
+                    }
+
+                    project.githubUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                        ProjectActionButton(
+                            iconRes = R.drawable.ic_github,
+                            label = "Source",
+                            tint = contentColor,
+                            background = subduedSurface,
+                            borderColor = Color.White.copy(alpha = 0.08f),
+                            onClick = {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }
+                        )
+                    }
+
+                    if (project.projectUrl.isNullOrBlank() && project.githubUrl.isNullOrBlank() && hasLinks) {
+                        project.otherLinks?.firstOrNull()?.url?.let { url ->
+                            ProjectActionButton(
+                                iconRes = R.drawable.ic_link,
+                                label = "Links",
+                                tint = heroAccent,
+                                background = heroAccent.copy(alpha = 0.14f),
+                                onClick = {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -1307,7 +1571,7 @@ fun ExperienceSection(
                     )
                     Spacer(Modifier.height(8.dp))
                     BasicText(
-                        "No experience added yet",
+                        "No experience yet",
                         style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp)
                     )
                     Spacer(Modifier.height(12.dp))
@@ -1327,7 +1591,7 @@ fun ExperienceSection(
             } else {
                 EmptySectionPlaceholder(
                     icon = "",
-                    message = "No experience added yet",
+                    message = "No experience yet",
                     contentColor = contentColor,
                     iconRes = R.drawable.ic_work
                 )
@@ -1673,7 +1937,7 @@ fun EducationSection(
                     )
                     Spacer(Modifier.height(8.dp))
                     BasicText(
-                        "No education added yet",
+                        "No education yet",
                         style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp)
                     )
                     Spacer(Modifier.height(12.dp))
@@ -1693,7 +1957,7 @@ fun EducationSection(
             } else {
                 EmptySectionPlaceholder(
                     icon = "",
-                    message = "No education added yet",
+                    message = "No education yet",
                     contentColor = contentColor,
                     iconRes = R.drawable.ic_education
                 )
@@ -1983,7 +2247,7 @@ fun CertificatesSection(
                     )
                     Spacer(Modifier.height(8.dp))
                     BasicText(
-                        "No certifications added yet",
+                        "No certifications yet",
                         style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp)
                     )
                     Spacer(Modifier.height(12.dp))
@@ -2003,7 +2267,7 @@ fun CertificatesSection(
             } else {
                 EmptySectionPlaceholder(
                     icon = "",
-                    message = "No certifications added yet",
+                    message = "No certifications yet",
                     contentColor = contentColor,
                     iconRes = R.drawable.ic_award
                 )
@@ -2254,7 +2518,7 @@ fun AchievementsSection(
                     )
                     Spacer(Modifier.height(8.dp))
                     BasicText(
-                        "No achievements added yet",
+                        "No achievements yet",
                         style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp)
                     )
                     Spacer(Modifier.height(12.dp))
@@ -2274,7 +2538,7 @@ fun AchievementsSection(
             } else {
                 EmptySectionPlaceholder(
                     icon = "",
-                    message = "No achievements added yet",
+                    message = "No achievements yet",
                     contentColor = contentColor,
                     iconRes = R.drawable.ic_trophy
                 )
