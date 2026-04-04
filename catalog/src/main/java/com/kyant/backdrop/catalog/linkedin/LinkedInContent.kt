@@ -819,10 +819,6 @@ fun LinkedInContent(
             }
             showAgentSheet = false
             minimizeAgentSheetForVoice = false
-            if (isAgentVoiceLive) {
-                delay(if (reduceAnimations) 40L else 180L)
-                agentViewModel.requestRealtimeVoiceGreeting()
-            }
         }
     }
 
@@ -1547,46 +1543,25 @@ fun LinkedInContent(
                 modifier = Modifier.align(Alignment.BottomEnd)
             ) {
                 Box(
-                    modifier = Modifier.padding(end = 24.dp, bottom = if (isInChatThread) 28.dp else 112.dp)
+                    modifier = Modifier.padding(end = 20.dp, bottom = if (isInChatThread) 20.dp else 84.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(60.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(
-                                        accentColor,
-                                        accentColor.copy(alpha = 0.78f)
-                                    )
-                                )
-                            )
+                            .size(64.dp)
                             .clickable {
                                 minimizeAgentSheetForVoice = false
                                 showAgentSheet = true
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            BasicText(
-                                "AI",
-                                style = TextStyle(
-                                    color = Color.White,
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            )
-                            BasicText(
-                                "Agent",
-                                style = TextStyle(
-                                    color = Color.White.copy(alpha = 0.92f),
-                                    fontSize = 9.sp
-                                )
-                            )
-                        }
+                        RoboAgentLottie(
+                            modifier = Modifier
+                                .size(58.dp)
+                                .graphicsLayer {
+                                    scaleX = 1.04f
+                                    scaleY = 1.04f
+                                }
+                        )
                     }
 
                     if (agentState.pendingApprovals.isNotEmpty()) {
@@ -1631,6 +1606,7 @@ fun LinkedInContent(
                             viewModel = agentViewModel,
                             surface = agentSurface,
                             surfaceContext = agentSurfaceContext,
+                            userDisplayName = uiState.currentUser?.name ?: uiState.currentUser?.username,
                             contentColor = contentColor,
                             accentColor = accentColor,
                             backdrop = backdrop,

@@ -17,6 +17,13 @@ import java.net.URI
 object AgentSocketManager {
     private const val TAG = "AgentSocket"
 
+    private data class PendingVoiceStartRequest(
+        val sessionId: String,
+        val surface: String,
+        val surfaceContext: Map<String, String>,
+        val allowAutonomousActions: Boolean
+    )
+
     data class AgentSocketEvent(
         val type: String,
         val sessionId: String? = null,
@@ -89,11 +96,12 @@ object AgentSocketManager {
     private var currentToken: String? = null
     private var currentSessionId: String? = null
     private var isConnecting = false
+    private var pendingVoiceStartRequest: PendingVoiceStartRequest? = null
 
     private val _events = MutableSharedFlow<AgentSocketEvent>(replay = 0, extraBufferCapacity = 16)
     val events = _events.asSharedFlow()
 
-    private val _voiceEvents = MutableSharedFlow<AgentVoiceSocketEvent>(replay = 0, extraBufferCapacity = 256)
+    private val _voiceEvents = MutableSharedFlow<AgentVoiceSocketEvent>(replay = 0, extraBufferCapacity = 2048)
     val voiceEvents = _voiceEvents.asSharedFlow()
 
     private val _connectionStateFlow = MutableSharedFlow<ConnectionState>(replay = 1, extraBufferCapacity = 1)
@@ -103,6 +111,7 @@ object AgentSocketManager {
         currentSessionId = sessionId
         if (socket?.connected() == true && currentToken == token) {
             joinCurrentSession()
+            flushPendingVoiceStart()
             return
         }
         if (isConnecting && currentToken == token) {
@@ -131,6 +140,7 @@ object AgentSocketManager {
                     isConnecting = false
                     _connectionStateFlow.tryEmit(ConnectionState.CONNECTED)
                     joinCurrentSession()
+                    flushPendingVoiceStart()
                 }
                 on(Socket.EVENT_DISCONNECT) {
                     _connectionStateFlow.tryEmit(ConnectionState.DISCONNECTED)
@@ -143,6 +153,7 @@ object AgentSocketManager {
                 on("reconnect") {
                     _connectionStateFlow.tryEmit(ConnectionState.CONNECTED)
                     joinCurrentSession()
+                    flushPendingVoiceStart()
                 }
                 on("agent:pending_action_created") { args ->
                     parseJsonObject(args)?.let { payload ->
@@ -340,6 +351,7 @@ object AgentSocketManager {
         socket?.disconnect()
         socket = null
         isConnecting = false
+        pendingVoiceStartRequest = null
         _connectionStateFlow.tryEmit(ConnectionState.DISCONNECTED)
     }
 
@@ -356,24 +368,27 @@ object AgentSocketManager {
         surfaceContext: Map<String, String> = emptyMap(),
         allowAutonomousActions: Boolean
     ) {
-        if (sessionId.isBlank() || socket?.connected() != true) {
+        if (sessionId.isBlank()) {
             return
         }
 
+        val request = PendingVoiceStartRequest(
+            sessionId = sessionId,
+            surface = surface,
+            surfaceContext = surfaceContext,
+            allowAutonomousActions = allowAutonomousActions
+        )
         updateSession(sessionId)
-        val contextJson = JSONObject()
-        surfaceContext.forEach { (key, value) ->
-            contextJson.put(key, value)
+        if (socket?.connected() == true) {
+            pendingVoiceStartRequest = null
+            emitVoiceStart(request)
+            return
         }
 
-        socket?.emit(
-            "agent:voice_start",
-            JSONObject()
-                .put("sessionId", sessionId)
-                .put("surface", surface)
-                .put("surfaceContext", contextJson)
-                .put("allowAutonomousActions", allowAutonomousActions)
-        )
+        pendingVoiceStartRequest = request
+        if (!isConnecting) {
+            socket?.connect()
+        }
     }
 
     fun updateSurface(
@@ -432,10 +447,36 @@ object AgentSocketManager {
     }
 
     fun stopRealtimeVoice() {
+        pendingVoiceStartRequest = null
         if (socket?.connected() != true) {
             return
         }
         socket?.emit("agent:voice_stop")
+    }
+
+    private fun flushPendingVoiceStart() {
+        val request = pendingVoiceStartRequest ?: return
+        if (socket?.connected() != true) {
+            return
+        }
+        pendingVoiceStartRequest = null
+        emitVoiceStart(request)
+    }
+
+    private fun emitVoiceStart(request: PendingVoiceStartRequest) {
+        val contextJson = JSONObject()
+        request.surfaceContext.forEach { (key, value) ->
+            contextJson.put(key, value)
+        }
+
+        socket?.emit(
+            "agent:voice_start",
+            JSONObject()
+                .put("sessionId", request.sessionId)
+                .put("surface", request.surface)
+                .put("surfaceContext", contextJson)
+                .put("allowAutonomousActions", request.allowAutonomousActions)
+        )
     }
 
     private fun parseJsonObject(args: Array<Any>): JSONObject? {

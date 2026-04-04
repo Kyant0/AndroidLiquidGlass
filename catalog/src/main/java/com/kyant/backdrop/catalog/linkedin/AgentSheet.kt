@@ -28,7 +28,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -44,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +64,7 @@ fun AgentSheetContent(
     viewModel: AgentViewModel,
     surface: String,
     surfaceContext: Map<String, String>,
+    userDisplayName: String? = null,
     contentColor: Color,
     accentColor: Color,
     backdrop: LayerBackdrop,
@@ -73,6 +77,9 @@ fun AgentSheetContent(
     var draft by rememberSaveable { mutableStateOf("") }
     var showGoalDialog by remember { mutableStateOf(false) }
     var selectedApproval by remember { mutableStateOf<AgentPendingAction?>(null) }
+    val openingVoiceGreeting = remember(userDisplayName) {
+        buildOpeningVoiceGreetingPrompt(userDisplayName)
+    }
 
     val recordPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -80,7 +87,8 @@ fun AgentSheetContent(
         if (granted) {
             viewModel.startRealtimeVoice(
                 surface = surface,
-                surfaceContext = surfaceContext
+                surfaceContext = surfaceContext,
+                openingGreeting = openingVoiceGreeting
             )
         }
     }
@@ -413,7 +421,8 @@ fun AgentSheetContent(
                                     if (granted) {
                                         viewModel.startRealtimeVoice(
                                             surface = surface,
-                                            surfaceContext = surfaceContext
+                                            surfaceContext = surfaceContext,
+                                            openingGreeting = openingVoiceGreeting
                                         )
                                     } else {
                                         recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -422,19 +431,20 @@ fun AgentSheetContent(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        BasicText(
-                            text = when {
-                                uiState.isVoiceSessionConnecting -> "Wait"
-                                uiState.isRecordingVoice -> "Stop"
-                                else -> "Mic"
-                            },
-                            style = TextStyle(
-                                color = if (uiState.isRecordingVoice || uiState.isVoiceSessionConnecting) Color.White else contentColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = AgentBodyFontFamily
+                        if (uiState.isVoiceSessionConnecting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
                             )
-                        )
+                        } else {
+                            Icon(
+                                painter = painterResource(id = com.kyant.backdrop.catalog.R.drawable.ic_mic),
+                                contentDescription = "Mic",
+                                tint = if (uiState.isRecordingVoice) Color.White else contentColor,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
 
                     Spacer(Modifier.width(2.dp))
@@ -698,6 +708,22 @@ private fun RealtimeVoiceCard(
             }
         }
     }
+}
+
+private fun buildOpeningVoiceGreetingPrompt(userDisplayName: String?): String {
+    val firstName = userDisplayName
+        ?.trim()
+        ?.split(Regex("\\s+"))
+        ?.firstOrNull()
+        ?.takeIf { it.isNotBlank() }
+
+    val greetingLine = if (firstName != null) {
+        "Hey, $firstName, what's the plan for today?"
+    } else {
+        "Hey, what's the plan for today?"
+    }
+
+    return "Open the conversation first. Say exactly one short warm line: \"$greetingLine\" Then stop speaking and wait for the user's reply."
 }
 
 @Composable

@@ -7,6 +7,7 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.NoiseSuppressor
+import android.os.Build
 import android.os.Process
 import android.util.Base64
 import kotlinx.coroutines.CoroutineScope
@@ -14,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -24,12 +26,19 @@ class AgentRealtimeVoiceManager {
     companion object {
         private const val SampleRateHz = 24_000
         private const val BytesPerSample = 2
-        private const val ChunkDurationMs = 100
+        private const val ChunkDurationMs = 60
         private const val ChunkSizeBytes = SampleRateHz * BytesPerSample * ChunkDurationMs / 1000
     }
 
+    private data class PlaybackChunk(
+        val generation: Int,
+        val responseId: String?,
+        val audioBase64: String
+    )
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val playbackMutex = Mutex()
+    private val playbackQueue = Channel<PlaybackChunk>(capacity = Channel.UNLIMITED)
 
     private var audioRecord: AudioRecord? = null
     private var captureJob: Job? = null
@@ -41,6 +50,69 @@ class AgentRealtimeVoiceManager {
     private var suppressPlayback = false
     @Volatile
     private var currentPlaybackResponseId: String? = null
+    @Volatile
+    private var playbackGeneration = 0
+    @Volatile
+    private var isCapturingAudio = false
+
+    init {
+        scope.launch {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
+            for (chunk in playbackQueue) {
+                if (chunk.generation != playbackGeneration || suppressPlayback) {
+                    continue
+                }
+
+                val bytes = runCatching {
+                    Base64.decode(chunk.audioBase64, Base64.DEFAULT)
+                }.getOrNull() ?: continue
+
+                playbackMutex.withLock {
+                    if (chunk.generation != playbackGeneration || suppressPlayback) {
+                        return@withLock
+                    }
+
+                    val track = ensureAudioTrack()
+                    if (chunk.responseId != null && currentPlaybackResponseId != chunk.responseId) {
+                        currentPlaybackResponseId = chunk.responseId
+                        runCatching {
+                            if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                                track.pause()
+                            }
+                            track.flush()
+                        }
+                    }
+
+                    if (track.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                        track.play()
+                    }
+
+                    var offset = 0
+                    while (offset < bytes.size) {
+                        if (chunk.generation != playbackGeneration || suppressPlayback) {
+                            break
+                        }
+
+                        val written = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            track.write(
+                                bytes,
+                                offset,
+                                bytes.size - offset,
+                                AudioTrack.WRITE_BLOCKING
+                            )
+                        } else {
+                            track.write(bytes, offset, bytes.size - offset)
+                        }
+
+                        if (written <= 0) {
+                            break
+                        }
+                        offset += written
+                    }
+                }
+            }
+        }
+    }
 
     fun startCapture(onAudioChunk: (String) -> Unit) {
         if (captureJob?.isActive == true) {
@@ -82,6 +154,7 @@ class AgentRealtimeVoiceManager {
         val readBuffer = ByteArray(ChunkSizeBytes)
         recorder.startRecording()
         audioRecord = recorder
+        isCapturingAudio = true
 
         captureJob = scope.launch {
             Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
@@ -104,6 +177,7 @@ class AgentRealtimeVoiceManager {
     fun stopCapture() {
         captureJob?.cancel()
         captureJob = null
+        isCapturingAudio = false
 
         runCatching {
             audioRecord?.apply {
@@ -123,46 +197,32 @@ class AgentRealtimeVoiceManager {
         noiseSuppressor = null
     }
 
+    fun preparePlayback() {
+        scope.launch {
+            playbackMutex.withLock {
+                ensureAudioTrack()
+            }
+        }
+    }
+
     fun playAssistantChunk(responseId: String?, audioBase64: String) {
         if (audioBase64.isBlank() || suppressPlayback) {
             return
         }
 
-        scope.launch {
-            playbackMutex.withLock {
-                if (suppressPlayback) {
-                    return@withLock
-                }
-                val normalizedResponseId = responseId?.takeIf { it.isNotBlank() }
-                if (normalizedResponseId != null && currentPlaybackResponseId != normalizedResponseId) {
-                    currentPlaybackResponseId = normalizedResponseId
-                    runCatching {
-                        audioTrack?.pause()
-                        audioTrack?.flush()
-                    }
-                }
-                if (normalizedResponseId != null && currentPlaybackResponseId != normalizedResponseId) {
-                    return@withLock
-                }
-                val bytes = Base64.decode(audioBase64, Base64.DEFAULT)
-                val track = ensureAudioTrack()
-                if (track.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                    track.play()
-                }
-
-                var offset = 0
-                while (offset < bytes.size) {
-                    val written = track.write(bytes, offset, bytes.size - offset)
-                    if (written <= 0) {
-                        break
-                    }
-                    offset += written
-                }
-            }
-        }
+        playbackQueue.trySend(
+            PlaybackChunk(
+                generation = playbackGeneration,
+                responseId = responseId?.takeIf { it.isNotBlank() },
+                audioBase64 = audioBase64
+            )
+        )
     }
 
     fun stopAssistantPlayback(flush: Boolean = true) {
+        if (flush) {
+            invalidatePlaybackQueue()
+        }
         scope.launch {
             playbackMutex.withLock {
                 runCatching {
@@ -189,6 +249,7 @@ class AgentRealtimeVoiceManager {
     fun release() {
         stopCapture()
         suppressPlayback = false
+        invalidatePlaybackQueue()
         currentPlaybackResponseId = null
         runCatching {
             audioTrack?.pause()
@@ -196,7 +257,15 @@ class AgentRealtimeVoiceManager {
             audioTrack?.release()
         }
         audioTrack = null
+        playbackQueue.close()
         scope.cancel()
+    }
+
+    fun isCapturing(): Boolean = isCapturingAudio
+
+    private fun invalidatePlaybackQueue() {
+        playbackGeneration += 1
+        currentPlaybackResponseId = null
     }
 
     private fun ensureAudioTrack(): AudioTrack {
@@ -207,8 +276,8 @@ class AgentRealtimeVoiceManager {
             AudioFormat.CHANNEL_OUT_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         )
-        val bufferSize = max(minBufferSize, ChunkSizeBytes * 6)
-        val track = AudioTrack.Builder()
+        val bufferSize = max(minBufferSize, ChunkSizeBytes * 3)
+        val builder = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -224,7 +293,10 @@ class AgentRealtimeVoiceManager {
             )
             .setBufferSizeInBytes(bufferSize)
             .setTransferMode(AudioTrack.MODE_STREAM)
-            .build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+        }
+        val track = builder.build()
 
         audioTrack = track
         return track

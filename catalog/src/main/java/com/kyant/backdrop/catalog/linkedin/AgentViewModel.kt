@@ -71,6 +71,7 @@ class AgentViewModel(
     private var mediaPlayer: MediaPlayer? = null
     private val realtimeVoiceManager = AgentRealtimeVoiceManager()
     private var shouldStartRealtimeCapture = false
+    private var shouldStartRealtimeCaptureAfterPrompt = false
     private var lastSyncedSurfaceKey: String? = null
     private var pendingNavigationTarget: String? = null
     private var pendingRealtimePrompt: String? = null
@@ -192,13 +193,17 @@ class AgentViewModel(
 
     fun startRealtimeVoice(
         surface: String,
-        surfaceContext: Map<String, String> = emptyMap()
+        surfaceContext: Map<String, String> = emptyMap(),
+        openingGreeting: String? = null
     ) {
         if (_uiState.value.isRecordingVoice || _uiState.value.isVoiceSessionConnecting) return
 
         viewModelScope.launch {
             val autoRunEnabled = _uiState.value.autoRunEnabled
-            pendingRealtimePrompt = null
+            pendingRealtimePrompt = openingGreeting?.trim()?.takeIf { it.isNotBlank() }
+            shouldStartRealtimeCaptureAfterPrompt = pendingRealtimePrompt != null
+            shouldStartRealtimeCapture = !shouldStartRealtimeCaptureAfterPrompt
+            realtimeVoiceManager.preparePlayback()
             realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = true)
             _uiState.update {
                 it.copy(
@@ -218,6 +223,7 @@ class AgentViewModel(
                 allowAutonomousActions = autoRunEnabled
             ).getOrElse { error ->
                 shouldStartRealtimeCapture = false
+                shouldStartRealtimeCaptureAfterPrompt = false
                 _uiState.update {
                     it.copy(
                         isVoiceSessionConnecting = false,
@@ -228,7 +234,6 @@ class AgentViewModel(
             }
 
             connectSocketIfPossible(sessionState.sessionId)
-            shouldStartRealtimeCapture = true
             AgentSocketManager.startRealtimeVoice(
                 sessionId = sessionState.sessionId,
                 surface = surface,
@@ -246,6 +251,7 @@ class AgentViewModel(
 
     fun stopRealtimeVoice() {
         shouldStartRealtimeCapture = false
+        shouldStartRealtimeCaptureAfterPrompt = false
         pendingRealtimePrompt = null
         realtimeVoiceManager.stopCapture()
         realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = true)
@@ -329,6 +335,7 @@ class AgentViewModel(
 
     private fun clearRealtimeVoiceState() {
         pendingRealtimePrompt = null
+        shouldStartRealtimeCaptureAfterPrompt = false
         realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = true)
         _uiState.update {
             it.copy(
@@ -756,14 +763,15 @@ class AgentViewModel(
         dispatchPendingRealtimePrompt()
     }
 
-    private fun dispatchPendingRealtimePrompt() {
+    private fun dispatchPendingRealtimePrompt(force: Boolean = false) {
         val instructions = pendingRealtimePrompt?.takeIf { it.isNotBlank() } ?: return
         val uiState = _uiState.value
         val sessionId = uiState.sessionState?.sessionId?.takeIf { it.isNotBlank() } ?: return
         val voiceLive =
             uiState.socketConnected &&
                 !uiState.isVoiceSessionConnecting &&
-                (uiState.isRecordingVoice ||
+                (force ||
+                    uiState.isRecordingVoice ||
                     uiState.isVoiceListening ||
                     uiState.isVoiceThinking ||
                     uiState.isPlayingAudio)
@@ -836,9 +844,15 @@ class AgentViewModel(
                             dispatchPendingRealtimePrompt()
                         } else {
                             _uiState.update {
-                                it.copy(isVoiceSessionConnecting = false)
+                                it.copy(
+                                    isVoiceSessionConnecting = false,
+                                    isRecordingVoice = true,
+                                    isVoiceListening = false,
+                                    isVoiceThinking = false,
+                                    isPlayingAudio = false
+                                )
                             }
-                            dispatchPendingRealtimePrompt()
+                            dispatchPendingRealtimePrompt(force = true)
                         }
                     }
 
@@ -925,8 +939,13 @@ class AgentViewModel(
 
                     is AgentSocketManager.AgentVoiceSocketEvent.AudioDone -> {
                         realtimeVoiceManager.stopAssistantPlayback(flush = false)
-                        _uiState.update {
-                            it.copy(isPlayingAudio = false)
+                        if (shouldStartRealtimeCaptureAfterPrompt) {
+                            shouldStartRealtimeCaptureAfterPrompt = false
+                            beginRealtimeCapture()
+                        } else {
+                            _uiState.update {
+                                it.copy(isPlayingAudio = false)
+                            }
                         }
                     }
 

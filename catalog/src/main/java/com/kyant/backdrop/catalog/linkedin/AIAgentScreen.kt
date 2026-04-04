@@ -59,6 +59,7 @@ fun AIAgentScreen(
             viewModel = viewModel,
             surface = "global",
             surfaceContext = mapOf("surface" to "global", "entry" to "ai_agent_screen"),
+            userDisplayName = null,
             contentColor = contentColor,
             accentColor = accentColor,
             backdrop = backdrop,
