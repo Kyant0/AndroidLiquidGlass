@@ -1,7 +1,6 @@
 package com.kyant.backdrop.catalog.linkedin.posts
 
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -29,16 +28,11 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.catalog.network.models.FullComment
 import com.kyant.backdrop.catalog.network.models.MentionUser
-import com.kyant.shapes.RoundedRectangle
 
 /**
- * Comments Bottom Sheet - Full comment section with nested replies (Glass Theme)
+ * Comments Bottom Sheet - Full comment section with nested replies
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,10 +62,13 @@ fun CommentsBottomSheet(
     onClearError: () -> Unit,
     onProfileClick: (String) -> Unit = {}
 ) {
-    val sheetSurfaceTop = if (isLightTheme) Color.White.copy(alpha = 0.78f) else Color(0xFF0F1724).copy(alpha = 0.9f)
-    val sheetSurfaceBottom = if (isLightTheme) accentColor.copy(alpha = 0.08f) else accentColor.copy(alpha = 0.18f)
-    val glassBubbleBackground = if (isLightTheme) Color.White.copy(alpha = 0.72f) else Color(0xFF182233).copy(alpha = 0.82f)
-    val surfaceBorderColor = if (isLightTheme) Color.White.copy(alpha = 0.74f) else Color.White.copy(alpha = 0.12f)
+    val sheetBackground = if (isLightTheme) Color(0xFFF7F9FC) else Color(0xFF0F1724)
+    val commentCardBackground = if (isLightTheme) Color.White else Color(0xFF172235)
+    val replyCardBackground = if (isLightTheme) Color(0xFFF1F5F9) else Color(0xFF111B2E)
+    val chromeSurface = if (isLightTheme) Color(0xFFEFF3F8) else Color(0xFF1B2638)
+    val inputBackground = if (isLightTheme) Color.White else Color(0xFF101827)
+    val surfaceBorderColor = if (isLightTheme) Color(0xFFDCE5EF) else Color.White.copy(alpha = 0.1f)
+    val dividerColor = if (isLightTheme) Color(0xFFE7EDF5) else Color.White.copy(alpha = 0.06f)
     
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
@@ -90,27 +87,8 @@ fun CommentsBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RoundedRectangle(28f.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(32f.dp.toPx())
-                        lens(16f.dp.toPx(), 32f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(
-                            Brush.verticalGradient(
-                                listOf(
-                                    sheetSurfaceTop,
-                                    sheetSurfaceBottom,
-                                    sheetSurfaceTop.copy(alpha = if (isLightTheme) 0.72f else 0.86f)
-                                )
-                            )
-                        )
-                    }
-                )
-                .border(1.dp, surfaceBorderColor, RoundedCornerShape(28.dp))
+                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                .background(sheetBackground)
         ) {
             Column(
                 modifier = Modifier
@@ -121,8 +99,9 @@ fun CommentsBottomSheet(
                 CommentsHeader(
                     commentCount = comments.size,
                     contentColor = contentColor,
-                    glassBubbleBackground = glassBubbleBackground,
+                    chromeSurface = chromeSurface,
                     surfaceBorderColor = surfaceBorderColor,
+                    dividerColor = dividerColor,
                     onClose = onDismiss
                 )
                 
@@ -172,11 +151,8 @@ fun CommentsBottomSheet(
                         items(comments, key = { it.id }) { comment ->
                             CommentItem(
                                 comment = comment,
-                                backdrop = backdrop,
                                 contentColor = contentColor,
                                 accentColor = accentColor,
-                                glassBubbleBackground = glassBubbleBackground,
-                                isLightTheme = isLightTheme,
                                 surfaceBorderColor = surfaceBorderColor,
                                 currentUserId = "", // Would need actual user ID
                                 onLike = { onLikeComment(comment.id) },
@@ -206,7 +182,8 @@ fun CommentsBottomSheet(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(chromeSurface)
                                         .clickable(onClick = onLoadMore)
                                         .padding(12.dp),
                                     contentAlignment = Alignment.Center
@@ -251,7 +228,7 @@ fun CommentsBottomSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(contentColor.copy(alpha = 0.04f))
+                            .background(chromeSurface)
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -278,7 +255,7 @@ fun CommentsBottomSheet(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(contentColor.copy(alpha = 0.06f))
+                            .background(commentCardBackground)
                             .padding(8.dp)
                     ) {
                         Column {
@@ -375,8 +352,8 @@ fun CommentsBottomSheet(
                     isSending = isSendingComment,
                     contentColor = contentColor,
                     accentColor = accentColor,
-                    glassBubbleBackground = glassBubbleBackground,
-                    surfaceBorderColor = surfaceBorderColor,
+                    chromeSurface = chromeSurface,
+                    inputBackground = inputBackground,
                     onSend = {
                         if (commentText.isNotBlank()) {
                             onSendComment(commentText, replyingTo?.id)
@@ -395,103 +372,138 @@ fun CommentsBottomSheet(
 private fun CommentsHeader(
     commentCount: Int,
     contentColor: Color,
-    glassBubbleBackground: Color,
+    chromeSurface: Color,
     surfaceBorderColor: Color,
+    dividerColor: Color,
     onClose: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        BasicText(
-            text = "Comments ($commentCount)",
-            style = TextStyle(contentColor, 18.sp, FontWeight.Bold)
-        )
-        
-        // Glass close button
         Box(
             modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(glassBubbleBackground)
-                .border(1.dp, surfaceBorderColor, CircleShape)
-                .clickable(onClick = onClose),
+                .fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
-            BasicText("✕", style = TextStyle(contentColor, 18.sp))
+            Box(
+                modifier = Modifier
+                    .width(42.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(surfaceBorderColor)
+            )
         }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                BasicText(
+                    text = "Comments",
+                    style = TextStyle(contentColor, 20.sp, FontWeight.Bold)
+                )
+                BasicText(
+                    text = "$commentCount ${if (commentCount == 1) "reply" else "replies"}",
+                    style = TextStyle(contentColor.copy(alpha = 0.56f), 13.sp)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(chromeSurface)
+                    .clickable(onClick = onClose),
+                contentAlignment = Alignment.Center
+            ) {
+                BasicText("✕", style = TextStyle(contentColor, 18.sp))
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(dividerColor)
+        )
     }
 }
 
 @Composable
-private fun CommentItem(
+private fun CommentActionChip(
+    label: String,
+    contentColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 2.dp, vertical = 2.dp)
+    ) {
+        BasicText(
+            text = label,
+            style = TextStyle(contentColor, 11.sp, FontWeight.Medium)
+        )
+    }
+}
+
+@Composable
+private fun ReactionChip(
+    label: String,
+    isActive: Boolean,
+    activeColor: Color,
+    contentColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 2.dp, vertical = 2.dp)
+    ) {
+        BasicText(
+            text = label,
+            style = TextStyle(
+                color = if (isActive) activeColor else contentColor.copy(alpha = 0.72f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        )
+    }
+}
+
+@Composable
+private fun CommentCard(
     comment: FullComment,
-    backdrop: LayerBackdrop,
     contentColor: Color,
     accentColor: Color,
-    glassBubbleBackground: Color,
-    isLightTheme: Boolean,
-    surfaceBorderColor: Color,
     currentUserId: String,
+    indentLevel: Int,
     onLike: () -> Unit,
     onReply: () -> Unit,
     onDelete: () -> Unit,
-    onProfileClick: (String) -> Unit = {},
-    indentLevel: Int = 0,
-    showConnectingLine: Boolean = false,
-    isLastReply: Boolean = false
+    onProfileClick: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val lineColor = contentColor.copy(alpha = 0.15f)
-    
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = (indentLevel * 28).dp)
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Connecting line column for nested comments
-        if (indentLevel > 0 && showConnectingLine) {
             Box(
                 modifier = Modifier
-                    .width(24.dp)
-                    .height(IntrinsicSize.Min)
-            ) {
-                androidx.compose.foundation.Canvas(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    val strokeWidth = 2.dp.toPx()
-                    // Vertical line from top
-                    drawLine(
-                        color = lineColor,
-                        start = Offset(12.dp.toPx(), 0f),
-                        end = Offset(12.dp.toPx(), if (isLastReply) size.height / 3 else size.height),
-                        strokeWidth = strokeWidth
-                    )
-                    // Horizontal line to avatar
-                    drawLine(
-                        color = lineColor,
-                        start = Offset(12.dp.toPx(), size.height / 3),
-                        end = Offset(24.dp.toPx(), size.height / 3),
-                        strokeWidth = strokeWidth
-                    )
-                }
-            }
-        }
-        
-        Row(
-            modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Avatar - clickable to view profile
-            Box(
-                modifier = Modifier
-                    .size(if (indentLevel > 0) 32.dp else 40.dp)
+                    .size(if (indentLevel > 0) 26.dp else 30.dp)
                     .clip(CircleShape)
                     .clickable { onProfileClick(comment.author.id) }
-                    .background(accentColor.copy(alpha = 0.2f)),
+                    .background(accentColor.copy(alpha = 0.18f)),
                 contentAlignment = Alignment.Center
             ) {
                 if (!comment.author.profileImage.isNullOrEmpty()) {
@@ -512,155 +524,126 @@ private fun CommentItem(
                         text = initials,
                         style = TextStyle(
                             Color.White,
-                            fontSize = if (indentLevel > 0) 10.sp else 12.sp,
+                            fontSize = if (indentLevel > 0) 8.sp else 10.sp,
                             fontWeight = FontWeight.Bold
                         )
                     )
                 }
             }
-            
-            Column(modifier = Modifier.weight(1f)) {
-                // Comment bubble with glass effect using drawBackdrop
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(18f.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(10f.dp.toPx())
-                                lens(8f.dp.toPx(), 14f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(
-                                    Brush.verticalGradient(
-                                        listOf(
-                                            if (isLightTheme) {
-                                                Color.White.copy(alpha = if (indentLevel > 0) 0.62f else 0.74f)
-                                            } else {
-                                                glassBubbleBackground.copy(alpha = if (indentLevel > 0) 0.82f else 0.9f)
-                                            },
-                                            accentColor.copy(alpha = if (indentLevel > 0) 0.05f else 0.08f)
-                                        )
-                                    )
-                                )
-                            }
-                        )
-                        .border(1.dp, surfaceBorderColor, RoundedCornerShape(18.dp))
-                        .padding(12.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { onProfileClick(comment.author.id) },
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            BasicText(
-                                text = comment.author.name ?: "Unknown",
-                                style = TextStyle(contentColor, if (indentLevel > 0) 13.sp else 14.sp, FontWeight.SemiBold)
-                            )
-                            BasicText(
-                                text = formatTimeAgo(comment.createdAt),
-                                style = TextStyle(contentColor.copy(alpha = 0.5f), 11.sp)
-                            )
-                        }
-                        
-                        // Comment content with formatting
-                        FormattedCommentContent(
-                            content = comment.content,
-                            contentColor = contentColor,
-                            accentColor = accentColor,
-                            onMentionClick = { username -> onProfileClick(username) }
-                        )
-                    }
-                }
-                
-                // Actions
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Row(
-                    modifier = Modifier.padding(start = 8.dp, top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable { onProfileClick(comment.author.id) },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    BasicText(
+                        text = comment.author.name ?: "Unknown",
+                        style = TextStyle(contentColor, if (indentLevel > 0) 11.sp else 12.sp, FontWeight.SemiBold)
+                    )
+                    BasicText(
+                        text = formatTimeAgo(comment.createdAt),
+                        style = TextStyle(contentColor.copy(alpha = 0.5f), 10.sp)
+                    )
+                }
+
+                FormattedCommentContent(
+                    content = comment.content,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    fontSize = if (indentLevel > 0) 12.sp else 13.sp,
+                    lineHeight = if (indentLevel > 0) 17.sp else 18.sp,
+                    onMentionClick = { username -> onProfileClick(username) }
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Like
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onLike)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        BasicText(
-                            text = if (comment.isLiked) "❤️" else "🤍",
-                            style = TextStyle(fontSize = 12.sp)
-                        )
-                        if (comment.likesCount > 0) {
-                            BasicText(
-                                text = "${comment.likesCount}",
-                                style = TextStyle(
-                                    color = if (comment.isLiked) Color(0xFFe74c3c) else contentColor.copy(alpha = 0.6f),
-                                    fontSize = 12.sp
-                                )
-                            )
-                        }
-                    }
-                    
-                    // Reply
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onReply)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        BasicText(
-                            text = "Reply",
-                            style = TextStyle(contentColor.copy(alpha = 0.6f), 12.sp, FontWeight.Medium)
-                        )
-                    }
-                    
-                    // Delete (only for own comments)
+                    ReactionChip(
+                        label = if (comment.likesCount > 0) {
+                            if (comment.isLiked) "❤️ ${comment.likesCount}" else "🤍 ${comment.likesCount}"
+                        } else {
+                            if (comment.isLiked) "❤️" else "🤍"
+                        },
+                        isActive = comment.isLiked,
+                        activeColor = Color(0xFFe74c3c),
+                        contentColor = contentColor,
+                        onClick = onLike
+                    )
+                    CommentActionChip(
+                        label = "💬",
+                        contentColor = contentColor.copy(alpha = 0.76f),
+                        onClick = onReply
+                    )
                     if (comment.author.id == currentUserId) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable(onClick = onDelete)
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            BasicText(
-                                text = "Delete",
-                                style = TextStyle(Color.Red.copy(alpha = 0.6f), 12.sp, FontWeight.Medium)
-                            )
-                        }
+                        CommentActionChip(
+                            label = "🗑️",
+                            contentColor = Color.Red.copy(alpha = 0.72f),
+                            onClick = onDelete
+                        )
                     }
                 }
-                
-                // Nested replies with connecting lines
-                if (comment.replies.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        comment.replies.forEachIndexed { index, reply ->
-                            CommentItem(
-                                comment = reply,
-                                backdrop = backdrop,
-                                contentColor = contentColor,
-                                accentColor = accentColor,
-                                glassBubbleBackground = glassBubbleBackground,
-                                isLightTheme = isLightTheme,
-                                surfaceBorderColor = surfaceBorderColor,
-                                currentUserId = currentUserId,
-                                onLike = { /* Need to implement for reply */ },
-                                onReply = { /* Reply to parent or nested */ },
-                                onDelete = { /* Delete reply */ },
-                                onProfileClick = onProfileClick,
-                                indentLevel = indentLevel + 1,
-                                showConnectingLine = true,
-                                isLastReply = index == comment.replies.lastIndex
-                            )
-                        }
-                    }
+            }
+    }
+}
+
+@Composable
+private fun CommentItem(
+    comment: FullComment,
+    contentColor: Color,
+    accentColor: Color,
+    surfaceBorderColor: Color,
+    currentUserId: String,
+    onLike: () -> Unit,
+    onReply: () -> Unit,
+    onDelete: () -> Unit,
+    onProfileClick: (String) -> Unit = {},
+    indentLevel: Int = 0
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = (indentLevel * 2).dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        CommentCard(
+            comment = comment,
+            contentColor = contentColor,
+            accentColor = accentColor,
+            currentUserId = currentUserId,
+            indentLevel = indentLevel,
+            onLike = onLike,
+            onReply = onReply,
+            onDelete = onDelete,
+            onProfileClick = onProfileClick
+        )
+
+        if (comment.replies.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = if (indentLevel == 0) 14.dp else 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                comment.replies.forEach { reply ->
+                    CommentItem(
+                        comment = reply,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        surfaceBorderColor = surfaceBorderColor,
+                        currentUserId = currentUserId,
+                        onLike = { /* Need to implement for reply */ },
+                        onReply = { /* Reply to parent or nested */ },
+                        onDelete = { /* Delete reply */ },
+                        onProfileClick = onProfileClick,
+                        indentLevel = indentLevel + 1
+                    )
                 }
             }
         }
@@ -672,6 +655,8 @@ private fun FormattedCommentContent(
     content: String,
     contentColor: Color,
     accentColor: Color,
+    fontSize: androidx.compose.ui.unit.TextUnit = 13.sp,
+    lineHeight: androidx.compose.ui.unit.TextUnit = 18.sp,
     onMentionClick: (String) -> Unit = {},
     onMentionLongPress: (String) -> Unit = {}
 ) {
@@ -680,6 +665,8 @@ private fun FormattedCommentContent(
         content = content,
         contentColor = contentColor.copy(alpha = 0.9f),
         accentColor = accentColor,
+        fontSize = fontSize,
+        lineHeight = lineHeight,
         onMentionClick = onMentionClick,
         onMentionLongPress = onMentionLongPress
     )
@@ -694,8 +681,8 @@ private fun CommentInput(
     isSending: Boolean,
     contentColor: Color,
     accentColor: Color,
-    glassBubbleBackground: Color,
-    surfaceBorderColor: Color,
+    chromeSurface: Color,
+    inputBackground: Color,
     onSend: () -> Unit
 ) {
     val context = LocalContext.current
@@ -703,8 +690,7 @@ private fun CommentInput(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(glassBubbleBackground.copy(alpha = 0.4f))
-            .border(1.dp, surfaceBorderColor.copy(alpha = 0.6f))
+            .background(chromeSurface)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -736,13 +722,12 @@ private fun CommentInput(
             }
         }
         
-        // Glass text field
+        // Text field
         Box(
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(20.dp))
-                .background(glassBubbleBackground.copy(alpha = 0.88f))
-                .border(1.dp, surfaceBorderColor, RoundedCornerShape(20.dp))
+                .background(inputBackground)
                 .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
             BasicTextField(
@@ -854,10 +839,7 @@ private fun CommentSkeletonAnimated(isLightTheme: Boolean) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        if (isLightTheme) Color.White.copy(alpha = 0.5f)
-                        else Color(0xFF252538).copy(alpha = 0.5f)
-                    )
+                    .background(if (isLightTheme) Color.White else Color(0xFF172235))
                     .padding(12.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

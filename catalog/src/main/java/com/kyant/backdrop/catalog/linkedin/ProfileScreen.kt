@@ -242,8 +242,6 @@ fun ProfileScreen(
                     accentColor = accentColor,
                     isGlassTheme = isGlassTheme,
                     isDarkTheme = isDarkTheme,
-                    showBackButton = userId != null,
-                    onNavigateBack = onNavigateBack,
                     onEditProfile = onEditProfile,
                     onConnect = { screenViewModel.sendConnectionRequest() },
                     onCancelRequest = { screenViewModel.cancelConnectionRequest() },
@@ -737,8 +735,6 @@ private fun ProfileContent(
     accentColor: Color,
     isGlassTheme: Boolean,
     isDarkTheme: Boolean,
-    showBackButton: Boolean = false,
-    onNavigateBack: () -> Unit = {},
     onEditProfile: () -> Unit = {},
     onConnect: () -> Unit,
     onCancelRequest: () -> Unit,
@@ -795,81 +791,6 @@ private fun ProfileContent(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 100.dp)
     ) {
-        // Back button for viewing other profiles
-        if (showBackButton) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            when {
-                                isGlassTheme -> Modifier.drawBackdrop(
-                                    backdrop = backdrop,
-                                    shape = { RoundedRectangle(0f.dp) },
-                                    effects = {
-                                        vibrancy()
-                                        blur(16f.dp.toPx())
-                                        lens(8f.dp.toPx(), 16f.dp.toPx())
-                                    },
-                                    onDrawSurface = {
-                                        drawRect(Color.White.copy(alpha = 0.12f))
-                                    }
-                                )
-                                isDarkTheme -> Modifier.background(Color(0xFF1E1E1E))
-                                else -> Modifier.background(Color.White) // Light theme
-                            }
-                        )
-                        .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .then(
-                                when {
-                                    isGlassTheme -> Modifier.drawBackdrop(
-                                        backdrop = backdrop,
-                                        shape = { RoundedRectangle(20f.dp) },
-                                        effects = {
-                                            vibrancy()
-                                            blur(12f.dp.toPx())
-                                            lens(6f.dp.toPx(), 12f.dp.toPx())
-                                        },
-                                        onDrawSurface = {
-                                            drawRect(Color.White.copy(alpha = 0.15f))
-                                        }
-                                    )
-                                    isDarkTheme -> Modifier.background(Color.White.copy(alpha = 0.1f))
-                                    else -> Modifier.background(Color.Black.copy(alpha = 0.05f)) // Light theme
-                                }
-                            )
-                            .clickable(onClick = onNavigateBack)
-                            .padding(8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_back),
-                            contentDescription = "Back",
-                            modifier = Modifier.size(20.dp),
-                            colorFilter = ColorFilter.tint(contentColor)
-                        )
-                    }
-                    
-                    Spacer(Modifier.width(12.dp))
-                    
-                    BasicText(
-                        text = profile.user.name,
-                        style = TextStyle(
-                            color = contentColor,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    )
-                }
-            }
-        }
-        
         // Header Section
         item {
             ProfileHeader(
@@ -894,6 +815,7 @@ private fun ProfileContent(
                 onConnect = onConnect,
                 onCancelRequest = onCancelRequest,
                 onAcceptRequest = onAcceptRequest,
+                onRejectRequest = onRejectRequest,
                 onRemoveConnection = onRemoveConnection,
                 onToggleFollow = onToggleFollow,
                 onOpenConnections = onOpenConnections,
@@ -1102,6 +1024,7 @@ private fun ProfileHeader(
     onConnect: () -> Unit,
     onCancelRequest: () -> Unit,
     onAcceptRequest: () -> Unit,
+    onRejectRequest: () -> Unit,
     onRemoveConnection: () -> Unit,
     onToggleFollow: () -> Unit,
     onOpenConnections: () -> Unit,
@@ -1114,7 +1037,6 @@ private fun ProfileHeader(
     val profileFrameEnabled by SettingsPreferences.profileFrameEnabled(context).collectAsState(initial = false)
     val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
     var showShareMenu by remember { mutableStateOf(false) }
-    var showConnectionMenu by remember { mutableStateOf(false) }
     
     // Image editor state
     var showAvatarEditor by remember { mutableStateOf(false) }
@@ -1487,20 +1409,6 @@ private fun ProfileHeader(
                                 }
                             }
                         } else {
-                            // Connection button
-                            ConnectionButton(
-                                status = connectionStatus,
-                                isLoading = connectionActionInProgress,
-                                accentColor = accentColor,
-                                contentColor = contentColor,
-                                onConnect = onConnect,
-                                onCancel = onCancelRequest,
-                                onAccept = onAcceptRequest,
-                                onRemove = onRemoveConnection,
-                                showMenu = showConnectionMenu,
-                                onMenuChange = { showConnectionMenu = it }
-                            )
-
                             // Message button
                             Box(
                                 Modifier
@@ -1583,6 +1491,96 @@ private fun ProfileHeader(
                                     expanded = showShareMenu,
                                     onDismissRequest = { showShareMenu = false }
                                 ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            BasicText(
+                                                text = when (connectionStatus) {
+                                                    "connected" -> "Connection: Connected"
+                                                    "pending_sent" -> "Connection: Request sent"
+                                                    "pending_received" -> "Connection: Request received"
+                                                    else -> "Connection: Not connected"
+                                                },
+                                                style = TextStyle(contentColor.copy(alpha = 0.7f), 13.sp)
+                                            )
+                                        },
+                                        enabled = false,
+                                        onClick = {}
+                                    )
+                                    when (connectionStatus) {
+                                        "connected" -> {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    BasicText(
+                                                        "Remove Connection",
+                                                        style = TextStyle(Color.Red, 14.sp)
+                                                    )
+                                                },
+                                                enabled = !connectionActionInProgress,
+                                                onClick = {
+                                                    onRemoveConnection()
+                                                    showShareMenu = false
+                                                }
+                                            )
+                                        }
+                                        "pending_sent" -> {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    BasicText(
+                                                        "Cancel Request",
+                                                        style = TextStyle(contentColor, 14.sp)
+                                                    )
+                                                },
+                                                enabled = !connectionActionInProgress,
+                                                onClick = {
+                                                    onCancelRequest()
+                                                    showShareMenu = false
+                                                }
+                                            )
+                                        }
+                                        "pending_received" -> {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    BasicText(
+                                                        "Accept Request",
+                                                        style = TextStyle(contentColor, 14.sp)
+                                                    )
+                                                },
+                                                enabled = !connectionActionInProgress,
+                                                onClick = {
+                                                    onAcceptRequest()
+                                                    showShareMenu = false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    BasicText(
+                                                        "Ignore Request",
+                                                        style = TextStyle(contentColor, 14.sp)
+                                                    )
+                                                },
+                                                enabled = !connectionActionInProgress,
+                                                onClick = {
+                                                    onRejectRequest()
+                                                    showShareMenu = false
+                                                }
+                                            )
+                                        }
+                                        else -> {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    BasicText(
+                                                        "Connect",
+                                                        style = TextStyle(contentColor, 14.sp)
+                                                    )
+                                                },
+                                                enabled = !connectionActionInProgress,
+                                                onClick = {
+                                                    onConnect()
+                                                    showShareMenu = false
+                                                }
+                                            )
+                                        }
+                                    }
                                     // Follow option
                                     DropdownMenuItem(
                                         text = {
@@ -1602,6 +1600,7 @@ private fun ProfileHeader(
                                                 )
                                             }
                                         },
+                                        enabled = !followActionInProgress,
                                         onClick = {
                                             onToggleFollow()
                                             showShareMenu = false
@@ -1875,83 +1874,6 @@ private fun ProfileHeader(
                 
                 Spacer(Modifier.height(8.dp))
             }
-        }
-    }
-}
-
-@Composable
-private fun ConnectionButton(
-    status: String,
-    isLoading: Boolean,
-    accentColor: Color,
-    contentColor: Color,
-    onConnect: () -> Unit,
-    onCancel: () -> Unit,
-    onAccept: () -> Unit,
-    onRemove: () -> Unit,
-    showMenu: Boolean,
-    onMenuChange: (Boolean) -> Unit
-) {
-    Box {
-        Box(
-            Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(
-                    when (status) {
-                        "connected" -> Color(0xFF22C55E).copy(alpha = 0.2f)
-                        "pending_sent" -> contentColor.copy(alpha = 0.1f)
-                        "pending_received" -> accentColor
-                        else -> accentColor
-                    }
-                )
-                .clickable(enabled = !isLoading) {
-                    when (status) {
-                        "none" -> onConnect()
-                        "pending_sent" -> onCancel()
-                        "pending_received" -> onAccept()
-                        "connected" -> onMenuChange(true)
-                    }
-                }
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
-                    color = if (status == "pending_received") Color.White else accentColor
-                )
-            } else {
-                BasicText(
-                    when (status) {
-                        "connected" -> "✓ Connected"
-                        "pending_sent" -> "Pending"
-                        "pending_received" -> "Accept"
-                        else -> "Connect"
-                    },
-                    style = TextStyle(
-                        when (status) {
-                            "pending_received" -> Color.White
-                            "connected" -> Color(0xFF22C55E)
-                            else -> Color.White
-                        },
-                        14.sp,
-                        FontWeight.SemiBold
-                    )
-                )
-            }
-        }
-        
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { onMenuChange(false) }
-        ) {
-            DropdownMenuItem(
-                text = { BasicText("Remove Connection", style = TextStyle(Color.Red)) },
-                onClick = {
-                    onRemove()
-                    onMenuChange(false)
-                }
-            )
         }
     }
 }

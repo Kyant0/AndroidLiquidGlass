@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -1784,6 +1785,8 @@ fun FormattedContent(
     contentColor: Color,
     accentColor: Color,
     modifier: Modifier = Modifier,
+    fontSize: TextUnit = 14.sp,
+    lineHeight: TextUnit = 20.sp,
     onMentionClick: (String) -> Unit = {},
     onMentionLongPress: (String) -> Unit = {}
 ) {
@@ -1797,8 +1800,8 @@ fun FormattedContent(
         text = annotatedString,
         style = TextStyle(
             color = contentColor,
-            fontSize = 14.sp,
-            lineHeight = 20.sp
+            fontSize = fontSize,
+            lineHeight = lineHeight
         ),
         onTextLayout = { layoutResult.value = it },
         modifier = modifier.pointerInput(annotatedString) {
