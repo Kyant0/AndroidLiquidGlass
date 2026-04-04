@@ -483,6 +483,8 @@ fun LinkedInContent(
     var showContactScreen by remember { mutableStateOf(false) }
     var showGrowthHubScreen by remember { mutableStateOf(false) }
     var showAgentSheet by remember { mutableStateOf(false) }
+    var minimizeAgentSheetForVoice by remember { mutableStateOf(false) }
+    var autoMinimizedAgentSheetForActiveVoice by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var notificationUnreadCount by remember { mutableIntStateOf(0) }
     
@@ -694,6 +696,28 @@ fun LinkedInContent(
     val chatState by chatViewModel.uiState.collectAsState()
     val agentViewModel: AgentViewModel = viewModel(factory = AgentViewModel.Factory(context))
     val agentState by agentViewModel.uiState.collectAsState()
+    val isAgentVoiceLive =
+        agentState.isVoiceSessionConnecting ||
+            agentState.isRecordingVoice ||
+            agentState.isVoiceListening ||
+            agentState.isVoiceThinking ||
+            agentState.isPlayingAudio
+    val agentSheetAnimationDuration = if (reduceAnimations) 0 else 220
+    val agentSheetAlpha by animateFloatAsState(
+        targetValue = if (minimizeAgentSheetForVoice) 0f else 1f,
+        animationSpec = tween(durationMillis = agentSheetAnimationDuration, easing = FastOutSlowInEasing),
+        label = "agentSheetAlpha"
+    )
+    val agentSheetScale by animateFloatAsState(
+        targetValue = if (minimizeAgentSheetForVoice) 0.96f else 1f,
+        animationSpec = tween(durationMillis = agentSheetAnimationDuration, easing = FastOutSlowInEasing),
+        label = "agentSheetScale"
+    )
+    val agentSheetScrimAlpha by animateFloatAsState(
+        targetValue = if (minimizeAgentSheetForVoice) 0f else 0.32f,
+        animationSpec = tween(durationMillis = agentSheetAnimationDuration, easing = FastOutSlowInEasing),
+        label = "agentSheetScrimAlpha"
+    )
 
     val agentSurface = when {
         showGrowthHubScreen -> "growth_hub"
@@ -769,69 +793,134 @@ fun LinkedInContent(
         }
     }
 
-    LaunchedEffect(uiState.isLoggedIn, agentSurface) {
+    LaunchedEffect(uiState.isLoggedIn, agentSurface, agentSurfaceContext) {
         if (uiState.isLoggedIn) {
             agentViewModel.ensureSession(surface = agentSurface)
+            agentViewModel.syncSurface(
+                surface = agentSurface,
+                surfaceContext = agentSurfaceContext
+            )
         }
     }
 
-    LaunchedEffect(agentState.pendingUiIntents) {
+    LaunchedEffect(isAgentVoiceLive) {
+        if (!isAgentVoiceLive) {
+            autoMinimizedAgentSheetForActiveVoice = false
+            minimizeAgentSheetForVoice = false
+        }
+    }
+
+    LaunchedEffect(showAgentSheet, isAgentVoiceLive, reduceAnimations) {
+        if (showAgentSheet && isAgentVoiceLive && !autoMinimizedAgentSheetForActiveVoice) {
+            autoMinimizedAgentSheetForActiveVoice = true
+            minimizeAgentSheetForVoice = true
+            if (!reduceAnimations) {
+                delay(agentSheetAnimationDuration.toLong())
+            }
+            showAgentSheet = false
+            minimizeAgentSheetForVoice = false
+            if (isAgentVoiceLive) {
+                delay(if (reduceAnimations) 40L else 180L)
+                agentViewModel.requestRealtimeVoiceGreeting()
+            }
+        }
+    }
+
+    LaunchedEffect(agentState.pendingUiIntents, reduceAnimations) {
         val pendingIntents = agentState.pendingUiIntents
         if (pendingIntents.isEmpty()) return@LaunchedEffect
+        val previewDelayMs = if (reduceAnimations) 0L else 170L
+        val transitionDelayMs = if (reduceAnimations) 0L else 140L
 
-        var shouldCloseAgentSheet = false
+        suspend fun resetOverlayNavigation() {
+            val hadOverlay =
+                showGrowthHubScreen ||
+                    showNotificationsInbox ||
+                    showMessagesScreen ||
+                    isInChatThread ||
+                    openChatWithUserId != null ||
+                    deepLinkConversationId != null ||
+                    showGroupsScreen ||
+                    selectedGroupId != null ||
+                    showGroupChat ||
+                    viewingProfileUserId != null
+            showGrowthHubScreen = false
+            showNotificationsInbox = false
+            showMessagesScreen = false
+            isInChatThread = false
+            openChatWithUserId = null
+            deepLinkConversationId = null
+            showGroupsScreen = false
+            selectedGroupId = null
+            showGroupChat = false
+            viewingProfileUserId = null
+            if (hadOverlay && transitionDelayMs > 0) {
+                delay(transitionDelayMs)
+            }
+        }
+
         pendingIntents.forEach { intent ->
+            agentViewModel.previewUiIntent(intent)
+            if (previewDelayMs > 0) {
+                delay(previewDelayMs)
+            }
             when (intent.type) {
                 "switch_tab" -> {
+                    resetOverlayNavigation()
                     when (intent.tab?.lowercase()) {
                         "feed", "home" -> selectedTab = 0
                         "find", "find_people", "network" -> selectedTab = 1
                         "post", "create_post" -> selectedTab = 2
                         "more" -> selectedTab = 3
                         "profile" -> selectedTab = 4
-                        "groups" -> showGroupsScreen = true
+                        "groups" -> {
+                            selectedTab = 3
+                            showGroupsScreen = true
+                        }
                     }
-                    shouldCloseAgentSheet = true
                 }
                 "open_profile" -> {
+                    resetOverlayNavigation()
+                    selectedTab = 4
                     intent.userId?.let { viewingProfileUserId = it }
-                    shouldCloseAgentSheet = true
                 }
                 "open_chat" -> {
+                    resetOverlayNavigation()
                     showMessagesScreen = true
                     intent.conversationId?.let { deepLinkConversationId = it }
                     if (intent.conversationId.isNullOrBlank()) {
                         openChatWithUserId = intent.userId
                     }
-                    shouldCloseAgentSheet = true
                 }
                 "open_group" -> {
+                    resetOverlayNavigation()
+                    selectedTab = 3
                     showGroupsScreen = true
                     intent.groupId?.let { selectedGroupId = it }
-                    shouldCloseAgentSheet = true
                 }
                 "open_groups" -> {
+                    resetOverlayNavigation()
+                    selectedTab = 3
                     showGroupsScreen = true
-                    shouldCloseAgentSheet = true
                 }
                 "open_notifications" -> {
+                    resetOverlayNavigation()
                     showNotificationsInbox = true
-                    shouldCloseAgentSheet = true
                 }
                 "open_growth_task" -> {
+                    resetOverlayNavigation()
                     showGrowthHubScreen = true
-                    shouldCloseAgentSheet = true
                 }
                 "show_match_stack" -> {
+                    resetOverlayNavigation()
                     selectedTab = 1
-                    shouldCloseAgentSheet = true
                 }
+            }
+            if (transitionDelayMs > 0) {
+                delay(transitionDelayMs / 2)
             }
         }
 
-        if (shouldCloseAgentSheet) {
-            showAgentSheet = false
-        }
         agentViewModel.consumeUiIntents()
     }
 
@@ -1472,7 +1561,10 @@ fun LinkedInContent(
                                     )
                                 )
                             )
-                            .clickable { showAgentSheet = true },
+                            .clickable {
+                                minimizeAgentSheetForVoice = false
+                                showAgentSheet = true
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
@@ -1520,18 +1612,34 @@ fun LinkedInContent(
 
             if (showAgentSheet) {
                 ModalBottomSheet(
-                    onDismissRequest = { showAgentSheet = false },
+                    onDismissRequest = {
+                        minimizeAgentSheetForVoice = false
+                        showAgentSheet = false
+                    },
                     sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                    containerColor = if (isDarkTheme) Color(0xFF131313) else Color(0xFFF9F7F2)
+                    containerColor = if (isDarkTheme) Color(0xFF131313) else Color(0xFFF9F7F2),
+                    scrimColor = Color.Black.copy(alpha = agentSheetScrimAlpha)
                 ) {
-                    AgentSheetContent(
-                        viewModel = agentViewModel,
-                        surface = agentSurface,
-                        surfaceContext = agentSurfaceContext,
-                        contentColor = contentColor,
-                        accentColor = accentColor,
-                        onDismiss = { showAgentSheet = false }
-                    )
+                    Box(
+                        modifier = Modifier.graphicsLayer {
+                            alpha = agentSheetAlpha
+                            scaleX = agentSheetScale
+                            scaleY = agentSheetScale
+                        }
+                    ) {
+                        AgentSheetContent(
+                            viewModel = agentViewModel,
+                            surface = agentSurface,
+                            surfaceContext = agentSurfaceContext,
+                            contentColor = contentColor,
+                            accentColor = accentColor,
+                            backdrop = backdrop,
+                            onDismiss = {
+                                minimizeAgentSheetForVoice = false
+                                showAgentSheet = false
+                            }
+                        )
+                    }
                 }
             }
             

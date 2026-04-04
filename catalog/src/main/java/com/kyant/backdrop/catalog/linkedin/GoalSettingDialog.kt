@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.BasicText
 @Composable
 fun GoalSettingDialog(
     contentColor: Color,
+    accentColor: Color,
     onDismiss: () -> Unit,
     onSave: (goal: String, category: String?) -> Unit
 ) {
@@ -25,6 +26,8 @@ fun GoalSettingDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        titleContentColor = contentColor,
+        textContentColor = contentColor,
         title = {
             BasicText(
                 text = "Add Agent Goal",
@@ -42,13 +45,15 @@ fun GoalSettingDialog(
                     value = goal,
                     onValueChange = { goal = it },
                     singleLine = true,
-                    label = { androidx.compose.material3.Text("Goal") }
+                    label = { androidx.compose.material3.Text("Goal") },
+                    textStyle = TextStyle(color = contentColor)
                 )
                 OutlinedTextField(
                     value = category,
                     onValueChange = { category = it },
                     singleLine = true,
-                    label = { androidx.compose.material3.Text("Category (optional)") }
+                    label = { androidx.compose.material3.Text("Category (optional)") },
+                    textStyle = TextStyle(color = contentColor)
                 )
             }
         },
@@ -59,12 +64,12 @@ fun GoalSettingDialog(
                 },
                 enabled = goal.isNotBlank()
             ) {
-                androidx.compose.material3.Text("Save")
+                androidx.compose.material3.Text("Save", color = accentColor)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                androidx.compose.material3.Text("Cancel")
+                androidx.compose.material3.Text("Cancel", color = contentColor.copy(alpha = 0.72f))
             }
         }
     )

@@ -38,14 +38,20 @@ data class AgentUiState(
     val messages: List<AgentMessage> = emptyList(),
     val isLoadingSession: Boolean = false,
     val isSending: Boolean = false,
+    val isVoiceSessionConnecting: Boolean = false,
     val isRecordingVoice: Boolean = false,
     val isPlayingAudio: Boolean = false,
+    val isVoiceListening: Boolean = false,
+    val isVoiceThinking: Boolean = false,
+    val liveUserTranscript: String = "",
+    val liveAssistantTranscript: String = "",
     val isRefreshingMeta: Boolean = false,
     val isSavingGoal: Boolean = false,
     val isResolvingApproval: Boolean = false,
     val autoRunEnabled: Boolean = false,
     val socketConnected: Boolean = false,
     val error: String? = null,
+    val liveStatus: String? = null,
     val pendingUiIntents: List<AgentUiIntent> = emptyList(),
     val lastExecutedActions: List<AgentAction> = emptyList(),
     val lastSuggestedActions: List<AgentAction> = emptyList(),
@@ -63,6 +69,11 @@ class AgentViewModel(
     private var mediaRecorder: MediaRecorder? = null
     private var voiceRecordingFile: File? = null
     private var mediaPlayer: MediaPlayer? = null
+    private val realtimeVoiceManager = AgentRealtimeVoiceManager()
+    private var shouldStartRealtimeCapture = false
+    private var lastSyncedSurfaceKey: String? = null
+    private var pendingNavigationTarget: String? = null
+    private var pendingRealtimePrompt: String? = null
 
     init {
         observeSocket()
@@ -77,11 +88,15 @@ class AgentViewModel(
 
     fun ensureSession(surface: String) {
         viewModelScope.launch {
+            val normalizedSurface = normalizeAgentSurface(surface)
             val autoRunEnabled = AgentApiService.getStoredAutoRunEnabled(applicationContext)
             _uiState.update { state ->
                 state.copy(
                     autoRunEnabled = autoRunEnabled,
-                    sessionState = state.sessionState?.copy(allowAutonomousActions = autoRunEnabled)
+                    sessionState = state.sessionState?.copy(
+                        allowAutonomousActions = autoRunEnabled,
+                        currentSurface = normalizedSurface
+                    )
                 )
             }
 
@@ -121,6 +136,210 @@ class AgentViewModel(
                     )
                 }
             }
+        }
+    }
+
+    fun syncSurface(
+        surface: String,
+        surfaceContext: Map<String, String> = emptyMap()
+    ) {
+        val normalizedSurface = normalizeAgentSurface(surface)
+        val normalizedContext = surfaceContext.toSortedMap()
+        val sessionId = _uiState.value.sessionState?.sessionId
+        val currentAutoRun = _uiState.value.autoRunEnabled
+
+        _uiState.update { state ->
+            val updatedStatus =
+                if (pendingNavigationTarget == normalizedSurface) {
+                    pendingNavigationTarget = null
+                    "Now on ${formatSurfaceLabel(normalizedSurface)}"
+                } else {
+                    state.liveStatus
+                }
+
+            state.copy(
+                sessionState = state.sessionState?.copy(currentSurface = normalizedSurface),
+                liveStatus = updatedStatus
+            )
+        }
+
+        if (sessionId.isNullOrBlank()) {
+            return
+        }
+
+        val syncKey = buildSurfaceSyncKey(sessionId, normalizedSurface, normalizedContext)
+        if (syncKey == lastSyncedSurfaceKey) {
+            return
+        }
+        lastSyncedSurfaceKey = syncKey
+
+        viewModelScope.launch {
+            AgentSocketManager.updateSurface(
+                sessionId = sessionId,
+                surface = normalizedSurface,
+                surfaceContext = normalizedContext,
+                allowAutonomousActions = currentAutoRun
+            )
+        }
+    }
+
+    fun previewUiIntent(intent: AgentUiIntent) {
+        pendingNavigationTarget = targetSurfaceForIntent(intent) ?: pendingNavigationTarget
+        _uiState.update {
+            it.copy(liveStatus = describeUiIntent(intent))
+        }
+    }
+
+    fun startRealtimeVoice(
+        surface: String,
+        surfaceContext: Map<String, String> = emptyMap()
+    ) {
+        if (_uiState.value.isRecordingVoice || _uiState.value.isVoiceSessionConnecting) return
+
+        viewModelScope.launch {
+            val autoRunEnabled = _uiState.value.autoRunEnabled
+            pendingRealtimePrompt = null
+            realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = true)
+            _uiState.update {
+                it.copy(
+                    isVoiceSessionConnecting = true,
+                    isVoiceListening = false,
+                    isVoiceThinking = false,
+                    isPlayingAudio = false,
+                    liveUserTranscript = "",
+                    liveAssistantTranscript = "",
+                    error = null
+                )
+            }
+
+            val sessionState = ensureSessionState(
+                surface = surface,
+                mode = "voice",
+                allowAutonomousActions = autoRunEnabled
+            ).getOrElse { error ->
+                shouldStartRealtimeCapture = false
+                _uiState.update {
+                    it.copy(
+                        isVoiceSessionConnecting = false,
+                        error = error.message ?: "Could not start live voice."
+                    )
+                }
+                return@launch
+            }
+
+            connectSocketIfPossible(sessionState.sessionId)
+            shouldStartRealtimeCapture = true
+            AgentSocketManager.startRealtimeVoice(
+                sessionId = sessionState.sessionId,
+                surface = surface,
+                surfaceContext = surfaceContext,
+                allowAutonomousActions = autoRunEnabled
+            )
+        }
+    }
+
+    fun requestRealtimeVoiceGreeting() {
+        queueRealtimeVoicePrompt(
+            "Briefly say: I am active now. Let me know how I can help you. Then stop speaking and keep listening for the user."
+        )
+    }
+
+    fun stopRealtimeVoice() {
+        shouldStartRealtimeCapture = false
+        pendingRealtimePrompt = null
+        realtimeVoiceManager.stopCapture()
+        realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = true)
+        realtimeVoiceManager.stopAssistantPlayback()
+        AgentSocketManager.stopRealtimeVoice()
+        clearRealtimeVoiceState()
+    }
+
+    private suspend fun ensureSessionState(
+        surface: String,
+        mode: String,
+        allowAutonomousActions: Boolean
+    ): Result<AgentSessionState> {
+        val existingSession = _uiState.value.sessionState
+        if (existingSession != null) {
+            val updatedSession = existingSession.copy(
+                allowAutonomousActions = allowAutonomousActions,
+                mode = mode.ifBlank { existingSession.mode }
+            )
+            _uiState.update { it.copy(sessionState = updatedSession) }
+            return Result.success(updatedSession)
+        }
+
+        _uiState.update { it.copy(isLoadingSession = true, error = null) }
+        return AgentApiService.bootstrapSession(
+            context = applicationContext,
+            mode = mode,
+            surface = surface,
+            allowAutonomousActions = allowAutonomousActions
+        ).fold(
+            onSuccess = { response ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingSession = false,
+                        sessionState = response.sessionState
+                    )
+                }
+                Result.success(response.sessionState)
+            },
+            onFailure = { error ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingSession = false,
+                        error = error.message ?: "Could not initialize the agent."
+                    )
+                }
+                Result.failure(error)
+            }
+        )
+    }
+
+    private fun beginRealtimeCapture() {
+        runCatching {
+            realtimeVoiceManager.startCapture { audioBase64 ->
+                AgentSocketManager.sendRealtimeAudioChunk(audioBase64)
+            }
+            _uiState.update {
+                it.copy(
+                    isVoiceSessionConnecting = false,
+                    isRecordingVoice = true,
+                    isVoiceListening = true,
+                    isVoiceThinking = false,
+                    isPlayingAudio = false,
+                    error = null
+                )
+            }
+        }.onFailure { error ->
+            shouldStartRealtimeCapture = false
+            AgentSocketManager.stopRealtimeVoice()
+            _uiState.update {
+                it.copy(
+                    isVoiceSessionConnecting = false,
+                    isRecordingVoice = false,
+                    isVoiceListening = false,
+                    isVoiceThinking = false,
+                    error = error.message ?: "Could not start live voice."
+                )
+            }
+        }
+    }
+
+    private fun clearRealtimeVoiceState() {
+        pendingRealtimePrompt = null
+        realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = true)
+        _uiState.update {
+            it.copy(
+                isVoiceSessionConnecting = false,
+                isRecordingVoice = false,
+                isPlayingAudio = false,
+                isVoiceListening = false,
+                isVoiceThinking = false,
+                liveUserTranscript = "",
+                liveAssistantTranscript = ""
+            )
         }
     }
 
@@ -488,7 +707,10 @@ class AgentViewModel(
         }
     }
 
-    private fun applyVoiceTurnResponse(response: AgentVoiceTurnResponse) {
+    private fun applyVoiceTurnResponse(
+        response: AgentVoiceTurnResponse,
+        playAudio: Boolean = true
+    ) {
         AgentSocketManager.updateSession(response.sessionState.sessionId)
         val newMessages = buildList {
             if (response.transcript.isNotBlank()) {
@@ -513,13 +735,45 @@ class AgentViewModel(
                 lastExecutedActions = response.executedActions,
                 lastSuggestedActions = response.suggestedActions,
                 pendingApprovals = response.pendingActions,
-                goals = response.goals
+                goals = response.goals,
+                liveUserTranscript = "",
+                liveAssistantTranscript = "",
+                isVoiceThinking = false
             )
         }
 
-        if (!response.audioBase64.isNullOrBlank()) {
+        if (playAudio && !response.audioBase64.isNullOrBlank()) {
             playSynthesizedAudio(response.audioBase64, response.audioMimeType)
         }
+    }
+
+    private fun queueRealtimeVoicePrompt(instructions: String) {
+        val normalizedInstructions = instructions.trim()
+        if (normalizedInstructions.isBlank()) {
+            return
+        }
+        pendingRealtimePrompt = normalizedInstructions
+        dispatchPendingRealtimePrompt()
+    }
+
+    private fun dispatchPendingRealtimePrompt() {
+        val instructions = pendingRealtimePrompt?.takeIf { it.isNotBlank() } ?: return
+        val uiState = _uiState.value
+        val sessionId = uiState.sessionState?.sessionId?.takeIf { it.isNotBlank() } ?: return
+        val voiceLive =
+            uiState.socketConnected &&
+                !uiState.isVoiceSessionConnecting &&
+                (uiState.isRecordingVoice ||
+                    uiState.isVoiceListening ||
+                    uiState.isVoiceThinking ||
+                    uiState.isPlayingAudio)
+        if (!voiceLive) {
+            return
+        }
+
+        pendingRealtimePrompt = null
+        AgentSocketManager.updateSession(sessionId)
+        AgentSocketManager.requestRealtimeVoicePrompt(instructions)
     }
 
     private fun observeSocket() {
@@ -534,6 +788,21 @@ class AgentViewModel(
         viewModelScope.launch {
             AgentSocketManager.events.collectLatest { event ->
                 when (event.type) {
+                    "navigation_preview" -> {
+                        if (!event.surface.isNullOrBlank()) {
+                            pendingNavigationTarget = normalizeAgentSurface(event.surface)
+                        }
+                        _uiState.update {
+                            it.copy(
+                                liveStatus = event.message ?: it.liveStatus,
+                                sessionState = if (!event.surface.isNullOrBlank()) {
+                                    it.sessionState?.copy(currentSurface = normalizeAgentSurface(event.surface))
+                                } else {
+                                    it.sessionState
+                                }
+                            )
+                        }
+                    }
                     "pending_action_created",
                     "pending_action_resolved",
                     "pending_actions_changed",
@@ -542,12 +811,211 @@ class AgentViewModel(
                     "turn_completed" -> {
                         refreshPendingActions(silent = true)
                         refreshGoals(silent = true)
-                        if (!event.sessionId.isNullOrBlank()) {
-                            AgentSocketManager.updateSession(event.sessionId)
+                        _uiState.update {
+                            it.copy(
+                                sessionState = if (!event.surface.isNullOrBlank()) {
+                                    it.sessionState?.copy(currentSurface = normalizeAgentSurface(event.surface))
+                                } else {
+                                    it.sessionState
+                                }
+                            )
+                        }
+                        event.sessionId?.let(AgentSocketManager::updateSession)
+                    }
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            AgentSocketManager.voiceEvents.collectLatest { event ->
+                when (event) {
+                    is AgentSocketManager.AgentVoiceSocketEvent.Ready -> {
+                        if (shouldStartRealtimeCapture) {
+                            shouldStartRealtimeCapture = false
+                            beginRealtimeCapture()
+                            dispatchPendingRealtimePrompt()
+                        } else {
+                            _uiState.update {
+                                it.copy(isVoiceSessionConnecting = false)
+                            }
+                            dispatchPendingRealtimePrompt()
+                        }
+                    }
+
+                    is AgentSocketManager.AgentVoiceSocketEvent.State -> {
+                        when (event.state) {
+                            "connecting" -> _uiState.update {
+                                it.copy(isVoiceSessionConnecting = true, error = null)
+                            }
+
+                            "ready" -> {
+                                _uiState.update {
+                                    it.copy(
+                                        isVoiceSessionConnecting = false,
+                                        isVoiceThinking = false
+                                    )
+                                }
+                                dispatchPendingRealtimePrompt()
+                            }
+
+                            "listening" -> {
+                                realtimeVoiceManager.setAssistantPlaybackSuppressed(true)
+                                realtimeVoiceManager.stopAssistantPlayback()
+                                _uiState.update {
+                                    it.copy(
+                                        isVoiceListening = true,
+                                        isVoiceThinking = false,
+                                        isPlayingAudio = false,
+                                        liveUserTranscript = "",
+                                        liveAssistantTranscript = ""
+                                    )
+                                }
+                                dispatchPendingRealtimePrompt()
+                            }
+
+                            "processing" -> _uiState.update {
+                                realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = false)
+                                it.copy(
+                                    isVoiceListening = false,
+                                    isVoiceThinking = true
+                                )
+                            }
+
+                            "speaking" -> _uiState.update {
+                                realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = false)
+                                it.copy(
+                                    isVoiceThinking = false,
+                                    isPlayingAudio = true
+                                )
+                            }
+
+                            "stopped" -> {
+                                shouldStartRealtimeCapture = false
+                                realtimeVoiceManager.stopCapture()
+                                realtimeVoiceManager.stopAssistantPlayback()
+                                clearRealtimeVoiceState()
+                            }
+                        }
+                    }
+
+                    is AgentSocketManager.AgentVoiceSocketEvent.UserTranscript -> {
+                        if (_uiState.value.isPlayingAudio) {
+                            realtimeVoiceManager.setAssistantPlaybackSuppressed(true)
+                        }
+                        _uiState.update {
+                            it.copy(liveUserTranscript = event.text)
+                        }
+                    }
+
+                    is AgentSocketManager.AgentVoiceSocketEvent.AssistantTranscript -> {
+                        _uiState.update {
+                            it.copy(liveAssistantTranscript = event.text)
+                        }
+                    }
+
+                    is AgentSocketManager.AgentVoiceSocketEvent.AudioDelta -> {
+                        if (_uiState.value.isVoiceListening) {
+                            return@collectLatest
+                        }
+                        realtimeVoiceManager.playAssistantChunk(event.responseId, event.audioBase64)
+                        _uiState.update {
+                            it.copy(isPlayingAudio = true)
+                        }
+                    }
+
+                    is AgentSocketManager.AgentVoiceSocketEvent.AudioDone -> {
+                        realtimeVoiceManager.stopAssistantPlayback(flush = false)
+                        _uiState.update {
+                            it.copy(isPlayingAudio = false)
+                        }
+                    }
+
+                    is AgentSocketManager.AgentVoiceSocketEvent.TurnFinal -> {
+                        applyVoiceTurnResponse(
+                            response = event.response,
+                            playAudio = false
+                        )
+                    }
+
+                    is AgentSocketManager.AgentVoiceSocketEvent.Error -> {
+                        shouldStartRealtimeCapture = false
+                        pendingRealtimePrompt = null
+                        realtimeVoiceManager.stopCapture()
+                        realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = true)
+                        realtimeVoiceManager.stopAssistantPlayback()
+                        _uiState.update {
+                            it.copy(
+                                isVoiceSessionConnecting = false,
+                                isRecordingVoice = false,
+                                isPlayingAudio = false,
+                                isVoiceListening = false,
+                                isVoiceThinking = false,
+                                liveUserTranscript = "",
+                                liveAssistantTranscript = "",
+                                error = event.message
+                            )
                         }
                     }
                 }
             }
+        }
+    }
+
+    private fun buildSurfaceSyncKey(
+        sessionId: String,
+        surface: String,
+        surfaceContext: Map<String, String>
+    ): String {
+        val contextKey = surfaceContext.entries.joinToString("&") { "${it.key}=${it.value}" }
+        return "$sessionId|$surface|$contextKey"
+    }
+
+    private fun describeUiIntent(intent: AgentUiIntent): String {
+        return when (intent.type) {
+            "switch_tab" -> "Opening ${formatSurfaceLabel(intent.tab)}"
+            "open_profile" -> "Opening Profile"
+            "open_chat" -> "Opening Chat"
+            "open_group", "open_groups" -> "Opening Groups"
+            "open_notifications" -> "Opening Notifications"
+            "open_growth_task" -> "Opening Growth Hub"
+            "show_match_stack" -> "Showing Matches"
+            else -> "Navigating in Vormex"
+        }
+    }
+
+    private fun targetSurfaceForIntent(intent: AgentUiIntent): String? {
+        return when (intent.type) {
+            "switch_tab" -> normalizeAgentSurface(intent.tab)
+            "open_profile" -> "profile"
+            "open_chat" -> "chat"
+            "open_group", "open_groups" -> "groups"
+            "open_notifications" -> "notifications"
+            "open_growth_task" -> "growth_hub"
+            "show_match_stack" -> "find_people"
+            else -> null
+        }
+    }
+
+    private fun normalizeAgentSurface(surface: String?): String {
+        return when (surface?.trim()?.lowercase()) {
+            null, "", "global" -> "global"
+            "home" -> "feed"
+            "find", "network" -> "find_people"
+            "growth" -> "growth_hub"
+            else -> surface.trim().lowercase()
+        }
+    }
+
+    private fun formatSurfaceLabel(surface: String?): String {
+        return when (normalizeAgentSurface(surface)) {
+            "feed" -> "Home"
+            "find_people" -> "Find People"
+            "chat" -> "Chat"
+            "groups" -> "Groups"
+            "profile" -> "Profile"
+            "notifications" -> "Notifications"
+            "growth_hub" -> "Growth Hub"
+            else -> "Agent"
         }
     }
 
@@ -605,6 +1073,9 @@ class AgentViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        shouldStartRealtimeCapture = false
+        AgentSocketManager.stopRealtimeVoice()
+        realtimeVoiceManager.release()
         runCatching { mediaRecorder?.release() }
         runCatching { mediaPlayer?.release() }
         mediaRecorder = null

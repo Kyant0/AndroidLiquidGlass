@@ -2,11 +2,15 @@ package com.kyant.backdrop.catalog.network
 
 import android.util.Log
 import com.kyant.backdrop.catalog.BuildConfig
+import com.kyant.backdrop.catalog.network.models.AgentUiIntent
+import com.kyant.backdrop.catalog.network.models.AgentVoiceTurnResponse
 import io.socket.client.IO
 import io.socket.client.Socket
 import io.socket.engineio.client.transports.WebSocket
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import java.net.URI
 
@@ -19,11 +23,63 @@ object AgentSocketManager {
         val actionId: String? = null,
         val status: String? = null,
         val pendingCount: Int? = null,
-        val goalsCount: Int? = null
+        val goalsCount: Int? = null,
+        val surface: String? = null,
+        val message: String? = null
     )
+
+    sealed interface AgentVoiceSocketEvent {
+        data class Ready(
+            val sessionId: String?,
+            val model: String?
+        ) : AgentVoiceSocketEvent
+
+        data class State(
+            val state: String,
+            val sessionId: String?,
+            val responseId: String?
+        ) : AgentVoiceSocketEvent
+
+        data class UserTranscript(
+            val text: String,
+            val isFinal: Boolean
+        ) : AgentVoiceSocketEvent
+
+        data class AssistantTranscript(
+            val text: String,
+            val isFinal: Boolean
+        ) : AgentVoiceSocketEvent
+
+        data class AudioDelta(
+            val responseId: String?,
+            val audioBase64: String,
+            val audioMimeType: String?
+        ) : AgentVoiceSocketEvent
+
+        data class AudioDone(
+            val sessionId: String?,
+            val responseId: String?
+        ) : AgentVoiceSocketEvent
+
+        data class TurnFinal(
+            val response: AgentVoiceTurnResponse
+        ) : AgentVoiceSocketEvent
+
+        data class Error(
+            val message: String
+        ) : AgentVoiceSocketEvent
+    }
 
     enum class ConnectionState {
         DISCONNECTED, CONNECTING, CONNECTED, ERROR
+    }
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        encodeDefaults = true
+        explicitNulls = false
+        coerceInputValues = true
     }
 
     private val socketUrl: String
@@ -36,6 +92,9 @@ object AgentSocketManager {
 
     private val _events = MutableSharedFlow<AgentSocketEvent>(replay = 0, extraBufferCapacity = 16)
     val events = _events.asSharedFlow()
+
+    private val _voiceEvents = MutableSharedFlow<AgentVoiceSocketEvent>(replay = 0, extraBufferCapacity = 256)
+    val voiceEvents = _voiceEvents.asSharedFlow()
 
     private val _connectionStateFlow = MutableSharedFlow<ConnectionState>(replay = 1, extraBufferCapacity = 1)
     val connectionStateFlow = _connectionStateFlow.asSharedFlow()
@@ -134,6 +193,7 @@ object AgentSocketManager {
                             AgentSocketEvent(
                                 type = "turn_completed",
                                 sessionId = payload.optString("sessionId").takeIf { it.isNotBlank() },
+                                surface = payload.optString("surface").takeIf { it.isNotBlank() },
                                 pendingCount = payload.optJSONArray("pendingActions")?.length(),
                                 goalsCount = payload.optJSONArray("goals")?.length()
                             )
@@ -147,6 +207,108 @@ object AgentSocketManager {
                                 type = "approval_executed",
                                 sessionId = payload.optString("sessionId").takeIf { it.isNotBlank() },
                                 actionId = payload.optString("actionId").takeIf { it.isNotBlank() }
+                            )
+                        )
+                    }
+                }
+                on("agent:navigation_preview") { args ->
+                    parseJsonObject(args)?.let { payload ->
+                        _events.tryEmit(
+                            AgentSocketEvent(
+                                type = "navigation_preview",
+                                sessionId = payload.optString("sessionId").takeIf { it.isNotBlank() },
+                                surface = payload.optString("surface").takeIf { it.isNotBlank() },
+                                message = payload.optString("message").takeIf { it.isNotBlank() }
+                            )
+                        )
+                    }
+                }
+                on("agent:voice_ready") { args ->
+                    parseJsonObject(args)?.let { payload ->
+                        _voiceEvents.tryEmit(
+                            AgentVoiceSocketEvent.Ready(
+                                sessionId = payload.optString("sessionId").takeIf { it.isNotBlank() },
+                                model = payload.optString("model").takeIf { it.isNotBlank() }
+                            )
+                        )
+                    }
+                }
+                on("agent:voice_state") { args ->
+                    parseJsonObject(args)?.let { payload ->
+                        val state = payload.optString("state")
+                        if (state.isNotBlank()) {
+                            _voiceEvents.tryEmit(
+                                AgentVoiceSocketEvent.State(
+                                    state = state,
+                                    sessionId = payload.optString("sessionId").takeIf { it.isNotBlank() },
+                                    responseId = payload.optString("responseId").takeIf { it.isNotBlank() }
+                                )
+                            )
+                        }
+                    }
+                }
+                on("agent:voice_user_transcript") { args ->
+                    parseJsonObject(args)?.let { payload ->
+                        _voiceEvents.tryEmit(
+                            AgentVoiceSocketEvent.UserTranscript(
+                                text = payload.optString("text"),
+                                isFinal = payload.optBoolean("isFinal", false)
+                            )
+                        )
+                    }
+                }
+                on("agent:voice_assistant_transcript") { args ->
+                    parseJsonObject(args)?.let { payload ->
+                        _voiceEvents.tryEmit(
+                            AgentVoiceSocketEvent.AssistantTranscript(
+                                text = payload.optString("text"),
+                                isFinal = payload.optBoolean("isFinal", false)
+                            )
+                        )
+                    }
+                }
+                on("agent:voice_audio_delta") { args ->
+                    parseJsonObject(args)?.let { payload ->
+                        val audioBase64 = payload.optString("audioBase64")
+                        if (audioBase64.isNotBlank()) {
+                            _voiceEvents.tryEmit(
+                                AgentVoiceSocketEvent.AudioDelta(
+                                    responseId = payload.optString("responseId").takeIf { it.isNotBlank() },
+                                    audioBase64 = audioBase64,
+                                    audioMimeType = payload.optString("audioMimeType").takeIf { it.isNotBlank() }
+                                )
+                            )
+                        }
+                    }
+                }
+                on("agent:voice_audio_done") { args ->
+                    parseJsonObject(args)?.let { payload ->
+                        _voiceEvents.tryEmit(
+                            AgentVoiceSocketEvent.AudioDone(
+                                sessionId = payload.optString("sessionId").takeIf { it.isNotBlank() },
+                                responseId = payload.optString("responseId").takeIf { it.isNotBlank() }
+                            )
+                        )
+                    }
+                }
+                on("agent:voice_turn_final") { args ->
+                    parseJsonObject(args)?.let { payload ->
+                        runCatching {
+                            json.decodeFromString<AgentVoiceTurnResponse>(payload.toString())
+                        }.onSuccess { response ->
+                            _voiceEvents.tryEmit(AgentVoiceSocketEvent.TurnFinal(response))
+                        }.onFailure { error ->
+                            Log.e(TAG, "Failed to decode final realtime voice turn", error)
+                        }
+                    }
+                }
+                on("agent:voice_error") { args ->
+                    parseJsonObject(args)?.let { payload ->
+                        _voiceEvents.tryEmit(
+                            AgentVoiceSocketEvent.Error(
+                                message = payload.optString("error").ifBlank {
+                                    "Realtime voice is unavailable right now."
+                                }
                             )
                         )
                     }
@@ -186,6 +348,94 @@ object AgentSocketManager {
         if (socket?.connected() == true && !sessionId.isNullOrBlank()) {
             socket?.emit("agent:join_session", JSONObject().put("sessionId", sessionId))
         }
+    }
+
+    fun startRealtimeVoice(
+        sessionId: String,
+        surface: String,
+        surfaceContext: Map<String, String> = emptyMap(),
+        allowAutonomousActions: Boolean
+    ) {
+        if (sessionId.isBlank() || socket?.connected() != true) {
+            return
+        }
+
+        updateSession(sessionId)
+        val contextJson = JSONObject()
+        surfaceContext.forEach { (key, value) ->
+            contextJson.put(key, value)
+        }
+
+        socket?.emit(
+            "agent:voice_start",
+            JSONObject()
+                .put("sessionId", sessionId)
+                .put("surface", surface)
+                .put("surfaceContext", contextJson)
+                .put("allowAutonomousActions", allowAutonomousActions)
+        )
+    }
+
+    fun updateSurface(
+        sessionId: String,
+        surface: String,
+        surfaceContext: Map<String, String> = emptyMap(),
+        allowAutonomousActions: Boolean? = null
+    ) {
+        if (sessionId.isBlank() || socket?.connected() != true) {
+            return
+        }
+
+        val contextJson = JSONObject()
+        surfaceContext.forEach { (key, value) ->
+            contextJson.put(key, value)
+        }
+
+        val payload = JSONObject()
+            .put("sessionId", sessionId)
+            .put("surface", surface)
+            .put("surfaceContext", contextJson)
+
+        if (allowAutonomousActions != null) {
+            payload.put("allowAutonomousActions", allowAutonomousActions)
+        }
+
+        socket?.emit("agent:surface_update", payload)
+    }
+
+    fun sendRealtimeAudioChunk(audioBase64: String) {
+        if (audioBase64.isBlank() || socket?.connected() != true) {
+            return
+        }
+
+        socket?.emit(
+            "agent:voice_audio_chunk",
+            JSONObject().put("audioBase64", audioBase64)
+        )
+    }
+
+    fun interruptRealtimeVoice() {
+        if (socket?.connected() != true) {
+            return
+        }
+        socket?.emit("agent:voice_interrupt")
+    }
+
+    fun requestRealtimeVoicePrompt(instructions: String) {
+        if (socket?.connected() != true || instructions.isBlank()) {
+            return
+        }
+        socket?.emit(
+            "agent:voice_prompt",
+            JSONObject().put("instructions", instructions)
+        )
+    }
+
+    fun stopRealtimeVoice() {
+        if (socket?.connected() != true) {
+            return
+        }
+        socket?.emit("agent:voice_stop")
     }
 
     private fun parseJsonObject(args: Array<Any>): JSONObject? {
