@@ -253,6 +253,23 @@ object ApiClient {
             Result.failure(e)
         }
     }
+
+    suspend fun cancelPremiumSubscription(context: Context): Result<PremiumVerifyResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.post("$BASE_URL/premium/cancel") {
+                header("Authorization", "Bearer $token")
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     
     // Feed APIs
     suspend fun getFeed(context: Context, cursor: String? = null, limit: Int = 20): Result<FeedResponse> {

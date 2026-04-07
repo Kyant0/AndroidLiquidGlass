@@ -56,6 +56,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -4601,7 +4602,8 @@ private fun MoreFullScreen(
                     contentColor = contentColor,
                     secondaryTextColor = secondaryTextColor,
                     accentColor = accentColor,
-                    sectionHeaderColor = sectionHeaderColor
+                    sectionHeaderColor = sectionHeaderColor,
+                    onOpenAgent = onOpenAgent
                 )
             }
 
@@ -4694,6 +4696,12 @@ private data class MoreQuickAction(
     val onClick: () -> Unit
 )
 
+private data class PremiumHighlight(
+    val title: String,
+    val detail: String,
+    val icon: ImageVector
+)
+
 @Composable
 private fun MorePremiumSection(
     backdrop: LayerBackdrop,
@@ -4703,14 +4711,18 @@ private fun MorePremiumSection(
     contentColor: Color,
     secondaryTextColor: Color,
     accentColor: Color,
-    sectionHeaderColor: Color
+    sectionHeaderColor: Color,
+    onOpenAgent: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val premiumRefreshSignal by PremiumCheckoutManager.refreshSignal.collectAsState()
+    val celebrationSignal by PremiumCheckoutManager.celebrationSignal.collectAsState()
     var premiumState by remember { mutableStateOf<PremiumSubscriptionResponse?>(null) }
     var isLoadingPremiumState by remember { mutableStateOf(true) }
     var isLaunchingCheckout by remember { mutableStateOf(false) }
+    var isCancellingPremium by remember { mutableStateOf(false) }
+    var showCelebration by remember { mutableStateOf(false) }
 
     fun launchPremiumCheckout() {
         val activity = context.findComponentActivity()
@@ -4751,12 +4763,45 @@ private fun MorePremiumSection(
         }
     }
 
+    fun cancelPremiumAccess() {
+        scope.launch {
+            isCancellingPremium = true
+            val cancelResult = ApiClient.cancelPremiumSubscription(context)
+            isCancellingPremium = false
+
+            cancelResult
+                .onSuccess { response ->
+                    premiumState = response.subscription ?: premiumState
+                    PremiumCheckoutManager.notifyPremiumStateChanged()
+                    Toast.makeText(
+                        context,
+                        response.message.ifBlank { "Premium cancelled. Buy again anytime." },
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                .onFailure { error ->
+                    Toast.makeText(
+                        context,
+                        error.message ?: "Unable to cancel premium right now.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+        }
+    }
+
     LaunchedEffect(premiumRefreshSignal) {
         isLoadingPremiumState = true
         ApiClient.getPremiumSubscription(context)
             .onSuccess { premiumState = it }
             .onFailure { premiumState = null }
         isLoadingPremiumState = false
+    }
+
+    LaunchedEffect(celebrationSignal) {
+        if (celebrationSignal == 0L) return@LaunchedEffect
+        showCelebration = true
+        delay(2800)
+        showCelebration = false
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -4772,7 +4817,11 @@ private fun MorePremiumSection(
             premiumState = premiumState,
             isLoadingPremiumState = isLoadingPremiumState,
             isLaunchingCheckout = isLaunchingCheckout,
-            onStartCheckout = ::launchPremiumCheckout
+            isCancellingPremium = isCancellingPremium,
+            showCelebration = showCelebration,
+            onStartCheckout = ::launchPremiumCheckout,
+            onCancelPremium = ::cancelPremiumAccess,
+            onOpenAgent = onOpenAgent
         )
     }
 }
@@ -4789,68 +4838,110 @@ private fun MorePremiumPromoCard(
     premiumState: PremiumSubscriptionResponse?,
     isLoadingPremiumState: Boolean,
     isLaunchingCheckout: Boolean,
-    onStartCheckout: () -> Unit
+    isCancellingPremium: Boolean,
+    showCelebration: Boolean,
+    onStartCheckout: () -> Unit,
+    onCancelPremium: () -> Unit,
+    onOpenAgent: () -> Unit
 ) {
     val context = LocalContext.current
     val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
-    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.gift_box))
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
+    val ctaComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.go_premium))
+    val ctaProgress by animateLottieCompositionAsState(
+        composition = ctaComposition,
         iterations = LottieConstants.IterateForever,
         isPlaying = !reduceAnimations
     )
-    val featureLabels = premiumState?.features
-        ?.takeIf { it.isNotEmpty() }
-        ?: listOf("Profile extras", "Exclusive drops", "Customize your profile")
+    val confettiComposition by rememberLottieComposition(
+        LottieCompositionSpec.RawRes(R.raw.confetti_animation_01)
+    )
+    val confettiProgress by animateLottieCompositionAsState(
+        composition = confettiComposition,
+        iterations = if (reduceAnimations) 1 else LottieConstants.IterateForever,
+        isPlaying = showCelebration
+    )
+    val featureLabels = premiumState?.features?.takeIf { it.isNotEmpty() } ?: listOf(
+        "AI Agent access",
+        "Premium themes",
+        "Featured card designs",
+        "24/7 fast support"
+    )
+    val featureHighlights = listOf(
+        PremiumHighlight(
+            title = "AI Agent",
+            detail = "Unlock the agent button and get premium AI help inside Vormex.",
+            icon = Icons.Outlined.AutoAwesome
+        ),
+        PremiumHighlight(
+            title = "Themes and looks",
+            detail = "Use premium themes, stronger post styling, and a custom profile visitor look.",
+            icon = Icons.Outlined.Palette
+        ),
+        PremiumHighlight(
+            title = "More sections",
+            detail = "Open premium-only sections, featured cards, and standout profile surfaces.",
+            icon = Icons.Outlined.Widgets
+        ),
+        PremiumHighlight(
+            title = "Control and safety",
+            detail = "Block people faster, keep premium customizations active, and manage access cleanly.",
+            icon = Icons.Outlined.Block
+        ),
+        PremiumHighlight(
+            title = "Featured design",
+            detail = "Make cards feel premium when others visit your profile and explore your work.",
+            icon = Icons.Outlined.Style
+        ),
+        PremiumHighlight(
+            title = "Fast support",
+            detail = premiumState?.supportLabel ?: "24/7 fast support when you need help.",
+            icon = Icons.Outlined.SupportAgent
+        )
+    )
     val checkoutEnabled = premiumState?.checkoutEnabled != false
     val isPremiumActive = premiumState?.isPremium == true
     val customPriceApplied = premiumState?.customPriceApplied == true
-    val ctaEnabled = !isLoadingPremiumState && !isLaunchingCheckout && checkoutEnabled && !isPremiumActive
-    val defaultCtaLabel = premiumState?.ctaLabel ?: "Get Premium"
-    val ctaLabel = when {
-        isLoadingPremiumState -> "Checking..."
-        isLaunchingCheckout -> "Starting..."
-        isPremiumActive -> defaultCtaLabel.ifBlank { "Premium active" }
-        !checkoutEnabled -> "Unavailable"
-        else -> defaultCtaLabel
-    }
+    val ctaEnabled =
+        !isLoadingPremiumState && !isLaunchingCheckout && !isCancellingPremium && checkoutEnabled && !isPremiumActive
     val badgeLabel = when {
         isPremiumActive -> "Premium active"
         customPriceApplied -> "Custom offer"
-        else -> "Premium unlock"
+        else -> "31-day premium"
     }
     val secondaryBadgeLabel = when {
-        premiumState?.canAccessProfileCustomization == true && !isPremiumActive -> "Profile extras ready"
         premiumState?.canUseAgent == true -> "AI Agent included"
+        premiumState?.canAccessProfileCustomization == true && !isPremiumActive -> "Customization ready"
         else -> null
     }
     val description = premiumState?.description?.takeIf { it.isNotBlank() }
-        ?: "Build a stronger profile presence with a dedicated premium space for standout upgrades and future drops."
-    val priceEyebrow = when {
-        isPremiumActive -> "Current access"
-        customPriceApplied -> "Offer for you"
-        else -> "Starting at"
-    }
+        ?: "Unlock a sharper Vormex presence with AI Agent access, stronger styling, featured cards, themes, support, and premium-only upgrades."
     val priceLabel = premiumState?.displayAmount?.takeIf { it.isNotBlank() } ?: "Premium access"
-    val pricingCaption = when {
-        isPremiumActive -> "Profile customizations stay unlocked on this account."
-        customPriceApplied -> "A lower premium price has been assigned to this account."
-        premiumState != null -> premiumBillingLabel(premiumState.billingCycle)
-        else -> "Unlock when you're ready"
-    }
-    val helperText = when {
-        isLaunchingCheckout -> "Preparing your Razorpay checkout..."
+    val durationLabel = premiumState?.premiumDurationDays?.takeIf { it > 0 }?.let { "$it days" } ?: "31 days"
+    val renewalLabel = premiumState?.renewalModeLabel ?: "Manual renewal"
+    val supportLabel = premiumState?.supportLabel ?: "24/7 fast support"
+    val creditsUsedLabel = "${premiumState?.creditsUsed ?: 0}"
+    val statusSummary = when {
+        isLoadingPremiumState -> "Checking premium access..."
+        isLaunchingCheckout -> "Preparing secure checkout..."
+        isCancellingPremium -> "Cancelling premium access..."
+        isPremiumActive && (premiumState.premiumDaysRemaining) > 0 ->
+            "${premiumState.premiumDaysRemaining} days left in your premium plan."
         isPremiumActive -> "Premium is active on this account."
-        premiumState != null -> "${premiumState.displayAmount} · ${premiumBillingLabel(premiumState.billingCycle)}"
-        else -> "Launch the premium flow from here."
+        customPriceApplied -> "This account has a special premium price."
+        !checkoutEnabled -> "Premium checkout is not configured yet."
+        else -> "Upgrade once and keep premium access live for 31 days."
     }
-    val helperSupportingText = when {
-        isPremiumActive -> "Customize your profile and keep premium-only upgrades close by."
+    val statusDetail = when {
+        isPremiumActive && premiumState.canUseAgent ->
+            "AI Agent is unlocked. Open it any time from here or from the More menu."
+        isPremiumActive ->
+            "Your premium look, featured design, and customization access stay active during this cycle."
         premiumState?.canAccessProfileCustomization == true ->
-            "Profile customization has already been enabled for this account."
-        customPriceApplied -> "This card is showing the custom price set for this user."
-        else -> "Unlock profile styling, future drops, and premium-only upgrades from here."
+            "Profile customization is already enabled for this account."
+        else ->
+            "Premium also gives you featured designs, premium themes, better post styling, and support."
     }
+    val premiumFontFamily = FontFamily.SansSerif
 
     Box(
         modifier = Modifier
@@ -4910,9 +5001,9 @@ private fun MorePremiumPromoCard(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -4925,7 +5016,8 @@ private fun MorePremiumPromoCard(
                         style = TextStyle(
                             color = accentColor,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = premiumFontFamily
                         )
                     )
                 }
@@ -4941,7 +5033,8 @@ private fun MorePremiumPromoCard(
                             style = TextStyle(
                                 color = contentColor,
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                fontFamily = premiumFontFamily
                             )
                         )
                     }
@@ -4952,168 +5045,485 @@ private fun MorePremiumPromoCard(
                 premiumState?.title ?: "Vormex Premium",
                 style = TextStyle(
                     color = contentColor,
-                    fontSize = 22.sp,
-                    lineHeight = 28.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 24.sp,
+                    lineHeight = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = premiumFontFamily,
+                    letterSpacing = (-0.3).sp
                 )
             )
             BasicText(
                 description,
                 style = TextStyle(
                     color = secondaryTextColor,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp,
+                    fontFamily = premiumFontFamily
                 )
             )
 
-            Row(
+            androidx.compose.foundation.layout.FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.White.copy(alpha = if (isGlassTheme) 0.14f else 0.48f))
-                        .border(
-                            1.dp,
-                            dividerColor.copy(alpha = 0.82f),
-                            RoundedCornerShape(20.dp)
-                        )
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    BasicText(
-                        priceEyebrow,
-                        style = TextStyle(
-                            color = secondaryTextColor,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    )
-                    BasicText(
-                        priceLabel,
-                        style = TextStyle(
-                            color = contentColor,
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
-                    BasicText(
-                        pricingCaption,
-                        style = TextStyle(
-                            color = secondaryTextColor,
-                            fontSize = 11.sp,
-                            lineHeight = 16.sp
-                        )
-                    )
-                }
+                MorePremiumMetricCard(
+                    label = if (isPremiumActive) "Current access" else "Price",
+                    value = priceLabel,
+                    supporting = if (customPriceApplied) "Custom offer active" else premiumBillingLabel(
+                        premiumState?.billingCycle,
+                        premiumState?.premiumDurationDays ?: 31
+                    ),
+                    accentColor = accentColor,
+                    dividerColor = dividerColor,
+                    contentColor = contentColor,
+                    secondaryTextColor = secondaryTextColor,
+                    isGlassTheme = isGlassTheme,
+                    fontFamily = premiumFontFamily
+                )
+                MorePremiumMetricCard(
+                    label = "Plan length",
+                    value = durationLabel,
+                    supporting = if (isPremiumActive) "Premium stays active for this cycle." else "One purchase covers the full premium window.",
+                    accentColor = accentColor,
+                    dividerColor = dividerColor,
+                    contentColor = contentColor,
+                    secondaryTextColor = secondaryTextColor,
+                    isGlassTheme = isGlassTheme,
+                    fontFamily = premiumFontFamily
+                )
+                MorePremiumMetricCard(
+                    label = "Credits used",
+                    value = creditsUsedLabel,
+                    supporting = "Agent prompts used in the current premium window.",
+                    accentColor = accentColor,
+                    dividerColor = dividerColor,
+                    contentColor = contentColor,
+                    secondaryTextColor = secondaryTextColor,
+                    isGlassTheme = isGlassTheme,
+                    fontFamily = premiumFontFamily
+                )
+            }
 
-                Box(
-                    modifier = Modifier
-                        .size(118.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    accentColor.copy(alpha = 0.18f),
-                                    Color.White.copy(alpha = if (isGlassTheme) 0.10f else 0.28f)
-                                )
-                            )
-                        )
-                        .border(1.dp, dividerColor.copy(alpha = 0.8f), RoundedCornerShape(24.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (composition != null) {
-                        LottieAnimation(
-                            composition = composition,
-                            progress = { progress },
-                            modifier = Modifier.size(92.dp),
-                            contentScale = ContentScale.Fit,
-                            clipToCompositionBounds = true
-                        )
-                    } else {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(28.dp),
-                            color = accentColor,
-                            strokeWidth = 2.5.dp
-                        )
-                    }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                BasicText(
+                    "Everything included",
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = premiumFontFamily
+                    )
+                )
+                featureHighlights.forEach { item ->
+                    MorePremiumHighlightRow(
+                        item = item,
+                        accentColor = accentColor,
+                        dividerColor = dividerColor,
+                        contentColor = contentColor,
+                        secondaryTextColor = secondaryTextColor,
+                        isGlassTheme = isGlassTheme,
+                        fontFamily = premiumFontFamily
+                    )
                 }
             }
 
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            androidx.compose.foundation.layout.FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 featureLabels.forEach { label ->
                     MorePremiumFeaturePill(
                         label = label,
                         accentColor = accentColor,
-                        contentColor = contentColor
+                        contentColor = contentColor,
+                        fontFamily = premiumFontFamily
                     )
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = if (isGlassTheme) 0.12f else 0.38f))
+                    .border(1.dp, dividerColor.copy(alpha = 0.72f), RoundedCornerShape(20.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                BasicText(
+                    statusSummary,
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = premiumFontFamily
+                    )
+                )
+                BasicText(
+                    statusDetail,
+                    style = TextStyle(
+                        color = secondaryTextColor,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        fontFamily = premiumFontFamily
+                    )
+                )
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    BasicText(
-                        helperText,
-                        style = TextStyle(
-                            color = contentColor,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
+                    MorePremiumFeaturePill(
+                        label = renewalLabel,
+                        accentColor = accentColor,
+                        contentColor = contentColor,
+                        fontFamily = premiumFontFamily
+                    )
+                    MorePremiumFeaturePill(
+                        label = supportLabel,
+                        accentColor = accentColor,
+                        contentColor = contentColor,
+                        fontFamily = premiumFontFamily
+                    )
+                    if (isPremiumActive && premiumState.premiumDaysRemaining > 0) {
+                        MorePremiumFeaturePill(
+                            label = "${premiumState.premiumDaysRemaining} days remaining",
+                            accentColor = accentColor,
+                            contentColor = contentColor,
+                            fontFamily = premiumFontFamily
+                        )
+                    }
+                }
+            }
+
+            if (isPremiumActive) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MorePremiumAnimatedButton(
+                        label = if (premiumState.canUseAgent) "Open AI Agent" else "Premium active",
+                        supporting = if (premiumState.canUseAgent) {
+                            "Your premium account has agent access right now."
+                        } else {
+                            "Premium is active. Agent access depends on rollout controls."
+                        },
+                        accentColor = accentColor,
+                        contentColor = contentColor,
+                        enabled = premiumState.canUseAgent,
+                        onClick = onOpenAgent,
+                        composition = ctaComposition,
+                        progress = ctaProgress,
+                        isGlassTheme = isGlassTheme,
+                        fontFamily = premiumFontFamily
+                    )
+                    if (premiumState.canCancel) {
+                        MorePremiumSecondaryButton(
+                            label = if (isCancellingPremium) "Cancelling..." else "Cancel premium now",
+                            contentColor = contentColor,
+                            dividerColor = dividerColor,
+                            fontFamily = premiumFontFamily,
+                            enabled = !isCancellingPremium,
+                            onClick = onCancelPremium
+                        )
+                    }
+                }
+            } else {
+                MorePremiumAnimatedButton(
+                    label = when {
+                        isLoadingPremiumState -> "Checking premium..."
+                        isLaunchingCheckout -> "Starting secure checkout..."
+                        !checkoutEnabled -> "Premium unavailable"
+                        else -> premiumState?.ctaLabel?.ifBlank { "Go Premium" } ?: "Go Premium"
+                    },
+                    supporting = if (checkoutEnabled) {
+                        "Secure checkout for a $durationLabel premium unlock."
+                    } else {
+                        "Checkout is not configured yet on the server."
+                    },
+                    accentColor = accentColor,
+                    contentColor = contentColor,
+                    enabled = ctaEnabled,
+                    onClick = onStartCheckout,
+                    composition = ctaComposition,
+                    progress = ctaProgress,
+                    isGlassTheme = isGlassTheme,
+                    fontFamily = premiumFontFamily
+                )
+            }
+        }
+    }
+
+    if (showCelebration) {
+        Dialog(
+            onDismissRequest = {},
+            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.20f))
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color(0xFF0E1527),
+                                    Color(0xFF1A2238)
+                                )
+                            )
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(28.dp))
+                        .padding(24.dp)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (confettiComposition != null) {
+                            LottieAnimation(
+                                composition = confettiComposition,
+                                progress = { confettiProgress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                        BasicText(
+                            "Premium unlocked",
+                            style = TextStyle(
+                                color = Color.White,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = premiumFontFamily
+                            )
+                        )
+                        BasicText(
+                            "Your AI Agent access and premium styling are now active for this account.",
+                            style = TextStyle(
+                                color = Color.White.copy(alpha = 0.80f),
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                                textAlign = TextAlign.Center,
+                                fontFamily = premiumFontFamily
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun premiumBillingLabel(billingCycle: String?, durationDays: Int = 31): String {
+    return when (billingCycle?.lowercase()) {
+        "monthly" -> "monthly access"
+        "yearly" -> "yearly access"
+        "weekly" -> "weekly access"
+        else -> "$durationDays-day access"
+    }
+}
+
+@Composable
+private fun MorePremiumMetricCard(
+    label: String,
+    value: String,
+    supporting: String,
+    accentColor: Color,
+    dividerColor: Color,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    isGlassTheme: Boolean,
+    fontFamily: FontFamily
+) {
+    Column(
+        modifier = Modifier
+            .widthIn(min = 152.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White.copy(alpha = if (isGlassTheme) 0.14f else 0.48f))
+            .border(1.dp, dividerColor.copy(alpha = 0.82f), RoundedCornerShape(20.dp))
+            .padding(15.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        BasicText(
+            label,
+            style = TextStyle(
+                color = secondaryTextColor,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = fontFamily
+            )
+        )
+        BasicText(
+            value,
+            style = TextStyle(
+                color = contentColor,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = fontFamily
+            )
+        )
+        BasicText(
+            supporting,
+            style = TextStyle(
+                color = secondaryTextColor.copy(alpha = 0.92f),
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                fontFamily = fontFamily
+            )
+        )
+    }
+}
+
+@Composable
+private fun MorePremiumHighlightRow(
+    item: PremiumHighlight,
+    accentColor: Color,
+    dividerColor: Color,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    isGlassTheme: Boolean,
+    fontFamily: FontFamily
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = if (isGlassTheme) 0.11f else 0.34f))
+            .border(1.dp, dividerColor.copy(alpha = 0.66f), RoundedCornerShape(18.dp))
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(accentColor.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = item.icon,
+                contentDescription = item.title,
+                tint = accentColor,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            BasicText(
+                item.title,
+                style = TextStyle(
+                    color = contentColor,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = fontFamily
+                )
+            )
+            BasicText(
+                item.detail,
+                style = TextStyle(
+                    color = secondaryTextColor,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    fontFamily = fontFamily
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun MorePremiumAnimatedButton(
+    label: String,
+    supporting: String,
+    accentColor: Color,
+    contentColor: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    composition: com.airbnb.lottie.LottieComposition?,
+    progress: Float,
+    isGlassTheme: Boolean,
+    fontFamily: FontFamily
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                if (enabled) {
+                    Brush.horizontalGradient(
+                        listOf(
+                            accentColor,
+                            Color(0xFFEAA22D)
                         )
                     )
-                    BasicText(
-                        helperSupportingText,
-                        style = TextStyle(
-                            color = secondaryTextColor,
-                            fontSize = 11.sp,
-                            lineHeight = 16.sp
+                } else {
+                    Brush.horizontalGradient(
+                        listOf(
+                            accentColor.copy(alpha = 0.40f),
+                            accentColor.copy(alpha = 0.28f)
                         )
                     )
                 }
-                Spacer(Modifier.width(12.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(
-                            if (ctaEnabled) {
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        accentColor,
-                                        Color(0xFFEAA22D)
-                                    )
-                                )
-                            } else {
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        accentColor.copy(alpha = 0.42f),
-                                        accentColor.copy(alpha = 0.32f)
-                                    )
-                                )
-                            }
-                        )
-                        .clickable(enabled = ctaEnabled, onClick = onStartCheckout)
-                        .padding(horizontal = 18.dp, vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    BasicText(
-                        ctaLabel,
-                        style = TextStyle(
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 15.dp)
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                BasicText(
+                    label,
+                    style = TextStyle(
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = fontFamily
+                    )
+                )
+                BasicText(
+                    supporting,
+                    style = TextStyle(
+                        color = Color.White.copy(alpha = 0.90f),
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                        fontFamily = fontFamily
+                    )
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(58.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White.copy(alpha = if (isGlassTheme) 0.16f else 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (composition != null) {
+                    LottieAnimation(
+                        composition = composition,
+                        progress = { progress },
+                        modifier = Modifier.size(44.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                        contentDescription = label,
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -5121,12 +5531,34 @@ private fun MorePremiumPromoCard(
     }
 }
 
-private fun premiumBillingLabel(billingCycle: String?): String {
-    return when (billingCycle?.lowercase()) {
-        "monthly" -> "monthly access"
-        "yearly" -> "yearly access"
-        "weekly" -> "weekly access"
-        else -> "one-time unlock"
+@Composable
+private fun MorePremiumSecondaryButton(
+    label: String,
+    contentColor: Color,
+    dividerColor: Color,
+    fontFamily: FontFamily,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color.Transparent)
+            .border(1.dp, dividerColor.copy(alpha = 0.72f), RoundedCornerShape(22.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        BasicText(
+            label,
+            style = TextStyle(
+                color = contentColor,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = fontFamily
+            )
+        )
     }
 }
 
@@ -5134,7 +5566,8 @@ private fun premiumBillingLabel(billingCycle: String?): String {
 private fun MorePremiumFeaturePill(
     label: String,
     accentColor: Color,
-    contentColor: Color
+    contentColor: Color,
+    fontFamily: FontFamily
 ) {
     Box(
         modifier = Modifier
@@ -5147,7 +5580,8 @@ private fun MorePremiumFeaturePill(
             style = TextStyle(
                 color = contentColor,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                fontFamily = fontFamily
             )
         )
     }

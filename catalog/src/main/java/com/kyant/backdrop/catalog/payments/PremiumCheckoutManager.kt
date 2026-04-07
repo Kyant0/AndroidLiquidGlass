@@ -22,6 +22,8 @@ object PremiumCheckoutManager {
     private var pendingOrderId: String? = null
     private val _refreshSignal = MutableStateFlow(0L)
     val refreshSignal = _refreshSignal.asStateFlow()
+    private val _celebrationSignal = MutableStateFlow(0L)
+    val celebrationSignal = _celebrationSignal.asStateFlow()
 
     fun preload(context: Context) {
         Checkout.preload(context.applicationContext)
@@ -121,7 +123,7 @@ object PremiumCheckoutManager {
                         response.message.ifBlank { "Premium unlocked successfully." },
                         Toast.LENGTH_SHORT
                     ).show()
-                    _refreshSignal.value = System.currentTimeMillis()
+                    notifyPremiumStateChanged(triggerCelebration = true)
                 }
                 .onFailure { error ->
                     Toast.makeText(
@@ -130,6 +132,14 @@ object PremiumCheckoutManager {
                         Toast.LENGTH_LONG
                     ).show()
                 }
+        }
+    }
+
+    fun notifyPremiumStateChanged(triggerCelebration: Boolean = false) {
+        val now = System.currentTimeMillis()
+        _refreshSignal.value = now
+        if (triggerCelebration) {
+            _celebrationSignal.value = now
         }
     }
 

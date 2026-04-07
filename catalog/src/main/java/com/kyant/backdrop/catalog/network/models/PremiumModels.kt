@@ -18,7 +18,16 @@ data class PremiumSubscriptionResponse(
     val features: List<String> = emptyList(),
     val canUseAgent: Boolean = false,
     val canAccessProfileCustomization: Boolean = false,
-    val customPriceApplied: Boolean = false
+    val customPriceApplied: Boolean = false,
+    val premiumStartedAt: String? = null,
+    val premiumEndsAt: String? = null,
+    val premiumDurationDays: Int = 31,
+    val premiumDaysRemaining: Int = 0,
+    val autoPayEnabled: Boolean = false,
+    val renewalModeLabel: String = "Manual renewal",
+    val supportLabel: String = "24/7 fast support",
+    val creditsUsed: Int = 0,
+    val canCancel: Boolean = false
 )
 
 @Serializable
