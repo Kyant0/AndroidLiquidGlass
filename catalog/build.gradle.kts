@@ -164,6 +164,17 @@ dependencies {
     // Lottie (e.g. streak fire on profile)
     implementation(libs.lottie.compose)
 
+    // Razorpay's published AARs still reuse the com.razorpay namespace across modules,
+    // which AGP 9 rejects during manifest processing. These patched local copies only
+    // change the library manifest package and keep the shipped classes/resources intact.
+    implementation(files("libs/razorpay-standard-core-1.7.10-patched.aar"))
+    implementation(files("libs/razorpay-core-1.0.10-patched.aar"))
+    implementation("androidx.startup:startup-runtime:1.1.1")
+    implementation("com.google.android.gms:play-services-auth:21.1.0")
+    implementation("com.google.android.gms:play-services-auth-api-phone:18.0.2")
+    implementation("com.google.android.gms:play-services-tasks:17.2.1")
+    implementation("com.google.android.gms:play-services-wallet:18.1.3")
+
     // Room cache
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
@@ -182,4 +193,6 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.analytics)
+
+    testImplementation("junit:junit:4.13.2")
 }

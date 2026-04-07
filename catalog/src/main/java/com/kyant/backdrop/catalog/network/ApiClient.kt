@@ -198,6 +198,61 @@ object ApiClient {
             Result.failure(e)
         }
     }
+
+    suspend fun getPremiumSubscription(context: Context): Result<PremiumSubscriptionResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.get("$BASE_URL/premium/subscription") {
+                header("Authorization", "Bearer $token")
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createPremiumCheckout(context: Context): Result<PremiumCheckoutResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.post("$BASE_URL/premium/checkout") {
+                header("Authorization", "Bearer $token")
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun verifyPremiumCheckout(
+        context: Context,
+        request: PremiumVerifyRequest
+    ): Result<PremiumVerifyResponse> {
+        return try {
+            val token = getToken(context) ?: return Result.failure(Exception("Not logged in"))
+            val response = client.post("$BASE_URL/premium/verify") {
+                header("Authorization", "Bearer $token")
+                setBody(request)
+            }
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                val error: ApiError = response.body()
+                Result.failure(Exception(error.getErrorMessage()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     
     // Feed APIs
     suspend fun getFeed(context: Context, cursor: String? = null, limit: Int = 20): Result<FeedResponse> {

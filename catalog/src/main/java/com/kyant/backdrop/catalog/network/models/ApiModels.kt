@@ -112,7 +112,11 @@ data class User(
     val branch: String? = null,
     val graduationYear: Int? = null,
     val isVerified: Boolean = false,
-    val onboardingCompleted: Boolean = false
+    val onboardingCompleted: Boolean = false,
+    val isPremium: Boolean = false,
+    val canUseAgent: Boolean = false,
+    val canAccessProfileCustomization: Boolean = false,
+    val premiumDisplayAmount: String? = null
 )
 
 @Serializable
@@ -633,6 +637,8 @@ data class ProfileUser(
     val githubProfileUrl: String? = null,
     val otherSocialUrls: List<SocialUrl>? = null,
     val isOpenToOpportunities: Boolean = false,
+    val isOnline: Boolean = false,
+    val lastActiveAt: String? = null,
     val profileVisibility: String = "PUBLIC",
     val verified: Boolean = false,
     val interests: List<String> = emptyList(),

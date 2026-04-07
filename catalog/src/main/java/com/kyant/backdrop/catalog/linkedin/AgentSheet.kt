@@ -68,6 +68,12 @@ fun AgentSheetContent(
     contentColor: Color,
     accentColor: Color,
     backdrop: LayerBackdrop,
+    reduceAnimations: Boolean = false,
+    isDarkTheme: Boolean = contentColor == Color.White,
+    enableInlineNavigationActions: Boolean = true,
+    onOpenInlineProfile: (String) -> Unit = {},
+    onOpenInlineChat: (String) -> Unit = {},
+    onSeeMoreInlineResults: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     isFullScreen: Boolean = false
 ) {
@@ -328,19 +334,27 @@ fun AgentSheetContent(
                 }
             }
 
-            if (
-                uiState.isVoiceSessionConnecting ||
-                uiState.isRecordingVoice ||
-                uiState.isVoiceListening ||
-                uiState.isVoiceThinking ||
-                uiState.isPlayingAudio ||
-                uiState.liveUserTranscript.isNotBlank() ||
-                uiState.liveAssistantTranscript.isNotBlank()
-            ) {
-                RealtimeVoiceCard(
-                    uiState = uiState,
+            uiState.activeInlineResults?.let { inlineResults ->
+                AgentInlineResultsSurface(
+                    panel = inlineResults,
+                    dismissedIds = uiState.dismissedInlineResultIds,
+                    actionInProgress = uiState.inlineResultActionInProgress,
                     contentColor = contentColor,
-                    accentColor = accentColor
+                    accentColor = accentColor,
+                    isDarkTheme = isDarkTheme,
+                    enableNavigationActions = enableInlineNavigationActions,
+                    onViewProfile = {
+                        viewModel.dismissInlineResults()
+                        onOpenInlineProfile(it)
+                    },
+                    onMessage = {
+                        viewModel.dismissInlineResults()
+                        onOpenInlineChat(it)
+                    },
+                    onConnect = viewModel::sendInlineConnectionRequest,
+                    onCloseItem = viewModel::dismissInlineResultItem,
+                    onClosePanel = viewModel::dismissInlineResults,
+                    onSeeMore = onSeeMoreInlineResults
                 )
             }
 
@@ -497,7 +511,7 @@ fun AgentSheetContent(
                     )
                 )
             }
-        }
+    }
 
     if (showGoalDialog) {
             GoalSettingDialog(
@@ -637,76 +651,6 @@ private fun ActionChip(
                 fontFamily = AgentBodyFontFamily
             )
         )
-    }
-}
-
-@Composable
-private fun RealtimeVoiceCard(
-    uiState: AgentUiState,
-    contentColor: Color,
-    accentColor: Color
-) {
-    val status = when {
-        uiState.isVoiceSessionConnecting -> "Connecting live voice"
-        uiState.isVoiceListening -> "Listening now"
-        uiState.isVoiceThinking -> "Thinking with live data"
-        uiState.isPlayingAudio -> "Answering in realtime"
-        uiState.isRecordingVoice -> "Live voice is open"
-        else -> "Voice standby"
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(accentColor.copy(alpha = 0.10f))
-            .padding(14.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            BasicText(
-                text = status,
-                style = TextStyle(
-                    color = contentColor,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = AgentBodyFontFamily
-                )
-            )
-
-            BasicText(
-                text = "Speak naturally. The agent listens continuously and answers with live Vormex data.",
-                style = TextStyle(
-                    color = contentColor.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
-                    fontFamily = AgentBodyFontFamily
-                )
-            )
-
-            if (uiState.liveUserTranscript.isNotBlank()) {
-                BasicText(
-                    text = "You: ${uiState.liveUserTranscript}",
-                    style = TextStyle(
-                        color = contentColor,
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp,
-                        fontFamily = AgentBodyFontFamily
-                    )
-                )
-            }
-
-            if (uiState.liveAssistantTranscript.isNotBlank()) {
-                BasicText(
-                    text = "Agent: ${uiState.liveAssistantTranscript}",
-                    style = TextStyle(
-                        color = contentColor,
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp,
-                        fontFamily = AgentBodyFontFamily
-                    )
-                )
-            }
-        }
     }
 }
 

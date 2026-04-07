@@ -8,6 +8,7 @@ import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.network.AgentApiService
 import com.kyant.backdrop.catalog.network.AgentSocketManager
 import com.kyant.backdrop.catalog.network.ApiClient
@@ -26,6 +27,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
 import java.io.File
 
 data class AgentMessage(
@@ -53,6 +56,9 @@ data class AgentUiState(
     val error: String? = null,
     val liveStatus: String? = null,
     val pendingUiIntents: List<AgentUiIntent> = emptyList(),
+    val activeInlineResults: AgentInlineResultsPanel? = null,
+    val dismissedInlineResultIds: Set<String> = emptySet(),
+    val inlineResultActionInProgress: Set<String> = emptySet(),
     val lastExecutedActions: List<AgentAction> = emptyList(),
     val lastSuggestedActions: List<AgentAction> = emptyList(),
     val pendingApprovals: List<AgentPendingAction> = emptyList(),
@@ -69,12 +75,17 @@ class AgentViewModel(
     private var mediaRecorder: MediaRecorder? = null
     private var voiceRecordingFile: File? = null
     private var mediaPlayer: MediaPlayer? = null
+    private var responsePulsePlayer: MediaPlayer? = null
     private val realtimeVoiceManager = AgentRealtimeVoiceManager()
     private var shouldStartRealtimeCapture = false
     private var shouldStartRealtimeCaptureAfterPrompt = false
     private var lastSyncedSurfaceKey: String? = null
     private var pendingNavigationTarget: String? = null
     private var pendingRealtimePrompt: String? = null
+    private val inlineResultsJson = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
 
     init {
         observeSocket()
@@ -337,6 +348,7 @@ class AgentViewModel(
         pendingRealtimePrompt = null
         shouldStartRealtimeCaptureAfterPrompt = false
         realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = true)
+        stopResponsePulseSound()
         _uiState.update {
             it.copy(
                 isVoiceSessionConnecting = false,
@@ -473,15 +485,23 @@ class AgentViewModel(
             _uiState.update { it.copy(isResolvingApproval = true, error = null) }
             AgentApiService.approvePendingAction(applicationContext, actionId)
                 .onSuccess { response ->
-                    _uiState.update {
-                        it.copy(
+                    _uiState.update { state ->
+                        val (navigationIntents, inlineResults, resetInlineUiState) = applyResolvedUiState(
+                            current = state,
+                            uiIntents = response.uiIntents
+                        )
+
+                        state.copy(
                             isResolvingApproval = false,
                             pendingApprovals = response.pendingActions,
-                            pendingUiIntents = response.uiIntents,
-                            lastExecutedActions = response.executedAction?.let(::listOf) ?: it.lastExecutedActions,
+                            pendingUiIntents = navigationIntents,
+                            activeInlineResults = inlineResults,
+                            dismissedInlineResultIds = if (resetInlineUiState) emptySet() else state.dismissedInlineResultIds,
+                            inlineResultActionInProgress = if (resetInlineUiState) emptySet() else state.inlineResultActionInProgress,
+                            lastExecutedActions = response.executedAction?.let(::listOf) ?: state.lastExecutedActions,
                             messages = response.assistantMessage?.takeIf(String::isNotBlank)?.let { assistantMessage ->
-                                it.messages + AgentMessage(role = "assistant", content = assistantMessage)
-                            } ?: it.messages
+                                state.messages + AgentMessage(role = "assistant", content = assistantMessage)
+                            } ?: state.messages
                         )
                     }
                 }
@@ -541,6 +561,7 @@ class AgentViewModel(
                 error = null
             )
         }
+        playResponsePulseSound()
 
         viewModelScope.launch {
             AgentApiService.sendTurn(
@@ -552,6 +573,7 @@ class AgentViewModel(
             ).onSuccess { response ->
                 applyTurnResponse(response)
             }.onFailure { error ->
+                stopResponsePulseSound()
                 _uiState.update {
                     it.copy(
                         isSending = false,
@@ -685,6 +707,82 @@ class AgentViewModel(
         }
     }
 
+    fun dismissInlineResultItem(userId: String) {
+        if (userId.isBlank()) return
+
+        _uiState.update { state ->
+            val panel = state.activeInlineResults ?: return@update state
+            val dismissedIds = state.dismissedInlineResultIds + userId
+            val remainingPeople = panel.visiblePeople(dismissedIds)
+
+            if (remainingPeople.isEmpty()) {
+                state.copy(
+                    activeInlineResults = null,
+                    dismissedInlineResultIds = emptySet(),
+                    inlineResultActionInProgress = emptySet()
+                )
+            } else {
+                state.copy(dismissedInlineResultIds = dismissedIds)
+            }
+        }
+    }
+
+    fun dismissInlineResults() {
+        _uiState.update {
+            it.copy(
+                activeInlineResults = null,
+                dismissedInlineResultIds = emptySet(),
+                inlineResultActionInProgress = emptySet()
+            )
+        }
+    }
+
+    fun sendInlineConnectionRequest(userId: String) {
+        if (userId.isBlank()) return
+
+        val currentPanel = _uiState.value.activeInlineResults ?: return
+        val person = currentPanel.people.firstOrNull { it.id == userId } ?: return
+        if (
+            _uiState.value.inlineResultActionInProgress.contains(userId) ||
+            person.connectionStatus == "connected" ||
+            person.connectionStatus == "pending_sent"
+        ) {
+            return
+        }
+
+        _uiState.update {
+            it.copy(inlineResultActionInProgress = it.inlineResultActionInProgress + userId)
+        }
+
+        viewModelScope.launch {
+            ApiClient.sendConnectionRequest(applicationContext, userId)
+                .onSuccess {
+                    _uiState.update { state ->
+                        state.copy(
+                            activeInlineResults = state.activeInlineResults?.copy(
+                                people = state.activeInlineResults.people.map { candidate ->
+                                    if (candidate.id == userId) {
+                                        candidate.copy(connectionStatus = "pending_sent")
+                                    } else {
+                                        candidate
+                                    }
+                                }
+                            ),
+                            inlineResultActionInProgress = state.inlineResultActionInProgress - userId
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            inlineResultActionInProgress = it.inlineResultActionInProgress - userId,
+                            error = error.message ?: "Could not send the connection request."
+                        )
+                    }
+                }
+        }
+    }
+
     fun consumeUiIntents() {
         _uiState.update { it.copy(pendingUiIntents = emptyList()) }
     }
@@ -693,19 +791,83 @@ class AgentViewModel(
         _uiState.update { it.copy(error = null) }
     }
 
+    private fun resolveUiArtifacts(uiIntents: List<AgentUiIntent>): Pair<List<AgentUiIntent>, AgentInlineResultsPanel?> {
+        if (uiIntents.isEmpty()) {
+            return emptyList<AgentUiIntent>() to null
+        }
+
+        val navigationIntents = mutableListOf<AgentUiIntent>()
+        var inlineResults: AgentInlineResultsPanel? = null
+
+        uiIntents.forEach { intent ->
+            if (intent.type == "show_inline_results") {
+                val payload = intent.payload ?: return@forEach
+                val decodedPayload = runCatching {
+                    inlineResultsJson.decodeFromJsonElement<AgentInlineResultsPayload>(payload)
+                }.getOrNull() ?: return@forEach
+
+                if (
+                    decodedPayload.resultType.equals("people", ignoreCase = true) &&
+                    decodedPayload.people.isNotEmpty()
+                ) {
+                    inlineResults = AgentInlineResultsPanel(
+                        resultType = decodedPayload.resultType.ifBlank { "people" },
+                        title = decodedPayload.title,
+                        subtitle = decodedPayload.subtitle,
+                        source = decodedPayload.source,
+                        people = decodedPayload.people,
+                        shownCount = decodedPayload.shownCount.takeIf { it > 0 }
+                            ?: decodedPayload.people.size,
+                        totalCount = decodedPayload.totalCount.takeIf { it > 0 }
+                            ?: decodedPayload.people.size,
+                        fallbackNavigationTarget = decodedPayload.fallbackNavigationTarget
+                    )
+                }
+            } else {
+                navigationIntents += intent
+            }
+        }
+
+        return navigationIntents to inlineResults
+    }
+
+    private fun applyResolvedUiState(
+        current: AgentUiState,
+        uiIntents: List<AgentUiIntent>
+    ): Triple<List<AgentUiIntent>, AgentInlineResultsPanel?, Boolean> {
+        val (navigationIntents, inlineResults) = resolveUiArtifacts(uiIntents)
+        val shouldClearInlineResults = inlineResults == null && navigationIntents.isNotEmpty()
+        val activeInlineResults = when {
+            inlineResults != null -> inlineResults
+            shouldClearInlineResults -> null
+            else -> current.activeInlineResults
+        }
+
+        return Triple(navigationIntents, activeInlineResults, inlineResults != null || shouldClearInlineResults)
+    }
+
     private fun applyTurnResponse(response: AgentTurnResponse) {
+        stopResponsePulseSound()
         AgentSocketManager.updateSession(response.sessionState.sessionId)
-        _uiState.update {
-            it.copy(
+        _uiState.update { state ->
+            val (navigationIntents, inlineResults, resetInlineUiState) = applyResolvedUiState(
+                current = state,
+                uiIntents = response.uiIntents
+            )
+
+            state.copy(
                 isSending = false,
                 sessionState = response.sessionState,
-                messages = it.messages + AgentMessage(
+                messages = state.messages + AgentMessage(
                     role = "assistant",
                     content = response.assistantMessage.ifBlank {
                         "I’m here. Tell me what to do next in Vormex."
                     }
                 ),
-                pendingUiIntents = response.uiIntents,
+                pendingUiIntents = navigationIntents,
+                activeInlineResults = inlineResults,
+                dismissedInlineResultIds = if (resetInlineUiState) emptySet() else state.dismissedInlineResultIds,
+                inlineResultActionInProgress = if (resetInlineUiState) emptySet() else state.inlineResultActionInProgress,
                 lastExecutedActions = response.executedActions,
                 lastSuggestedActions = response.suggestedActions,
                 pendingApprovals = response.pendingActions,
@@ -718,6 +880,7 @@ class AgentViewModel(
         response: AgentVoiceTurnResponse,
         playAudio: Boolean = true
     ) {
+        stopResponsePulseSound()
         AgentSocketManager.updateSession(response.sessionState.sessionId)
         val newMessages = buildList {
             if (response.transcript.isNotBlank()) {
@@ -733,12 +896,20 @@ class AgentViewModel(
             )
         }
 
-        _uiState.update {
-            it.copy(
+        _uiState.update { state ->
+            val (navigationIntents, inlineResults, resetInlineUiState) = applyResolvedUiState(
+                current = state,
+                uiIntents = response.uiIntents
+            )
+
+            state.copy(
                 isSending = false,
                 sessionState = response.sessionState,
-                messages = it.messages + newMessages,
-                pendingUiIntents = response.uiIntents,
+                messages = state.messages + newMessages,
+                pendingUiIntents = navigationIntents,
+                activeInlineResults = inlineResults,
+                dismissedInlineResultIds = if (resetInlineUiState) emptySet() else state.dismissedInlineResultIds,
+                inlineResultActionInProgress = if (resetInlineUiState) emptySet() else state.inlineResultActionInProgress,
                 lastExecutedActions = response.executedActions,
                 lastSuggestedActions = response.suggestedActions,
                 pendingApprovals = response.pendingActions,
@@ -838,6 +1009,7 @@ class AgentViewModel(
             AgentSocketManager.voiceEvents.collectLatest { event ->
                 when (event) {
                     is AgentSocketManager.AgentVoiceSocketEvent.Ready -> {
+                        stopResponsePulseSound()
                         if (shouldStartRealtimeCapture) {
                             shouldStartRealtimeCapture = false
                             beginRealtimeCapture()
@@ -859,10 +1031,12 @@ class AgentViewModel(
                     is AgentSocketManager.AgentVoiceSocketEvent.State -> {
                         when (event.state) {
                             "connecting" -> _uiState.update {
+                                stopResponsePulseSound()
                                 it.copy(isVoiceSessionConnecting = true, error = null)
                             }
 
                             "ready" -> {
+                                stopResponsePulseSound()
                                 _uiState.update {
                                     it.copy(
                                         isVoiceSessionConnecting = false,
@@ -873,6 +1047,7 @@ class AgentViewModel(
                             }
 
                             "listening" -> {
+                                stopResponsePulseSound()
                                 realtimeVoiceManager.setAssistantPlaybackSuppressed(true)
                                 realtimeVoiceManager.stopAssistantPlayback()
                                 _uiState.update {
@@ -887,23 +1062,30 @@ class AgentViewModel(
                                 dispatchPendingRealtimePrompt()
                             }
 
-                            "processing" -> _uiState.update {
-                                realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = false)
-                                it.copy(
-                                    isVoiceListening = false,
-                                    isVoiceThinking = true
-                                )
+                            "processing" -> {
+                                playResponsePulseSound()
+                                _uiState.update {
+                                    realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = false)
+                                    it.copy(
+                                        isVoiceListening = false,
+                                        isVoiceThinking = true
+                                    )
+                                }
                             }
 
-                            "speaking" -> _uiState.update {
-                                realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = false)
-                                it.copy(
-                                    isVoiceThinking = false,
-                                    isPlayingAudio = true
-                                )
+                            "speaking" -> {
+                                stopResponsePulseSound()
+                                _uiState.update {
+                                    realtimeVoiceManager.setAssistantPlaybackSuppressed(false, flush = false)
+                                    it.copy(
+                                        isVoiceThinking = false,
+                                        isPlayingAudio = true
+                                    )
+                                }
                             }
 
                             "stopped" -> {
+                                stopResponsePulseSound()
                                 shouldStartRealtimeCapture = false
                                 realtimeVoiceManager.stopCapture()
                                 realtimeVoiceManager.stopAssistantPlayback()
@@ -938,6 +1120,7 @@ class AgentViewModel(
                     }
 
                     is AgentSocketManager.AgentVoiceSocketEvent.AudioDone -> {
+                        stopResponsePulseSound()
                         realtimeVoiceManager.stopAssistantPlayback(flush = false)
                         if (shouldStartRealtimeCaptureAfterPrompt) {
                             shouldStartRealtimeCaptureAfterPrompt = false
@@ -957,6 +1140,7 @@ class AgentViewModel(
                     }
 
                     is AgentSocketManager.AgentVoiceSocketEvent.Error -> {
+                        stopResponsePulseSound()
                         shouldStartRealtimeCapture = false
                         pendingRealtimePrompt = null
                         realtimeVoiceManager.stopCapture()
@@ -1047,6 +1231,7 @@ class AgentViewModel(
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 runCatching {
+                    stopResponsePulseSound()
                     mediaPlayer?.release()
                     mediaPlayer = null
 
@@ -1090,6 +1275,52 @@ class AgentViewModel(
         }
     }
 
+    private fun playResponsePulseSound() {
+        if (responsePulsePlayer?.isPlaying == true) {
+            return
+        }
+
+        runCatching {
+            responsePulsePlayer?.release()
+            responsePulsePlayer = MediaPlayer.create(
+                applicationContext,
+                R.raw.mixkit_mystwrious_bass_pulse_2298
+            )?.apply {
+                isLooping = false
+                setVolume(0.8f, 0.8f)
+                setOnCompletionListener { player ->
+                    player.release()
+                    if (responsePulsePlayer === player) {
+                        responsePulsePlayer = null
+                    }
+                }
+                setOnErrorListener { player, _, _ ->
+                    player.release()
+                    if (responsePulsePlayer === player) {
+                        responsePulsePlayer = null
+                    }
+                    true
+                }
+                start()
+            }
+        }.onFailure {
+            runCatching { responsePulsePlayer?.release() }
+            responsePulsePlayer = null
+        }
+    }
+
+    private fun stopResponsePulseSound() {
+        runCatching {
+            responsePulsePlayer?.apply {
+                if (isPlaying) {
+                    stop()
+                }
+                release()
+            }
+        }
+        responsePulsePlayer = null
+    }
+
     override fun onCleared() {
         super.onCleared()
         shouldStartRealtimeCapture = false
@@ -1097,8 +1328,10 @@ class AgentViewModel(
         realtimeVoiceManager.release()
         runCatching { mediaRecorder?.release() }
         runCatching { mediaPlayer?.release() }
+        runCatching { responsePulsePlayer?.release() }
         mediaRecorder = null
         mediaPlayer = null
+        responsePulsePlayer = null
         voiceRecordingFile?.delete()
         voiceRecordingFile = null
     }

@@ -686,6 +686,10 @@ class FeedViewModel(private val context: Context) : ViewModel() {
             isCurrentUserRequestInFlight = false
         }
     }
+
+    fun refreshCurrentUser() {
+        loadCurrentUser(forceRefresh = true)
+    }
     
     fun completeOnboarding() {
         _uiState.value = _uiState.value.copy(

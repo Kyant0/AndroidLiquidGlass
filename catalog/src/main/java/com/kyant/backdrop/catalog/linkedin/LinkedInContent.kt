@@ -27,8 +27,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -42,6 +44,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.aspectRatio
@@ -136,7 +139,10 @@ import com.kyant.backdrop.catalog.network.models.ProfileUpdateRequest
 import com.kyant.backdrop.catalog.network.models.CelebrationType
 import com.kyant.backdrop.catalog.network.models.PollOption
 import com.kyant.backdrop.catalog.network.models.Post
+import com.kyant.backdrop.catalog.network.models.PremiumSubscriptionResponse
 import com.kyant.backdrop.catalog.network.models.StoryGroup
+import com.kyant.backdrop.catalog.payments.PremiumCheckoutManager
+import com.kyant.backdrop.catalog.payments.findComponentActivity
 import com.kyant.backdrop.catalog.chat.ChatTabContent
 import com.kyant.backdrop.catalog.linkedin.posts.SharePostModal
 import com.kyant.backdrop.catalog.linkedin.posts.FormattedContent
@@ -473,6 +479,7 @@ fun LinkedInContent(
     var showProfileScreen by remember { mutableStateOf(false) }
     var showSavedPostsScreen by remember { mutableStateOf(false) }
     var showConnectionRequestsScreen by remember { mutableStateOf(false) }
+    var showProfileCustomizationsScreen by remember { mutableStateOf(false) }
     var showNotificationsInbox by remember { mutableStateOf(false) }
     var showNotificationSettingsScreen by remember { mutableStateOf(false) }
     var showPrivacySettingsScreen by remember { mutableStateOf(false) }
@@ -503,6 +510,7 @@ fun LinkedInContent(
             showProfileScreen ||
             showSavedPostsScreen ||
             showConnectionRequestsScreen ||
+            showProfileCustomizationsScreen ||
             showNotificationsInbox ||
             showNotificationSettingsScreen ||
             showPrivacySettingsScreen ||
@@ -545,6 +553,7 @@ fun LinkedInContent(
             showProfileScreen -> showProfileScreen = false
             showSavedPostsScreen -> showSavedPostsScreen = false
             showConnectionRequestsScreen -> showConnectionRequestsScreen = false
+            showProfileCustomizationsScreen -> showProfileCustomizationsScreen = false
             showNotificationsInbox -> showNotificationsInbox = false
             showNotificationSettingsScreen -> showNotificationSettingsScreen = false
             showPrivacySettingsScreen -> showPrivacySettingsScreen = false
@@ -680,6 +689,7 @@ fun LinkedInContent(
         key = "profile:me",
         factory = ProfileViewModel.Factory(context)
     )
+    val premiumRefreshSignal by PremiumCheckoutManager.refreshSignal.collectAsState()
     val rewardCardsViewModel: RewardCardsViewModel = viewModel(factory = RewardCardsViewModel.Factory(context))
     val rewardCardsState by rewardCardsViewModel.uiState.collectAsState()
     
@@ -696,12 +706,16 @@ fun LinkedInContent(
     val chatState by chatViewModel.uiState.collectAsState()
     val agentViewModel: AgentViewModel = viewModel(factory = AgentViewModel.Factory(context))
     val agentState by agentViewModel.uiState.collectAsState()
+    val canUseAgent = uiState.currentUser?.canUseAgent == true
     val isAgentVoiceLive =
         agentState.isVoiceSessionConnecting ||
             agentState.isRecordingVoice ||
             agentState.isVoiceListening ||
             agentState.isVoiceThinking ||
             agentState.isPlayingAudio
+    val visibleInlinePeople =
+        agentState.activeInlineResults?.visiblePeople(agentState.dismissedInlineResultIds).orEmpty()
+    val visibleInlinePeopleIds = visibleInlinePeople.map { it.id }
     val agentSheetAnimationDuration = if (reduceAnimations) 0 else 220
     val agentSheetAlpha by animateFloatAsState(
         targetValue = if (minimizeAgentSheetForVoice) 0f else 1f,
@@ -735,7 +749,9 @@ fun LinkedInContent(
         selectedGroupId,
         openChatWithUserId,
         chatState.selectedConversation?.id,
-        uiState.currentUser?.id
+        uiState.currentUser?.id,
+        visibleInlinePeopleIds,
+        agentState.activeInlineResults?.source
     ) {
         buildMap<String, String> {
             put("surface", agentSurface)
@@ -745,12 +761,39 @@ fun LinkedInContent(
             selectedGroupId?.let { put("selectedGroupId", it) }
             openChatWithUserId?.let { put("openChatWithUserId", it) }
             chatState.selectedConversation?.id?.let { put("conversationId", it) }
+            if (visibleInlinePeopleIds.isNotEmpty()) {
+                put("inlineResultUserIds", visibleInlinePeopleIds.joinToString(","))
+            }
+            agentState.activeInlineResults?.source
+                ?.takeIf { it.isNotBlank() }
+                ?.let { put("inlineResultSource", it) }
         }
     }
+    val shouldHideInlineResultsOverlay =
+        viewingProfileUserId != null ||
+            selectedTab == 4 ||
+            showMessagesScreen ||
+            isInChatThread ||
+            showGroupsScreen ||
+            selectedGroupId != null ||
+            showGroupChat ||
+            showNotificationsInbox ||
+            showGrowthHubScreen
+    val shouldShowInlineResultsOverlay =
+        uiState.isLoggedIn &&
+            !showAgentSheet &&
+            !shouldHideInlineResultsOverlay &&
+            visibleInlinePeople.isNotEmpty()
 
     LaunchedEffect(selectedTab, uiState.isLoggedIn) {
         if (uiState.isLoggedIn && selectedTab == 3) {
             findPeopleViewModel.loadPendingConnectionRequests()
+        }
+    }
+
+    LaunchedEffect(shouldHideInlineResultsOverlay, agentState.activeInlineResults) {
+        if (shouldHideInlineResultsOverlay && agentState.activeInlineResults != null) {
+            agentViewModel.dismissInlineResults()
         }
     }
 
@@ -764,6 +807,13 @@ fun LinkedInContent(
     LaunchedEffect(showConnectionRequestsScreen, uiState.isLoggedIn) {
         if (uiState.isLoggedIn && showConnectionRequestsScreen) {
             findPeopleViewModel.loadPendingConnectionRequests(forceRefresh = true)
+        }
+    }
+
+    LaunchedEffect(premiumRefreshSignal, uiState.isLoggedIn) {
+        if (uiState.isLoggedIn && premiumRefreshSignal != 0L) {
+            viewModel.refreshCurrentUser()
+            ownProfileViewModel.loadProfile(userId = null, forceRefresh = true)
         }
     }
 
@@ -787,19 +837,28 @@ fun LinkedInContent(
         rewardCardsViewModel.maybeLoadOnAppOpen(true)
     }
 
-    LaunchedEffect(showAgentSheet, agentSurface, uiState.isLoggedIn) {
-        if (showAgentSheet && uiState.isLoggedIn) {
+    LaunchedEffect(showAgentSheet, agentSurface, uiState.isLoggedIn, canUseAgent) {
+        if (showAgentSheet && uiState.isLoggedIn && canUseAgent) {
             agentViewModel.ensureSession(surface = agentSurface)
         }
     }
 
-    LaunchedEffect(uiState.isLoggedIn, agentSurface, agentSurfaceContext) {
-        if (uiState.isLoggedIn) {
+    LaunchedEffect(uiState.isLoggedIn, agentSurface, agentSurfaceContext, canUseAgent) {
+        if (uiState.isLoggedIn && canUseAgent) {
             agentViewModel.ensureSession(surface = agentSurface)
             agentViewModel.syncSurface(
                 surface = agentSurface,
                 surfaceContext = agentSurfaceContext
             )
+        }
+    }
+
+    LaunchedEffect(canUseAgent) {
+        if (!canUseAgent) {
+            autoMinimizedAgentSheetForActiveVoice = false
+            minimizeAgentSheetForVoice = false
+            showAgentSheet = false
+            agentViewModel.dismissInlineResults()
         }
     }
 
@@ -1305,6 +1364,17 @@ fun LinkedInContent(
                             onOpenFullMoreScreen = { showFullMoreScreen = true },
                             onNavigateToProfile = { selectedTab = 4 },
                             onNavigateToConnectionRequests = { showConnectionRequestsScreen = true },
+                            onNavigateToProfileCustomizations = {
+                                if (uiState.currentUser?.canAccessProfileCustomization == true) {
+                                    showProfileCustomizationsScreen = true
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Profile customizations are available for premium users.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
                             onNavigateToGroups = { showGroupsScreen = true },
                             onNavigateToCircles = { showCirclesScreen = true },
                             onNavigateToReels = { 
@@ -1316,6 +1386,19 @@ fun LinkedInContent(
                             onNavigateToOnboarding = { showOnboardingScreen = true },
                             onNavigateToSavedPosts = { showSavedPostsScreen = true },
                             onNavigateToGrowthHub = { showGrowthHubScreen = true },
+                            onOpenAgent = {
+                                if (uiState.currentUser?.canUseAgent == true) {
+                                    showFullMoreScreen = false
+                                    minimizeAgentSheetForVoice = false
+                                    showAgentSheet = true
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "AI Agent access is not enabled for this account yet.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
                             onNavigateToNotificationSettings = { showNotificationSettingsScreen = true },
                             onNavigateToPrivacySettings = { showPrivacySettingsScreen = true },
                             onNavigateToAppearanceSettings = { showAppearanceSettingsScreen = true },
@@ -1497,47 +1580,107 @@ fun LinkedInContent(
                     BasicText("More", style = TextStyle(contentColor, 10.sp))
                 }
                 LiquidBottomTab(onClick = { selectedTab = 4 }) {
-                    // Profile tab with streak indicator
-                    Box {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            FooterProfileIcon(
-                                color = contentColor,
-                                size = 22.dp
-                            )
-                            BasicText("Profile", style = TextStyle(contentColor, 10.sp))
-                        }
-                        
-                        // Show streak badge on profile if user has an active streak
-                        if (uiState.connectionStreak > 2) {
-                            Box(
-                                Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 8.dp, y = (-4).dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xFFFF9800))
-                                    .padding(horizontal = 4.dp, vertical = 1.dp)
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    StreakFireLottie(modifier = Modifier.size(12.dp))
-                                    BasicText(
-                                        "${uiState.connectionStreak}",
-                                        style = TextStyle(Color.White, 9.sp, FontWeight.Bold)
-                                    )
-                                }
-                            }
-                        }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        FooterProfileIcon(
+                            color = contentColor,
+                            size = 22.dp
+                        )
+                        BasicText("Profile", style = TextStyle(contentColor, 10.sp))
                     }
                 }
             } // End LiquidBottomTabs
             } // End AnimatedVisibility
 
+            val openInlineProfile: (String) -> Unit = { userId ->
+                minimizeAgentSheetForVoice = false
+                showAgentSheet = false
+                showGrowthHubScreen = false
+                showNotificationsInbox = false
+                showMessagesScreen = false
+                isInChatThread = false
+                openChatWithUserId = null
+                deepLinkConversationId = null
+                showGroupsScreen = false
+                selectedGroupId = null
+                showGroupChat = false
+                selectedTab = 4
+                viewingProfileUserId = userId
+            }
+            val openInlineChat: (String) -> Unit = { userId ->
+                minimizeAgentSheetForVoice = false
+                showAgentSheet = false
+                showGrowthHubScreen = false
+                showNotificationsInbox = false
+                showGroupsScreen = false
+                selectedGroupId = null
+                showGroupChat = false
+                viewingProfileUserId = null
+                showMessagesScreen = true
+                isInChatThread = false
+                deepLinkConversationId = null
+                openChatWithUserId = userId
+            }
+            val openInlineFind: () -> Unit = {
+                agentViewModel.dismissInlineResults()
+                minimizeAgentSheetForVoice = false
+                showAgentSheet = false
+                showGrowthHubScreen = false
+                showNotificationsInbox = false
+                showMessagesScreen = false
+                isInChatThread = false
+                openChatWithUserId = null
+                deepLinkConversationId = null
+                showGroupsScreen = false
+                selectedGroupId = null
+                showGroupChat = false
+                viewingProfileUserId = null
+                selectedTab = 1
+            }
+
+            if (shouldShowInlineResultsOverlay && canUseAgent) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(
+                            bottom = when {
+                                isAgentVoiceLive -> 154.dp
+                                isInChatThread -> 110.dp
+                                else -> 154.dp
+                            }
+                        )
+                ) {
+                    agentState.activeInlineResults?.let { inlinePanel ->
+                        AgentInlineResultsSurface(
+                            panel = inlinePanel,
+                            dismissedIds = agentState.dismissedInlineResultIds,
+                            actionInProgress = agentState.inlineResultActionInProgress,
+                            contentColor = contentColor,
+                            accentColor = accentColor,
+                            isDarkTheme = isDarkTheme,
+                            modifier = Modifier.fillMaxWidth(),
+                            onViewProfile = {
+                                agentViewModel.dismissInlineResults()
+                                openInlineProfile(it)
+                            },
+                            onMessage = {
+                                agentViewModel.dismissInlineResults()
+                                openInlineChat(it)
+                            },
+                            onConnect = agentViewModel::sendInlineConnectionRequest,
+                            onCloseItem = agentViewModel::dismissInlineResultItem,
+                            onClosePanel = agentViewModel::dismissInlineResults,
+                            onSeeMore = openInlineFind
+                        )
+                    }
+                }
+            }
+
             AnimatedVisibility(
-                visible = uiState.isLoggedIn,
+                visible = uiState.isLoggedIn && canUseAgent,
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.BottomEnd)
@@ -1585,7 +1728,7 @@ fun LinkedInContent(
                 }
             }
 
-            if (showAgentSheet) {
+            if (showAgentSheet && canUseAgent) {
                 ModalBottomSheet(
                     onDismissRequest = {
                         minimizeAgentSheetForVoice = false
@@ -1610,6 +1753,11 @@ fun LinkedInContent(
                             contentColor = contentColor,
                             accentColor = accentColor,
                             backdrop = backdrop,
+                            reduceAnimations = reduceAnimations,
+                            isDarkTheme = isDarkTheme,
+                            onOpenInlineProfile = openInlineProfile,
+                            onOpenInlineChat = openInlineChat,
+                            onSeeMoreInlineResults = openInlineFind,
                             onDismiss = {
                                 minimizeAgentSheetForVoice = false
                                 showAgentSheet = false
@@ -2234,6 +2382,31 @@ fun LinkedInContent(
                         onReject = { userId, connectionId ->
                             findPeopleViewModel.rejectConnection(userId, connectionId)
                         }
+                    )
+                }
+            }
+
+            // Profile Customizations Screen Overlay
+            AnimatedVisibility(
+                visible = showProfileCustomizationsScreen,
+                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+            ) {
+                SectionOverlayContainer(
+                    backdrop = backdrop,
+                    themeMode = themeMode,
+                    glassBackgroundKey = glassBackgroundKey,
+                    accentColor = accentColor,
+                    glassMotionStyleKey = glassMotionStyleKey,
+                    reduceAnimations = reduceAnimations
+                ) {
+                    ProfileCustomizationsScreen(
+                        backdrop = backdrop,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        isGlassTheme = isGlassTheme,
+                        currentUser = uiState.currentUser,
+                        onNavigateBack = { showProfileCustomizationsScreen = false }
                     )
                 }
             }
@@ -3920,6 +4093,7 @@ private fun MoreScreen(
     onOpenFullMoreScreen: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToConnectionRequests: () -> Unit = {},
+    onNavigateToProfileCustomizations: () -> Unit = {},
     onNavigateToGroups: () -> Unit = {},
     onNavigateToCircles: () -> Unit = {},
     onNavigateToReels: () -> Unit = {},
@@ -3929,6 +4103,7 @@ private fun MoreScreen(
     onNavigateToOnboarding: () -> Unit = {},
     onNavigateToSavedPosts: () -> Unit = {},
     onNavigateToGrowthHub: () -> Unit = {},
+    onOpenAgent: () -> Unit = {},
     onNavigateToNotificationSettings: () -> Unit = {},
     onNavigateToPrivacySettings: () -> Unit = {},
     onNavigateToAppearanceSettings: () -> Unit = {},
@@ -3939,51 +4114,74 @@ private fun MoreScreen(
     onLogout: () -> Unit = {}
 ) {
     val pendingRequestsCount = connectionRequests.size
+    val canUseAgent = currentUser?.canUseAgent == true
     val pendingRequestsBadge = when {
         pendingRequestsCount <= 0 -> null
         pendingRequestsCount > 99 -> "99+"
         else -> pendingRequestsCount.toString()
     }
-    val quickActions = listOf(
-        MoreQuickAction(
-            title = "Connection requests",
-            label = "Requests",
-            icon = Icons.Outlined.PersonAddAlt1,
-            badgeLabel = pendingRequestsBadge,
-            showIndicatorDot = pendingRequestsCount > 0,
-            onClick = onNavigateToConnectionRequests
-        ),
-        MoreQuickAction(
-            title = "Saved",
-            label = "Saved",
-            icon = Icons.Outlined.BookmarkBorder,
-            onClick = onNavigateToSavedPosts
-        ),
-        MoreQuickAction(
-            title = "Reels",
-            label = "Reels",
-            icon = Icons.Outlined.SmartDisplay,
-            onClick = onNavigateToReels
-        ),
-        MoreQuickAction(
-            title = "Groups",
-            label = "Groups",
-            icon = Icons.Outlined.Groups,
-            onClick = onNavigateToGroups
-        ),
-        MoreQuickAction(
-            title = "Growth hub",
-            label = "Growth",
-            icon = Icons.Outlined.School,
-            onClick = onNavigateToGrowthHub
-        ),
-        MoreQuickAction(
-            title = "Notifications",
-            label = "Alerts",
-            icon = Icons.Outlined.NotificationsNone,
-            onClick = onNavigateToNotificationSettings
+    val quickActions = buildList {
+        add(
+            MoreQuickAction(
+                title = "Connection requests",
+                label = "Requests",
+                icon = Icons.Outlined.PersonAddAlt1,
+                badgeLabel = pendingRequestsBadge,
+                showIndicatorDot = pendingRequestsCount > 0,
+                onClick = onNavigateToConnectionRequests
+            )
         )
-    )
+        add(
+            MoreQuickAction(
+                title = "Saved",
+                label = "Saved",
+                icon = Icons.Outlined.BookmarkBorder,
+                onClick = onNavigateToSavedPosts
+            )
+        )
+        add(
+            MoreQuickAction(
+                title = "Reels",
+                label = "Reels",
+                icon = Icons.Outlined.SmartDisplay,
+                onClick = onNavigateToReels
+            )
+        )
+        add(
+            MoreQuickAction(
+                title = "Groups",
+                label = "Groups",
+                icon = Icons.Outlined.Groups,
+                onClick = onNavigateToGroups
+            )
+        )
+        add(
+            MoreQuickAction(
+                title = "Growth hub",
+                label = "Growth",
+                icon = Icons.Outlined.School,
+                onClick = onNavigateToGrowthHub
+            )
+        )
+        if (canUseAgent) {
+            add(
+                MoreQuickAction(
+                    title = "Agent",
+                    label = "AI Agent",
+                    icon = Icons.Outlined.AutoAwesome,
+                    onClick = onOpenAgent
+                )
+            )
+        }
+        add(
+            MoreQuickAction(
+                title = "Notifications",
+                label = "Alerts",
+                icon = Icons.Outlined.NotificationsNone,
+                onClick = onNavigateToNotificationSettings
+            )
+        )
+    }
 
     if (showFullMoreScreen) {
         MoreFullScreen(
@@ -3999,6 +4197,7 @@ private fun MoreScreen(
             hiddenQuickActionTitles = quickActions.mapTo(linkedSetOf()) { it.title },
             onNavigateToProfile = onNavigateToProfile,
             onNavigateToConnectionRequests = onNavigateToConnectionRequests,
+            onNavigateToProfileCustomizations = onNavigateToProfileCustomizations,
             onNavigateToGroups = onNavigateToGroups,
             onNavigateToCircles = onNavigateToCircles,
             onNavigateToReels = onNavigateToReels,
@@ -4008,6 +4207,7 @@ private fun MoreScreen(
             onNavigateToOnboarding = onNavigateToOnboarding,
             onNavigateToSavedPosts = onNavigateToSavedPosts,
             onNavigateToGrowthHub = onNavigateToGrowthHub,
+            onOpenAgent = onOpenAgent,
             onNavigateToNotificationSettings = onNavigateToNotificationSettings,
             onNavigateToPrivacySettings = onNavigateToPrivacySettings,
             onNavigateToAppearanceSettings = onNavigateToAppearanceSettings,
@@ -4044,6 +4244,7 @@ private fun MoreFullScreen(
     hiddenQuickActionTitles: Set<String> = emptySet(),
     onNavigateToProfile: () -> Unit = {},
     onNavigateToConnectionRequests: () -> Unit = {},
+    onNavigateToProfileCustomizations: () -> Unit = {},
     onNavigateToGroups: () -> Unit = {},
     onNavigateToCircles: () -> Unit = {},
     onNavigateToReels: () -> Unit = {},
@@ -4053,6 +4254,7 @@ private fun MoreFullScreen(
     onNavigateToOnboarding: () -> Unit = {},
     onNavigateToSavedPosts: () -> Unit = {},
     onNavigateToGrowthHub: () -> Unit = {},
+    onOpenAgent: () -> Unit = {},
     onNavigateToNotificationSettings: () -> Unit = {},
     onNavigateToPrivacySettings: () -> Unit = {},
     onNavigateToAppearanceSettings: () -> Unit = {},
@@ -4090,6 +4292,8 @@ private fun MoreFullScreen(
     val destructiveColor = if (isDarkSurface) Color(0xFFFF7A7A) else Color(0xFFD33A3A)
     var searchQuery by rememberSaveable { mutableStateOf("") }
     val pendingRequestsCount = connectionRequests.size
+    val canUseAgent = currentUser?.canUseAgent == true
+    val canAccessProfileCustomization = currentUser?.canAccessProfileCustomization == true
     val connectionRequestsSubtitle = when {
         isLoadingConnectionRequests && pendingRequestsCount == 0 -> "Checking for incoming requests"
         pendingRequestsCount == 0 && connectionRequestsError != null -> "Open to retry loading requests"
@@ -4131,6 +4335,37 @@ private fun MoreFullScreen(
         MoreSettingsSection(
             title = "Your account",
             items = accountItems
+        ),
+        MoreSettingsSection(
+            title = "Profile customizations",
+            items = if (canAccessProfileCustomization) {
+                listOf(
+                    MoreSettingsItem(
+                        title = "Customize your profile",
+                        subtitle = "Frames, avatar preview, Big Bad Wolfie and Morty Dance loaders",
+                        icon = Icons.Outlined.Palette,
+                        onClick = onNavigateToProfileCustomizations,
+                        searchTerms = listOf(
+                            "profile customization",
+                            "custom",
+                            "customizations",
+                            "loader",
+                            "loaders",
+                            "visitor loader",
+                            "visitor",
+                            "frame",
+                            "avatar",
+                            "gift",
+                            "wolf",
+                            "wolfie",
+                            "morty",
+                            "dance"
+                        )
+                    )
+                )
+            } else {
+                emptyList()
+            }
         ),
         MoreSettingsSection(
             title = "Connections",
@@ -4178,32 +4413,50 @@ private fun MoreFullScreen(
         ),
         MoreSettingsSection(
             title = "For professionals",
-            items = listOf(
-                MoreSettingsItem(
-                    title = "Growth hub",
-                    subtitle = "Jobs, learning, AI coach, rewards",
-                    icon = Icons.Outlined.School,
-                    onClick = onNavigateToGrowthHub
-                ),
-                MoreSettingsItem(
-                    title = "Groups",
-                    subtitle = "Connect with communities",
-                    icon = Icons.Outlined.Groups,
-                    onClick = onNavigateToGroups
-                ),
-                MoreSettingsItem(
-                    title = "Circles",
-                    subtitle = "Share with close friends",
-                    icon = Icons.Default.FavoriteBorder,
-                    onClick = onNavigateToCircles
-                ),
-                MoreSettingsItem(
-                    title = "Reels",
-                    subtitle = "Watch short videos",
-                    icon = Icons.Outlined.SmartDisplay,
-                    onClick = onNavigateToReels
+            items = buildList {
+                if (canUseAgent) {
+                    add(
+                        MoreSettingsItem(
+                            title = "AI Agent",
+                            subtitle = "Ask Vormex to help across the app",
+                            icon = Icons.Outlined.AutoAwesome,
+                            onClick = onOpenAgent
+                        )
+                    )
+                }
+                add(
+                    MoreSettingsItem(
+                        title = "Growth hub",
+                        subtitle = "Jobs, learning, AI coach, rewards",
+                        icon = Icons.Outlined.School,
+                        onClick = onNavigateToGrowthHub
+                    )
                 )
-            )
+                add(
+                    MoreSettingsItem(
+                        title = "Groups",
+                        subtitle = "Connect with communities",
+                        icon = Icons.Outlined.Groups,
+                        onClick = onNavigateToGroups
+                    )
+                )
+                add(
+                    MoreSettingsItem(
+                        title = "Circles",
+                        subtitle = "Share with close friends",
+                        icon = Icons.Default.FavoriteBorder,
+                        onClick = onNavigateToCircles
+                    )
+                )
+                add(
+                    MoreSettingsItem(
+                        title = "Reels",
+                        subtitle = "Watch short videos",
+                        icon = Icons.Outlined.SmartDisplay,
+                        onClick = onNavigateToReels
+                    )
+                )
+            }
         ),
         MoreSettingsSection(
             title = "Who can see your content",
@@ -4275,13 +4528,23 @@ private fun MoreFullScreen(
     }
 
     val normalizedQuery = searchQuery.trim()
+    val showPremiumSection = normalizedQuery.isBlank() ||
+        normalizedQuery.contains("premium", ignoreCase = true) ||
+        normalizedQuery.contains("pro", ignoreCase = true) ||
+        normalizedQuery.contains("upgrade", ignoreCase = true) ||
+        normalizedQuery.contains("subscription", ignoreCase = true) ||
+        normalizedQuery.contains("member", ignoreCase = true) ||
+        normalizedQuery.contains("gift", ignoreCase = true)
     val filteredSections = visibleSections.mapNotNull { section ->
         val filteredItems = if (normalizedQuery.isBlank()) {
             section.items
         } else {
             section.items.filter { item ->
                 item.title.contains(normalizedQuery, ignoreCase = true) ||
-                    item.subtitle.contains(normalizedQuery, ignoreCase = true)
+                    item.subtitle.contains(normalizedQuery, ignoreCase = true) ||
+                    item.searchTerms.any { term ->
+                        term.contains(normalizedQuery, ignoreCase = true)
+                    }
             }
         }
         if (filteredItems.isNotEmpty()) {
@@ -4329,15 +4592,8 @@ private fun MoreFullScreen(
                 cursorColor = accentColor
             )
 
-            val showProfileCustomizationsSection = normalizedQuery.isBlank() ||
-                normalizedQuery.contains("gift", ignoreCase = true) ||
-                normalizedQuery.contains("wolf", ignoreCase = true) ||
-                normalizedQuery.contains("loader", ignoreCase = true) ||
-                normalizedQuery.contains("frame", ignoreCase = true) ||
-                normalizedQuery.contains("avatar", ignoreCase = true) ||
-                normalizedQuery.contains("profile", ignoreCase = true)
-            if (showProfileCustomizationsSection) {
-                MoreProfileCustomizationsSection(
+            if (showPremiumSection) {
+                MorePremiumSection(
                     backdrop = backdrop,
                     isGlassTheme = isGlassTheme,
                     sectionSurfaceColor = sectionSurfaceColor,
@@ -4380,7 +4636,7 @@ private fun MoreFullScreen(
                 }
             }
 
-            if (filteredSections.isEmpty() && !showProfileCustomizationsSection) {
+            if (filteredSections.isEmpty() && !showPremiumSection) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -4439,6 +4695,465 @@ private data class MoreQuickAction(
 )
 
 @Composable
+private fun MorePremiumSection(
+    backdrop: LayerBackdrop,
+    isGlassTheme: Boolean,
+    sectionSurfaceColor: Color,
+    dividerColor: Color,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    sectionHeaderColor: Color
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val premiumRefreshSignal by PremiumCheckoutManager.refreshSignal.collectAsState()
+    var premiumState by remember { mutableStateOf<PremiumSubscriptionResponse?>(null) }
+    var isLoadingPremiumState by remember { mutableStateOf(true) }
+    var isLaunchingCheckout by remember { mutableStateOf(false) }
+
+    fun launchPremiumCheckout() {
+        val activity = context.findComponentActivity()
+        if (activity == null) {
+            Toast.makeText(
+                context,
+                "Premium checkout needs an activity context.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        if (!isLoadingPremiumState && premiumState?.checkoutEnabled == false) {
+            Toast.makeText(
+                context,
+                "Premium checkout is not configured on the server yet.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        scope.launch {
+            isLaunchingCheckout = true
+            val checkoutResult = ApiClient.createPremiumCheckout(context)
+            isLaunchingCheckout = false
+
+            checkoutResult
+                .onSuccess { checkoutSession ->
+                    PremiumCheckoutManager.startCheckout(activity, checkoutSession)
+                }
+                .onFailure { error ->
+                    Toast.makeText(
+                        context,
+                        error.message ?: "Unable to start premium checkout.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+        }
+    }
+
+    LaunchedEffect(premiumRefreshSignal) {
+        isLoadingPremiumState = true
+        ApiClient.getPremiumSubscription(context)
+            .onSuccess { premiumState = it }
+            .onFailure { premiumState = null }
+        isLoadingPremiumState = false
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        MoreSectionHeader("Premium", sectionHeaderColor)
+        MorePremiumPromoCard(
+            backdrop = backdrop,
+            isGlassTheme = isGlassTheme,
+            sectionSurfaceColor = sectionSurfaceColor,
+            dividerColor = dividerColor,
+            contentColor = contentColor,
+            secondaryTextColor = secondaryTextColor,
+            accentColor = accentColor,
+            premiumState = premiumState,
+            isLoadingPremiumState = isLoadingPremiumState,
+            isLaunchingCheckout = isLaunchingCheckout,
+            onStartCheckout = ::launchPremiumCheckout
+        )
+    }
+}
+
+@Composable
+private fun MorePremiumPromoCard(
+    backdrop: LayerBackdrop,
+    isGlassTheme: Boolean,
+    sectionSurfaceColor: Color,
+    dividerColor: Color,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    premiumState: PremiumSubscriptionResponse?,
+    isLoadingPremiumState: Boolean,
+    isLaunchingCheckout: Boolean,
+    onStartCheckout: () -> Unit
+) {
+    val context = LocalContext.current
+    val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.gift_box))
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations = LottieConstants.IterateForever,
+        isPlaying = !reduceAnimations
+    )
+    val featureLabels = premiumState?.features
+        ?.takeIf { it.isNotEmpty() }
+        ?: listOf("Profile extras", "Exclusive drops", "Customize your profile")
+    val checkoutEnabled = premiumState?.checkoutEnabled != false
+    val isPremiumActive = premiumState?.isPremium == true
+    val customPriceApplied = premiumState?.customPriceApplied == true
+    val ctaEnabled = !isLoadingPremiumState && !isLaunchingCheckout && checkoutEnabled && !isPremiumActive
+    val defaultCtaLabel = premiumState?.ctaLabel ?: "Get Premium"
+    val ctaLabel = when {
+        isLoadingPremiumState -> "Checking..."
+        isLaunchingCheckout -> "Starting..."
+        isPremiumActive -> defaultCtaLabel.ifBlank { "Premium active" }
+        !checkoutEnabled -> "Unavailable"
+        else -> defaultCtaLabel
+    }
+    val badgeLabel = when {
+        isPremiumActive -> "Premium active"
+        customPriceApplied -> "Custom offer"
+        else -> "Premium unlock"
+    }
+    val secondaryBadgeLabel = when {
+        premiumState?.canAccessProfileCustomization == true && !isPremiumActive -> "Profile extras ready"
+        premiumState?.canUseAgent == true -> "AI Agent included"
+        else -> null
+    }
+    val description = premiumState?.description?.takeIf { it.isNotBlank() }
+        ?: "Build a stronger profile presence with a dedicated premium space for standout upgrades and future drops."
+    val priceEyebrow = when {
+        isPremiumActive -> "Current access"
+        customPriceApplied -> "Offer for you"
+        else -> "Starting at"
+    }
+    val priceLabel = premiumState?.displayAmount?.takeIf { it.isNotBlank() } ?: "Premium access"
+    val pricingCaption = when {
+        isPremiumActive -> "Profile customizations stay unlocked on this account."
+        customPriceApplied -> "A lower premium price has been assigned to this account."
+        premiumState != null -> premiumBillingLabel(premiumState.billingCycle)
+        else -> "Unlock when you're ready"
+    }
+    val helperText = when {
+        isLaunchingCheckout -> "Preparing your Razorpay checkout..."
+        isPremiumActive -> "Premium is active on this account."
+        premiumState != null -> "${premiumState.displayAmount} · ${premiumBillingLabel(premiumState.billingCycle)}"
+        else -> "Launch the premium flow from here."
+    }
+    val helperSupportingText = when {
+        isPremiumActive -> "Customize your profile and keep premium-only upgrades close by."
+        premiumState?.canAccessProfileCustomization == true ->
+            "Profile customization has already been enabled for this account."
+        customPriceApplied -> "This card is showing the custom price set for this user."
+        else -> "Unlock profile styling, future drops, and premium-only upgrades from here."
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .then(
+                if (isGlassTheme) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(22.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(14f.dp.toPx())
+                            lens(8f.dp.toPx(), 16f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(sectionSurfaceColor)
+                        }
+                    )
+                } else {
+                    Modifier.background(sectionSurfaceColor)
+                }
+            )
+            .border(1.dp, dividerColor, RoundedCornerShape(22.dp))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = if (isGlassTheme) 0.22f else 0.14f),
+                            Color(0xFFFFC857).copy(alpha = if (isGlassTheme) 0.14f else 0.08f),
+                            Color.Transparent
+                        ),
+                        start = Offset.Zero,
+                        end = Offset(960f, 520f)
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 10.dp, end = 12.dp)
+                .size(132.dp)
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = 0.20f),
+                            Color.Transparent
+                        )
+                    ),
+                    shape = CircleShape
+                )
+        )
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(accentColor.copy(alpha = 0.16f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    BasicText(
+                        badgeLabel,
+                        style = TextStyle(
+                            color = accentColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                }
+                secondaryBadgeLabel?.let { label ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color.White.copy(alpha = if (isGlassTheme) 0.14f else 0.36f))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        BasicText(
+                            label,
+                            style = TextStyle(
+                                color = contentColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                    }
+                }
+            }
+
+            BasicText(
+                premiumState?.title ?: "Vormex Premium",
+                style = TextStyle(
+                    color = contentColor,
+                    fontSize = 22.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            )
+            BasicText(
+                description,
+                style = TextStyle(
+                    color = secondaryTextColor,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.White.copy(alpha = if (isGlassTheme) 0.14f else 0.48f))
+                        .border(
+                            1.dp,
+                            dividerColor.copy(alpha = 0.82f),
+                            RoundedCornerShape(20.dp)
+                        )
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    BasicText(
+                        priceEyebrow,
+                        style = TextStyle(
+                            color = secondaryTextColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                    BasicText(
+                        priceLabel,
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    BasicText(
+                        pricingCaption,
+                        style = TextStyle(
+                            color = secondaryTextColor,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(118.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    accentColor.copy(alpha = 0.18f),
+                                    Color.White.copy(alpha = if (isGlassTheme) 0.10f else 0.28f)
+                                )
+                            )
+                        )
+                        .border(1.dp, dividerColor.copy(alpha = 0.8f), RoundedCornerShape(24.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (composition != null) {
+                        LottieAnimation(
+                            composition = composition,
+                            progress = { progress },
+                            modifier = Modifier.size(92.dp),
+                            contentScale = ContentScale.Fit,
+                            clipToCompositionBounds = true
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(28.dp),
+                            color = accentColor,
+                            strokeWidth = 2.5.dp
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                featureLabels.forEach { label ->
+                    MorePremiumFeaturePill(
+                        label = label,
+                        accentColor = accentColor,
+                        contentColor = contentColor
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    BasicText(
+                        helperText,
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                    BasicText(
+                        helperSupportingText,
+                        style = TextStyle(
+                            color = secondaryTextColor,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(
+                            if (ctaEnabled) {
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        accentColor,
+                                        Color(0xFFEAA22D)
+                                    )
+                                )
+                            } else {
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        accentColor.copy(alpha = 0.42f),
+                                        accentColor.copy(alpha = 0.32f)
+                                    )
+                                )
+                            }
+                        )
+                        .clickable(enabled = ctaEnabled, onClick = onStartCheckout)
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BasicText(
+                        ctaLabel,
+                        style = TextStyle(
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun premiumBillingLabel(billingCycle: String?): String {
+    return when (billingCycle?.lowercase()) {
+        "monthly" -> "monthly access"
+        "yearly" -> "yearly access"
+        "weekly" -> "weekly access"
+        else -> "one-time unlock"
+    }
+}
+
+@Composable
+private fun MorePremiumFeaturePill(
+    label: String,
+    accentColor: Color,
+    contentColor: Color
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(accentColor.copy(alpha = 0.12f))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        BasicText(
+            label,
+            style = TextStyle(
+                color = contentColor,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        )
+    }
+}
+
+@Composable
 private fun MoreQuickAccessHub(
     backdrop: LayerBackdrop,
     contentColor: Color,
@@ -4448,6 +5163,7 @@ private fun MoreQuickAccessHub(
     animationKey: Int,
     onOpenFullMoreScreen: () -> Unit
 ) {
+    val pinnedAgentAction = quickActions.firstOrNull { it.label == "AI Agent" || it.title == "AI Agent" || it.title == "Agent" }
     val composition by rememberLottieComposition(
         LottieCompositionSpec.RawRes(R.raw.free_interactive_radial_menu)
     )
@@ -4520,8 +5236,82 @@ private fun MoreQuickAccessHub(
             .padding(horizontal = 12.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
+        pinnedAgentAction?.let { action ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .then(
+                        if (isGlassTheme) {
+                            Modifier.drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedRectangle(18.dp) },
+                                effects = {
+                                    vibrancy()
+                                    blur(12f.dp.toPx())
+                                    lens(6f.dp.toPx(), 10f.dp.toPx())
+                                },
+                                onDrawSurface = {
+                                    drawRect(actionSurfaceColor)
+                                }
+                            )
+                        } else {
+                            Modifier.background(actionSurfaceColor)
+                        }
+                    )
+                    .border(1.dp, actionBorderColor, RoundedCornerShape(18.dp))
+                    .clickable {
+                        launchHubAction(openFullMore = false) {
+                            action.onClick()
+                        }
+                    }
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(accentColor.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = action.icon,
+                            contentDescription = action.label,
+                            tint = accentColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        BasicText(
+                            "AI Agent",
+                            style = TextStyle(
+                                color = contentColor,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                        BasicText(
+                            "Open the agent instantly",
+                            style = TextStyle(
+                                color = contentColor.copy(alpha = 0.62f),
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
         Box(
-            modifier = Modifier.size(360.dp),
+            modifier = Modifier
+                .size(360.dp)
+                .padding(top = 28.dp),
             contentAlignment = Alignment.Center
         ) {
             if (composition != null) {
@@ -4770,6 +5560,7 @@ private data class MoreSettingsItem(
     val onClick: () -> Unit,
     val trailingLabel: String? = null,
     val showIndicatorDot: Boolean = false,
+    val searchTerms: List<String> = emptyList(),
     val isDestructive: Boolean = false
 )
 
@@ -4782,22 +5573,67 @@ private data class MoreSettingsSection(
 private fun MoreProfileCustomizationsSection(
     backdrop: LayerBackdrop,
     isGlassTheme: Boolean,
+    currentUser: com.kyant.backdrop.catalog.network.models.User? = null,
     sectionSurfaceColor: Color,
     dividerColor: Color,
     contentColor: Color,
     secondaryTextColor: Color,
     accentColor: Color,
-    sectionHeaderColor: Color
+    sectionHeaderColor: Color,
+    showSectionHeader: Boolean = true
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val equipped by SettingsPreferences.equippedProfileLoaderGiftId(context).collectAsState(initial = null)
     val profileFrameEnabled by SettingsPreferences.profileFrameEnabled(context).collectAsState(initial = false)
     val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
-    val isGiftEquipped = equipped == ProfileLoaderGifts.BIG_BAD_WOLFIE
+    val activeLoaderGiftId = equipped?.takeIf { ProfileLoaderGifts.rawResForGiftId(it) != null }
+    val isWolfieEquipped = equipped == ProfileLoaderGifts.BIG_BAD_WOLFIE
+    val isMortyEquipped = equipped == ProfileLoaderGifts.MORTY_DANCE
+
+    fun syncLoaderGift(nextGiftId: String?) {
+        scope.launch {
+            val previousGiftId = equipped
+            SettingsPreferences.setEquippedProfileLoaderGiftId(context, nextGiftId)
+            ApiClient.getCurrentUserId(context)?.let { userId ->
+                ProfileLoaderGiftMemory.put(userId, nextGiftId)
+            }
+            ApiClient.updateProfile(
+                context,
+                ProfileUpdateRequest(visitLoaderGiftId = nextGiftId),
+                explicitNullFields = if (nextGiftId == null) setOf("visitLoaderGiftId") else emptySet()
+            ).onFailure { e ->
+                SettingsPreferences.setEquippedProfileLoaderGiftId(context, previousGiftId)
+                ApiClient.getCurrentUserId(context)?.let { userId ->
+                    ProfileLoaderGiftMemory.put(userId, previousGiftId)
+                }
+                Toast.makeText(
+                    context,
+                    e.message ?: "Couldn't sync gift",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        MoreSectionHeader("Profile customizations", sectionHeaderColor)
+        if (showSectionHeader) {
+            MoreSectionHeader("Profile customizations", sectionHeaderColor)
+        }
+
+        MoreProfileCustomizationPreviewCard(
+            user = currentUser,
+            activeLoaderGiftId = activeLoaderGiftId,
+            profileFrameEnabled = profileFrameEnabled,
+            reduceAnimations = reduceAnimations,
+            backdrop = backdrop,
+            isGlassTheme = isGlassTheme,
+            sectionSurfaceColor = sectionSurfaceColor,
+            dividerColor = dividerColor,
+            contentColor = contentColor,
+            secondaryTextColor = secondaryTextColor,
+            accentColor = accentColor
+        )
 
         MoreProfileCustomizationCard(
             title = "Profile Frame",
@@ -4814,6 +5650,16 @@ private fun MoreProfileCustomizationsSection(
             contentColor = contentColor,
             secondaryTextColor = secondaryTextColor,
             accentColor = accentColor,
+            preview = {
+                MoreProfileAvatarPreview(
+                    user = currentUser,
+                    showFrame = true,
+                    reduceAnimations = reduceAnimations,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    modifier = Modifier.size(82.dp)
+                )
+            },
             onToggle = {
                 scope.launch {
                     val nextEnabled = !profileFrameEnabled
@@ -4839,7 +5685,7 @@ private fun MoreProfileCustomizationsSection(
         MoreProfileCustomizationCard(
             title = "Big Bad Wolfie",
             subtitle = "Visitors see this animation while your profile loads. Equip to use it.",
-            isEquipped = isGiftEquipped,
+            isEquipped = isWolfieEquipped,
             backdrop = backdrop,
             isGlassTheme = isGlassTheme,
             sectionSurfaceColor = sectionSurfaceColor,
@@ -4847,47 +5693,334 @@ private fun MoreProfileCustomizationsSection(
             contentColor = contentColor,
             secondaryTextColor = secondaryTextColor,
             accentColor = accentColor,
+            preview = {
+                MoreProfileLoaderAnimationPreview(
+                    giftId = ProfileLoaderGifts.BIG_BAD_WOLFIE,
+                    reduceAnimations = reduceAnimations,
+                    accentColor = accentColor,
+                    modifier = Modifier.size(74.dp)
+                )
+            },
             onToggle = {
-                scope.launch {
-                    if (isGiftEquipped) {
-                        SettingsPreferences.setEquippedProfileLoaderGiftId(context, null)
-                        ApiClient.getCurrentUserId(context)?.let {
-                            ProfileLoaderGiftMemory.put(it, null)
-                        }
-                        ApiClient.updateProfile(
-                            context,
-                            ProfileUpdateRequest(visitLoaderGiftId = null),
-                            explicitNullFields = setOf("visitLoaderGiftId")
-                        ).onFailure { e ->
-                            Toast.makeText(
-                                context,
-                                e.message ?: "Couldn't sync gift",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    } else {
-                        SettingsPreferences.setEquippedProfileLoaderGiftId(
-                            context,
-                            ProfileLoaderGifts.BIG_BAD_WOLFIE
-                        )
-                        ApiClient.getCurrentUserId(context)?.let {
-                            ProfileLoaderGiftMemory.put(it, ProfileLoaderGifts.BIG_BAD_WOLFIE)
-                        }
-                        ApiClient.updateProfile(
-                            context,
-                            ProfileUpdateRequest(visitLoaderGiftId = ProfileLoaderGifts.BIG_BAD_WOLFIE)
-                        ).onFailure { e ->
-                            Toast.makeText(
-                                context,
-                                e.message ?: "Couldn't sync gift",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                }
+                syncLoaderGift(
+                    if (isWolfieEquipped) null else ProfileLoaderGifts.BIG_BAD_WOLFIE
+                )
+            }
+        )
+
+        MoreProfileCustomizationCard(
+            title = "Morty Dance Loader",
+            subtitle = "Visitors see this dance animation while your profile opens. Equip to use it.",
+            isEquipped = isMortyEquipped,
+            backdrop = backdrop,
+            isGlassTheme = isGlassTheme,
+            sectionSurfaceColor = sectionSurfaceColor,
+            dividerColor = dividerColor,
+            contentColor = contentColor,
+            secondaryTextColor = secondaryTextColor,
+            accentColor = accentColor,
+            preview = {
+                MoreProfileLoaderAnimationPreview(
+                    giftId = ProfileLoaderGifts.MORTY_DANCE,
+                    reduceAnimations = reduceAnimations,
+                    accentColor = accentColor,
+                    modifier = Modifier.size(74.dp)
+                )
+            },
+            onToggle = {
+                syncLoaderGift(
+                    if (isMortyEquipped) null else ProfileLoaderGifts.MORTY_DANCE
+                )
             }
         )
     }
+}
+
+@Composable
+private fun MoreProfileCustomizationPreviewCard(
+    user: com.kyant.backdrop.catalog.network.models.User?,
+    activeLoaderGiftId: String?,
+    profileFrameEnabled: Boolean,
+    reduceAnimations: Boolean,
+    backdrop: LayerBackdrop,
+    isGlassTheme: Boolean,
+    sectionSurfaceColor: Color,
+    dividerColor: Color,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color
+) {
+    val activeLoaderLabel = ProfileLoaderGifts.resolvedVisitorLabel(activeLoaderGiftId)
+    val summaryText = when {
+        profileFrameEnabled && !activeLoaderGiftId.isNullOrBlank() && reduceAnimations ->
+            "Your frame is active, and $activeLoaderLabel is selected for visitors. Reduce Animations pauses the motion preview."
+        profileFrameEnabled && !activeLoaderGiftId.isNullOrBlank() ->
+            "Your frame is active, and visitors will see $activeLoaderLabel while your profile opens."
+        profileFrameEnabled ->
+            "Your profile frame is active. Visitors still see $activeLoaderLabel while your profile opens."
+        !activeLoaderGiftId.isNullOrBlank() && reduceAnimations ->
+            "$activeLoaderLabel is selected for profile visits. Reduce Animations pauses the live motion."
+        !activeLoaderGiftId.isNullOrBlank() ->
+            "$activeLoaderLabel is ready for profile visits."
+        else ->
+            "$activeLoaderLabel is your default visitor loader until you equip something else."
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .then(
+                if (isGlassTheme) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(20.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(14f.dp.toPx())
+                            lens(6f.dp.toPx(), 12f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(sectionSurfaceColor)
+                        }
+                    )
+                } else {
+                    Modifier.background(sectionSurfaceColor)
+                }
+            )
+            .border(1.dp, dividerColor, RoundedCornerShape(20.dp))
+            .padding(16.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    BasicText(
+                        "Live preview",
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                    BasicText(
+                        summaryText,
+                        style = TextStyle(
+                            color = secondaryTextColor,
+                            fontSize = 12.sp
+                        )
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(accentColor.copy(alpha = 0.16f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    BasicText(
+                        "3 options",
+                        style = TextStyle(
+                            color = accentColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                MoreCustomizationPreviewTile(
+                    title = "Profile look",
+                    subtitle = if (profileFrameEnabled) "Frame on" else "Frame off",
+                    contentColor = contentColor,
+                    secondaryTextColor = secondaryTextColor,
+                    borderColor = dividerColor
+                ) {
+                    MoreProfileAvatarPreview(
+                        user = user,
+                        showFrame = profileFrameEnabled,
+                        reduceAnimations = reduceAnimations,
+                        contentColor = contentColor,
+                        accentColor = accentColor,
+                        modifier = Modifier.size(96.dp)
+                    )
+                }
+
+                MoreCustomizationPreviewTile(
+                    title = "Visitor loader",
+                    subtitle = if (reduceAnimations && !activeLoaderGiftId.isNullOrBlank()) {
+                        "$activeLoaderLabel selected"
+                    } else {
+                        activeLoaderLabel
+                    },
+                    contentColor = contentColor,
+                    secondaryTextColor = secondaryTextColor,
+                    borderColor = dividerColor
+                ) {
+                    MoreProfileLoaderAnimationPreview(
+                        giftId = activeLoaderGiftId,
+                        reduceAnimations = reduceAnimations,
+                        accentColor = accentColor,
+                        modifier = Modifier.size(82.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.MoreCustomizationPreviewTile(
+    title: String,
+    subtitle: String,
+    contentColor: Color,
+    secondaryTextColor: Color,
+    borderColor: Color,
+    content: @Composable BoxScope.() -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(18.dp))
+            .background(contentColor.copy(alpha = 0.04f))
+            .border(1.dp, borderColor.copy(alpha = 0.78f), RoundedCornerShape(18.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(108.dp),
+            contentAlignment = Alignment.Center,
+            content = content
+        )
+        BasicText(
+            title,
+            style = TextStyle(
+                color = contentColor,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        )
+        BasicText(
+            subtitle,
+            style = TextStyle(
+                color = secondaryTextColor,
+                fontSize = 11.sp
+            ),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun MoreProfileAvatarPreview(
+    user: com.kyant.backdrop.catalog.network.models.User?,
+    showFrame: Boolean,
+    reduceAnimations: Boolean,
+    contentColor: Color,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val displayName = user?.name?.takeIf { it.isNotBlank() } ?: user?.username ?: "You"
+    val profileImage = user?.profileImage
+    val initials = displayName
+        .split(" ")
+        .mapNotNull { token -> token.firstOrNull()?.uppercase() }
+        .take(2)
+        .joinToString("")
+        .ifBlank { "Y" }
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(accentColor.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!profileImage.isNullOrBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(profileImage)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Profile preview",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                BasicText(
+                    initials,
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+        }
+
+        if (showFrame) {
+            ProfileFrameLottie(
+                modifier = Modifier.fillMaxSize(),
+                isPlaying = !reduceAnimations
+            )
+        }
+    }
+}
+
+@Composable
+private fun MoreProfileLoaderAnimationPreview(
+    giftId: String?,
+    reduceAnimations: Boolean,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val rawRes = ProfileLoaderGifts.resolvedVisitorRawRes(giftId)
+
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(rawRes))
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations = LottieConstants.IterateForever,
+        isPlaying = !reduceAnimations
+    )
+
+    if (composition != null) {
+        LottieAnimation(
+            composition = composition,
+            progress = { progress },
+            modifier = modifier,
+            alignment = Alignment.Center,
+            contentScale = ContentScale.Fit,
+            clipToCompositionBounds = true
+        )
+        return
+    }
+
+    CircularProgressIndicator(
+        modifier = modifier.size(38.dp),
+        color = accentColor,
+        strokeWidth = 3.dp
+    )
 }
 
 @Composable
@@ -4902,6 +6035,7 @@ private fun MoreProfileCustomizationCard(
     contentColor: Color,
     secondaryTextColor: Color,
     accentColor: Color,
+    preview: (@Composable BoxScope.() -> Unit)? = null,
     onToggle: () -> Unit
 ) {
     Box(
@@ -4929,50 +6063,73 @@ private fun MoreProfileCustomizationCard(
             .border(1.dp, dividerColor, RoundedCornerShape(18.dp))
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                BasicText(
-                    title,
-                    style = TextStyle(
-                        color = contentColor,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = if (preview != null) 0.dp else 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    BasicText(
+                        title,
+                        style = TextStyle(
+                            color = contentColor,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     )
-                )
-                BasicText(
-                    subtitle,
-                    style = TextStyle(secondaryTextColor, 12.sp),
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
+                    BasicText(
+                        subtitle,
+                        style = TextStyle(secondaryTextColor, 12.sp),
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                if (preview != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(92.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(contentColor.copy(alpha = 0.04f))
+                            .border(1.dp, dividerColor.copy(alpha = 0.78f), RoundedCornerShape(18.dp)),
+                        contentAlignment = Alignment.Center,
+                        content = preview
+                    )
+                }
             }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        if (isEquipped) contentColor.copy(alpha = 0.12f) else accentColor
-                    )
-                    .clickable(onClick = onToggle)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
             ) {
-                BasicText(
-                    if (isEquipped) "Unequip" else "Equip",
-                    style = TextStyle(
-                        color = if (isEquipped) contentColor else Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            if (isEquipped) contentColor.copy(alpha = 0.12f) else accentColor
+                        )
+                        .clickable(onClick = onToggle)
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BasicText(
+                        if (isEquipped) "Unequip" else "Equip",
+                        style = TextStyle(
+                            color = if (isEquipped) contentColor else Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     )
-                )
+                }
             }
         }
     }
@@ -5758,6 +6915,64 @@ private fun ConnectionRequestsScreen(
                 onOpenProfile = onOpenProfile,
                 onAccept = onAccept,
                 onReject = onReject
+            )
+
+            Spacer(Modifier.height(80.dp))
+        }
+    }
+}
+
+@Composable
+private fun ProfileCustomizationsScreen(
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    isGlassTheme: Boolean,
+    currentUser: com.kyant.backdrop.catalog.network.models.User? = null,
+    onNavigateBack: () -> Unit
+) {
+    val isDarkSurface = contentColor == Color.White
+    val sectionSurfaceColor = if (isDarkSurface) {
+        Color.White.copy(alpha = 0.09f)
+    } else {
+        Color.White.copy(alpha = 0.22f)
+    }
+    val dividerColor = if (isDarkSurface) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.Black.copy(alpha = 0.10f)
+    }
+    val secondaryTextColor = contentColor.copy(alpha = if (isDarkSurface) 0.66f else 0.58f)
+    val sectionHeaderColor = contentColor.copy(alpha = if (isDarkSurface) 0.72f else 0.48f)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+    ) {
+        SettingsHeader(
+            title = "Profile customizations",
+            contentColor = contentColor,
+            onBack = onNavigateBack
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MoreProfileCustomizationsSection(
+                backdrop = backdrop,
+                isGlassTheme = isGlassTheme,
+                currentUser = currentUser,
+                sectionSurfaceColor = sectionSurfaceColor,
+                dividerColor = dividerColor,
+                contentColor = contentColor,
+                secondaryTextColor = secondaryTextColor,
+                accentColor = accentColor,
+                sectionHeaderColor = sectionHeaderColor,
+                showSectionHeader = false
             )
 
             Spacer(Modifier.height(80.dp))

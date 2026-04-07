@@ -63,6 +63,9 @@ fun AIAgentScreen(
             contentColor = contentColor,
             accentColor = accentColor,
             backdrop = backdrop,
+            reduceAnimations = reduceAnimations,
+            isDarkTheme = isDarkTheme,
+            enableInlineNavigationActions = false,
             onDismiss = onNavigateBack,
             isFullScreen = true
         )

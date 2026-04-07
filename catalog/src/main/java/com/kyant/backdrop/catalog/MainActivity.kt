@@ -25,7 +25,10 @@ import com.kyant.backdrop.catalog.notifications.MessageNotificationManager
 import com.kyant.backdrop.catalog.notifications.PushTokenRegistrar
 import com.kyant.backdrop.catalog.notifications.VormexMessagingService
 import com.kyant.backdrop.catalog.onboarding.AppRoot
+import com.kyant.backdrop.catalog.payments.PremiumCheckoutManager
 import com.google.firebase.messaging.FirebaseMessaging
+import com.razorpay.PaymentData
+import com.razorpay.PaymentResultWithDataListener
 
 /**
  * Deep link navigation state from push notifications
@@ -41,7 +44,7 @@ data class NotificationDeepLink(
     val authMode: String? = null
 )
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
     
     companion object {
         private const val TAG = "MainActivity"
@@ -94,6 +97,8 @@ class MainActivity : ComponentActivity() {
         // Handle initial intent (e.g., app launched from notification)
         handleIntent(intent)
 
+        PremiumCheckoutManager.preload(applicationContext)
+
         setContent {
             val isLightTheme = !isSystemInDarkTheme()
 
@@ -122,6 +127,29 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         isInForeground = false
         super.onStop()
+    }
+
+    override fun onPaymentSuccess(
+        razorpayPaymentId: String?,
+        paymentData: PaymentData?
+    ) {
+        PremiumCheckoutManager.handlePaymentSuccess(
+            activity = this,
+            razorpayPaymentId = razorpayPaymentId,
+            paymentData = paymentData
+        )
+    }
+
+    override fun onPaymentError(
+        code: Int,
+        response: String?,
+        paymentData: PaymentData?
+    ) {
+        PremiumCheckoutManager.handlePaymentError(
+            activity = this,
+            code = code,
+            response = response
+        )
     }
     
     private fun handleIntent(intent: Intent?) {

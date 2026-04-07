@@ -127,6 +127,11 @@ import androidx.compose.animation.core.spring
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.roundToInt
 
 // ==================== Main Profile Screen ====================
@@ -1057,6 +1062,8 @@ private fun ProfileHeader(
         else -> 88.dp
     }
     val avatarOffsetX = if (showProfileFrame) 10.dp else 0.dp
+    val isCurrentlyOnline = isProfileCurrentlyOnline(user, stats)
+    val presenceLabel = buildProfilePresenceLabel(user, stats, isOwner)
     
     // Image pickers
     val avatarPicker = rememberLauncherForActivityResult(
@@ -1691,19 +1698,41 @@ private fun ProfileHeader(
                     style = TextStyle(contentColor.copy(alpha = 0.6f), 14.sp),
                     modifier = Modifier.offset(y = (-20).dp)
                 )
+
+                Row(
+                    modifier = Modifier
+                        .offset(y = (-16).dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(
+                            if (isCurrentlyOnline) Color(0xFF22C55E).copy(alpha = 0.14f)
+                            else contentColor.copy(alpha = 0.08f)
+                        )
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    BasicText(
+                        presenceLabel,
+                        style = TextStyle(
+                            color = if (isCurrentlyOnline) Color(0xFF22C55E) else contentColor.copy(alpha = 0.7f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
                 
                 // Headline
                 user.headline?.let { headline ->
                     BasicText(
                         headline,
                         style = TextStyle(contentColor, 14.sp),
-                        modifier = Modifier.offset(y = (-16).dp)
+                        modifier = Modifier.offset(y = (-12).dp)
                     )
                 }
                 
                 // Location, College, Branch
                 Row(
-                    Modifier.offset(y = (-12).dp),
+                    Modifier.offset(y = (-8).dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     user.location?.let { location ->
@@ -1732,7 +1761,7 @@ private fun ProfileHeader(
                             )
                             Spacer(Modifier.width(4.dp))
                             BasicText(
-                                user.college ?: "",
+                                user.college,
                                 style = TextStyle(contentColor.copy(alpha = 0.7f), 12.sp)
                             )
                         }
@@ -1741,7 +1770,7 @@ private fun ProfileHeader(
                 
                 // Social links
                 Row(
-                    Modifier.offset(y = (-8).dp),
+                    Modifier.offset(y = (-4).dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     user.linkedinUrl?.let { url ->
@@ -2777,6 +2806,61 @@ private fun formatNumber(num: Int): String {
     }
 }
 
+private const val PROFILE_PRESENCE_ONLINE_WINDOW_MS = 5 * 60 * 1000L
+
+private val profilePresenceTimestampPatterns = listOf(
+    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+    "yyyy-MM-dd'T'HH:mm:ss'Z'",
+    "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+    "yyyy-MM-dd'T'HH:mm:ssXXX",
+    "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'",
+    "yyyy-MM-dd HH:mm:ss"
+)
+
+private fun parseProfilePresenceMillis(raw: String?): Long? {
+    if (raw.isNullOrBlank()) return null
+    runCatching { Instant.parse(raw) }.getOrNull()?.toEpochMilli()?.let { return it }
+    runCatching { OffsetDateTime.parse(raw) }.getOrNull()?.toInstant()?.toEpochMilli()?.let { return it }
+    for (pattern in profilePresenceTimestampPatterns) {
+        runCatching {
+            SimpleDateFormat(pattern, Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+                isLenient = true
+            }.parse(raw)?.time
+        }.getOrNull()?.let { return it }
+    }
+    runCatching { SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).parse(raw)?.time }
+        .getOrNull()?.let { return it }
+    return null
+}
+
+private fun isProfileCurrentlyOnline(user: ProfileUser, stats: ProfileStats): Boolean {
+    if (user.isOnline) return true
+    val lastSeenMillis = parseProfilePresenceMillis(user.lastActiveAt ?: stats.lastActiveDate)
+    return lastSeenMillis != null && (System.currentTimeMillis() - lastSeenMillis) < PROFILE_PRESENCE_ONLINE_WINDOW_MS
+}
+
+private fun buildProfilePresenceLabel(user: ProfileUser, stats: ProfileStats, isOwner: Boolean): String {
+    if (isProfileCurrentlyOnline(user, stats)) {
+        return if (isOwner) "Online now" else "Active now"
+    }
+
+    val lastSeenMillis = parseProfilePresenceMillis(user.lastActiveAt ?: stats.lastActiveDate)
+        ?: return if (isOwner) "Offline" else "Recently active"
+    val diffMs = (System.currentTimeMillis() - lastSeenMillis).coerceAtLeast(0L)
+    val minutes = diffMs / 60_000L
+
+    val elapsed = when {
+        minutes < 1L -> "just now"
+        minutes < 60L -> "${minutes}m ago"
+        minutes < 1_440L -> "${minutes / 60L}h ago"
+        minutes < 10_080L -> "${minutes / 1_440L}d ago"
+        else -> "recently"
+    }
+
+    return "Last active $elapsed"
+}
+
 // ==================== Loading (lightweight; avoids heavy shimmer + blur skeleton) ====================
 
 @Composable
@@ -2786,8 +2870,8 @@ private fun ProfileLoadingContent(
     visitLoaderGiftId: String? = null,
     reduceAnimations: Boolean = false
 ) {
-    val rawRes = ProfileLoaderGifts.rawResForGiftId(visitLoaderGiftId)
-    val showLottie = rawRes != null && !reduceAnimations
+    val rawRes = ProfileLoaderGifts.resolvedVisitorRawRes(visitLoaderGiftId)
+    val showLottie = !reduceAnimations
     Box(
         Modifier
             .fillMaxSize()
@@ -2798,7 +2882,7 @@ private fun ProfileLoadingContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (showLottie && rawRes != null) {
+            if (showLottie) {
                 val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(rawRes))
                 val progress by animateLottieCompositionAsState(
                     composition = composition,
