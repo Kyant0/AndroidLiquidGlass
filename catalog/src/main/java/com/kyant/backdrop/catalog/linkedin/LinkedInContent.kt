@@ -56,6 +56,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.Logout
@@ -863,6 +864,20 @@ fun LinkedInContent(
         }
     }
 
+    val openAgentPanel: () -> Unit = {
+        if (uiState.currentUser?.canUseAgent == true) {
+            showFullMoreScreen = false
+            minimizeAgentSheetForVoice = false
+            showAgentSheet = true
+        } else {
+            Toast.makeText(
+                context,
+                "AI Agent access is not enabled for this account yet.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     LaunchedEffect(isAgentVoiceLive) {
         if (!isAgentVoiceLive) {
             autoMinimizedAgentSheetForActiveVoice = false
@@ -1387,19 +1402,7 @@ fun LinkedInContent(
                             onNavigateToOnboarding = { showOnboardingScreen = true },
                             onNavigateToSavedPosts = { showSavedPostsScreen = true },
                             onNavigateToGrowthHub = { showGrowthHubScreen = true },
-                            onOpenAgent = {
-                                if (uiState.currentUser?.canUseAgent == true) {
-                                    showFullMoreScreen = false
-                                    minimizeAgentSheetForVoice = false
-                                    showAgentSheet = true
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        "AI Agent access is not enabled for this account yet.",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            },
+                            onOpenAgent = openAgentPanel,
                             onNavigateToNotificationSettings = { showNotificationSettingsScreen = true },
                             onNavigateToPrivacySettings = { showPrivacySettingsScreen = true },
                             onNavigateToAppearanceSettings = { showAppearanceSettingsScreen = true },
@@ -4114,6 +4117,7 @@ private fun MoreScreen(
     onNavigateToContact: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
+    var showPremiumDetailsScreen by rememberSaveable { mutableStateOf(false) }
     val pendingRequestsCount = connectionRequests.size
     val canUseAgent = currentUser?.canUseAgent == true
     val pendingRequestsBadge = when {
@@ -4184,7 +4188,20 @@ private fun MoreScreen(
         )
     }
 
-    if (showFullMoreScreen) {
+    BackHandler(enabled = showPremiumDetailsScreen) {
+        showPremiumDetailsScreen = false
+    }
+
+    if (showPremiumDetailsScreen) {
+        MorePremiumDetailsScreen(
+            backdrop = backdrop,
+            contentColor = contentColor,
+            accentColor = accentColor,
+            isGlassTheme = isGlassTheme,
+            onNavigateBack = { showPremiumDetailsScreen = false },
+            onOpenAgent = onOpenAgent
+        )
+    } else if (showFullMoreScreen) {
         MoreFullScreen(
             backdrop = backdrop,
             contentColor = contentColor,
@@ -4196,6 +4213,7 @@ private fun MoreScreen(
             isLoadingConnectionRequests = isLoadingConnectionRequests,
             connectionRequestsError = connectionRequestsError,
             hiddenQuickActionTitles = quickActions.mapTo(linkedSetOf()) { it.title },
+            onOpenPremiumDetails = { showPremiumDetailsScreen = true },
             onNavigateToProfile = onNavigateToProfile,
             onNavigateToConnectionRequests = onNavigateToConnectionRequests,
             onNavigateToProfileCustomizations = onNavigateToProfileCustomizations,
@@ -4243,6 +4261,7 @@ private fun MoreFullScreen(
     isLoadingConnectionRequests: Boolean = false,
     connectionRequestsError: String? = null,
     hiddenQuickActionTitles: Set<String> = emptySet(),
+    onOpenPremiumDetails: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToConnectionRequests: () -> Unit = {},
     onNavigateToProfileCustomizations: () -> Unit = {},
@@ -4599,11 +4618,9 @@ private fun MoreFullScreen(
                     isGlassTheme = isGlassTheme,
                     sectionSurfaceColor = sectionSurfaceColor,
                     dividerColor = dividerColor,
-                    contentColor = contentColor,
-                    secondaryTextColor = secondaryTextColor,
                     accentColor = accentColor,
                     sectionHeaderColor = sectionHeaderColor,
-                    onOpenAgent = onOpenAgent
+                    onOpenPremiumDetails = onOpenPremiumDetails
                 )
             }
 
@@ -4708,12 +4725,46 @@ private fun MorePremiumSection(
     isGlassTheme: Boolean,
     sectionSurfaceColor: Color,
     dividerColor: Color,
-    contentColor: Color,
-    secondaryTextColor: Color,
     accentColor: Color,
     sectionHeaderColor: Color,
+    onOpenPremiumDetails: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        MoreSectionHeader("Premium", sectionHeaderColor)
+        MorePremiumEntryCard(
+            backdrop = backdrop,
+            isGlassTheme = isGlassTheme,
+            sectionSurfaceColor = sectionSurfaceColor,
+            dividerColor = dividerColor,
+            accentColor = accentColor,
+            onOpenPremiumDetails = onOpenPremiumDetails
+        )
+    }
+}
+
+@Composable
+private fun MorePremiumDetailsScreen(
+    backdrop: LayerBackdrop,
+    contentColor: Color,
+    accentColor: Color,
+    isGlassTheme: Boolean,
+    onNavigateBack: () -> Unit,
     onOpenAgent: () -> Unit
 ) {
+    val isDarkSurface = contentColor == Color.White
+    val pageBackground = Color.Transparent
+    val sectionSurfaceColor = if (isDarkSurface) {
+        Color.White.copy(alpha = if (isGlassTheme) 0.09f else 0.06f)
+    } else {
+        Color.White.copy(alpha = if (isGlassTheme) 0.22f else 0.68f)
+    }
+    val dividerColor = if (isDarkSurface) {
+        Color.White.copy(alpha = if (isGlassTheme) 0.14f else 0.08f)
+    } else {
+        Color.Black.copy(alpha = if (isGlassTheme) 0.10f else 0.07f)
+    }
+    val secondaryTextColor = contentColor.copy(alpha = if (isDarkSurface) 0.66f else 0.58f)
+    val sectionHeaderColor = contentColor.copy(alpha = if (isDarkSurface) 0.72f else 0.48f)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val premiumRefreshSignal by PremiumCheckoutManager.refreshSignal.collectAsState()
@@ -4804,25 +4855,151 @@ private fun MorePremiumSection(
         showCelebration = false
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        MoreSectionHeader("Premium", sectionHeaderColor)
-        MorePremiumPromoCard(
-            backdrop = backdrop,
-            isGlassTheme = isGlassTheme,
-            sectionSurfaceColor = sectionSurfaceColor,
-            dividerColor = dividerColor,
-            contentColor = contentColor,
-            secondaryTextColor = secondaryTextColor,
-            accentColor = accentColor,
-            premiumState = premiumState,
-            isLoadingPremiumState = isLoadingPremiumState,
-            isLaunchingCheckout = isLaunchingCheckout,
-            isCancellingPremium = isCancellingPremium,
-            showCelebration = showCelebration,
-            onStartCheckout = ::launchPremiumCheckout,
-            onCancelPremium = ::cancelPremiumAccess,
-            onOpenAgent = onOpenAgent
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(pageBackground)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 18.dp)
+                .padding(bottom = 110.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .clickable(onClick = onNavigateBack)
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = "Back",
+                    tint = contentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+                BasicText(
+                    "Back",
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+
+            MoreSectionHeader("Premium", sectionHeaderColor)
+            MorePremiumPromoCard(
+                backdrop = backdrop,
+                isGlassTheme = isGlassTheme,
+                sectionSurfaceColor = sectionSurfaceColor,
+                dividerColor = dividerColor,
+                contentColor = contentColor,
+                secondaryTextColor = secondaryTextColor,
+                accentColor = accentColor,
+                premiumState = premiumState,
+                isLoadingPremiumState = isLoadingPremiumState,
+                isLaunchingCheckout = isLaunchingCheckout,
+                isCancellingPremium = isCancellingPremium,
+                showCelebration = showCelebration,
+                onStartCheckout = ::launchPremiumCheckout,
+                onCancelPremium = ::cancelPremiumAccess,
+                onOpenAgent = onOpenAgent
+            )
+        }
+    }
+}
+
+@Composable
+private fun MorePremiumEntryCard(
+    backdrop: LayerBackdrop,
+    isGlassTheme: Boolean,
+    sectionSurfaceColor: Color,
+    dividerColor: Color,
+    accentColor: Color,
+    onOpenPremiumDetails: () -> Unit
+) {
+    val context = LocalContext.current
+    val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
+    val ctaComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.go_premium))
+    val ctaProgress by animateLottieCompositionAsState(
+        composition = ctaComposition,
+        iterations = LottieConstants.IterateForever,
+        isPlaying = !reduceAnimations
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(184.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .then(
+                if (isGlassTheme) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { RoundedRectangle(22.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(14f.dp.toPx())
+                            lens(8f.dp.toPx(), 16f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(sectionSurfaceColor)
+                        }
+                    )
+                } else {
+                    Modifier.background(sectionSurfaceColor)
+                }
+            )
+            .border(1.dp, dividerColor, RoundedCornerShape(22.dp))
+            .clickable(onClick = onOpenPremiumDetails)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = if (isGlassTheme) 0.22f else 0.14f),
+                            Color(0xFFFFC857).copy(alpha = if (isGlassTheme) 0.14f else 0.08f),
+                            Color.Transparent
+                        ),
+                        start = Offset.Zero,
+                        end = Offset(900f, 460f)
+                    )
+                )
         )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = 0.18f),
+                            Color.Transparent
+                        ),
+                        center = Offset(520f, 92f),
+                        radius = 240f
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (ctaComposition != null) {
+                LottieAnimation(
+                    composition = ctaComposition,
+                    progress = { ctaProgress },
+                    modifier = Modifier.size(156.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }
     }
 }
 
