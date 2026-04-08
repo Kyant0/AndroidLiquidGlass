@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kyant.backdrop.catalog.data.VormexPerformancePolicy
 import com.kyant.backdrop.catalog.data.SettingsPreferences
 import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.PostsApiService
@@ -117,7 +118,7 @@ class ProfileViewModel(private val context: Context) : ViewModel() {
     private var lastLoadedUserId: String? = null
     private var lastLoadedAtMillis: Long = 0L
     private var isProfileRequestInFlight: Boolean = false
-    private val cacheTtlMillis: Long = 5 * 60 * 1000L
+    private val cacheTtlMillis: Long = VormexPerformancePolicy.ProfileCacheTtlMillis
     
     fun loadProfile(userId: String? = null, forceRefresh: Boolean = false) {
         val effectiveUserId = userId ?: "me"

@@ -8,6 +8,7 @@ import android.provider.ContactsContract
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kyant.backdrop.catalog.data.VormexPerformancePolicy
 import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.GrowthApiService
 import com.kyant.backdrop.catalog.network.models.CollegeInfo
@@ -165,9 +166,9 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
     val uiState: StateFlow<FindPeopleUiState> = _uiState.asStateFlow()
     
     private var searchJob: Job? = null
-    private val dataTtlMillis = 5 * 60 * 1000L
-    private val searchResultsTtlMillis = 2 * 60 * 1000L
-    private val nearbyTtlMillis = 90 * 1000L
+    private val dataTtlMillis = VormexPerformancePolicy.FindPeopleDataTtlMillis
+    private val searchResultsTtlMillis = VormexPerformancePolicy.SearchResultsTtlMillis
+    private val nearbyTtlMillis = VormexPerformancePolicy.NearbyPeopleTtlMillis
 
     private var filterOptionsLoadedAt = 0L
     private var streakLoadedAt = 0L
@@ -767,7 +768,7 @@ class FindPeopleViewModel(private val context: Context) : ViewModel() {
         // Debounce search
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            delay(if (query.length <= 1) 80 else 120)
+            delay(VormexPerformancePolicy.SearchDebounceMillis)
             loadAllPeople(
                 resetPage = true,
                 forceRefresh = query.isNotBlank()

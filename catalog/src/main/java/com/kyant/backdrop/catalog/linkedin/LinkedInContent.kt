@@ -5037,12 +5037,6 @@ private fun MorePremiumPromoCard(
         iterations = if (reduceAnimations) 1 else LottieConstants.IterateForever,
         isPlaying = showCelebration
     )
-    val featureLabels = premiumState?.features?.takeIf { it.isNotEmpty() } ?: listOf(
-        "AI Agent access",
-        "Premium themes",
-        "Featured card designs",
-        "24/7 fast support"
-    )
     val featureHighlights = listOf(
         PremiumHighlight(
             title = "AI Agent",
@@ -5050,24 +5044,14 @@ private fun MorePremiumPromoCard(
             icon = Icons.Outlined.AutoAwesome
         ),
         PremiumHighlight(
-            title = "Themes and looks",
+            title = "Premium looks",
             detail = "Use premium themes, stronger post styling, and a custom profile visitor look.",
             icon = Icons.Outlined.Palette
         ),
         PremiumHighlight(
-            title = "More sections",
+            title = "Featured surfaces",
             detail = "Open premium-only sections, featured cards, and standout profile surfaces.",
             icon = Icons.Outlined.Widgets
-        ),
-        PremiumHighlight(
-            title = "Control and safety",
-            detail = "Block people faster, keep premium customizations active, and manage access cleanly.",
-            icon = Icons.Outlined.Block
-        ),
-        PremiumHighlight(
-            title = "Featured design",
-            detail = "Make cards feel premium when others visit your profile and explore your work.",
-            icon = Icons.Outlined.Style
         ),
         PremiumHighlight(
             title = "Fast support",
@@ -5097,12 +5081,13 @@ private fun MorePremiumPromoCard(
     val renewalLabel = premiumState?.renewalModeLabel ?: "Manual renewal"
     val supportLabel = premiumState?.supportLabel ?: "24/7 fast support"
     val creditsUsedLabel = "${premiumState?.creditsUsed ?: 0}"
+    val remainingDays = premiumState?.premiumDaysRemaining ?: 0
     val statusSummary = when {
         isLoadingPremiumState -> "Checking premium access..."
         isLaunchingCheckout -> "Preparing secure checkout..."
         isCancellingPremium -> "Cancelling premium access..."
-        isPremiumActive && (premiumState.premiumDaysRemaining) > 0 ->
-            "${premiumState.premiumDaysRemaining} days left in your premium plan."
+        isPremiumActive && remainingDays > 0 ->
+            "$remainingDays days left in your premium plan."
         isPremiumActive -> "Premium is active on this account."
         customPriceApplied -> "This account has a special premium price."
         !checkoutEnabled -> "Premium checkout is not configured yet."
@@ -5176,7 +5161,7 @@ private fun MorePremiumPromoCard(
         )
         Column(
             modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             androidx.compose.foundation.layout.FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -5218,106 +5203,27 @@ private fun MorePremiumPromoCard(
                 }
             }
 
-            BasicText(
-                premiumState?.title ?: "Vormex Premium",
-                style = TextStyle(
-                    color = contentColor,
-                    fontSize = 24.sp,
-                    lineHeight = 30.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = premiumFontFamily,
-                    letterSpacing = (-0.3).sp
-                )
-            )
-            BasicText(
-                description,
-                style = TextStyle(
-                    color = secondaryTextColor,
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                    fontFamily = premiumFontFamily
-                )
-            )
-
-            androidx.compose.foundation.layout.FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                MorePremiumMetricCard(
-                    label = if (isPremiumActive) "Current access" else "Price",
-                    value = priceLabel,
-                    supporting = if (customPriceApplied) "Custom offer active" else premiumBillingLabel(
-                        premiumState?.billingCycle,
-                        premiumState?.premiumDurationDays ?: 31
-                    ),
-                    accentColor = accentColor,
-                    dividerColor = dividerColor,
-                    contentColor = contentColor,
-                    secondaryTextColor = secondaryTextColor,
-                    isGlassTheme = isGlassTheme,
-                    fontFamily = premiumFontFamily
-                )
-                MorePremiumMetricCard(
-                    label = "Plan length",
-                    value = durationLabel,
-                    supporting = if (isPremiumActive) "Premium stays active for this cycle." else "One purchase covers the full premium window.",
-                    accentColor = accentColor,
-                    dividerColor = dividerColor,
-                    contentColor = contentColor,
-                    secondaryTextColor = secondaryTextColor,
-                    isGlassTheme = isGlassTheme,
-                    fontFamily = premiumFontFamily
-                )
-                MorePremiumMetricCard(
-                    label = "Credits used",
-                    value = creditsUsedLabel,
-                    supporting = "Agent prompts used in the current premium window.",
-                    accentColor = accentColor,
-                    dividerColor = dividerColor,
-                    contentColor = contentColor,
-                    secondaryTextColor = secondaryTextColor,
-                    isGlassTheme = isGlassTheme,
-                    fontFamily = premiumFontFamily
-                )
-            }
-
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 BasicText(
-                    "Everything included",
+                    premiumState?.title ?: "Vormex Premium",
                     style = TextStyle(
                         color = contentColor,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 24.sp,
+                        lineHeight = 30.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = premiumFontFamily,
+                        letterSpacing = (-0.3).sp
+                    )
+                )
+                BasicText(
+                    description,
+                    style = TextStyle(
+                        color = secondaryTextColor,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
                         fontFamily = premiumFontFamily
                     )
                 )
-                featureHighlights.forEach { item ->
-                    MorePremiumHighlightRow(
-                        item = item,
-                        accentColor = accentColor,
-                        dividerColor = dividerColor,
-                        contentColor = contentColor,
-                        secondaryTextColor = secondaryTextColor,
-                        isGlassTheme = isGlassTheme,
-                        fontFamily = premiumFontFamily
-                    )
-                }
-            }
-
-            androidx.compose.foundation.layout.FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                featureLabels.forEach { label ->
-                    MorePremiumFeaturePill(
-                        label = label,
-                        accentColor = accentColor,
-                        contentColor = contentColor,
-                        fontFamily = premiumFontFamily
-                    )
-                }
             }
 
             Column(
@@ -5364,13 +5270,101 @@ private fun MorePremiumPromoCard(
                         contentColor = contentColor,
                         fontFamily = premiumFontFamily
                     )
-                    if (isPremiumActive && premiumState.premiumDaysRemaining > 0) {
+                    if (isPremiumActive && remainingDays > 0) {
                         MorePremiumFeaturePill(
-                            label = "${premiumState.premiumDaysRemaining} days remaining",
+                            label = "$remainingDays days remaining",
                             accentColor = accentColor,
                             contentColor = contentColor,
                             fontFamily = premiumFontFamily
                         )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                MorePremiumMetricCard(
+                    modifier = Modifier.weight(1f),
+                    label = if (isPremiumActive) "Current access" else "Price",
+                    value = priceLabel,
+                    supporting = if (customPriceApplied) "Custom offer active" else premiumBillingLabel(
+                        premiumState?.billingCycle,
+                        premiumState?.premiumDurationDays ?: 31
+                    ),
+                    accentColor = accentColor,
+                    dividerColor = dividerColor,
+                    contentColor = contentColor,
+                    secondaryTextColor = secondaryTextColor,
+                    isGlassTheme = isGlassTheme,
+                    fontFamily = premiumFontFamily
+                )
+                MorePremiumMetricCard(
+                    modifier = Modifier.weight(1f),
+                    label = if (isPremiumActive && remainingDays > 0) "Days left" else "Plan length",
+                    value = if (isPremiumActive && remainingDays > 0) "$remainingDays days" else durationLabel,
+                    supporting = if (isPremiumActive && remainingDays > 0) {
+                        "Remaining in the current premium cycle."
+                    } else {
+                        "One purchase covers the full premium window."
+                    },
+                    accentColor = accentColor,
+                    dividerColor = dividerColor,
+                    contentColor = contentColor,
+                    secondaryTextColor = secondaryTextColor,
+                    isGlassTheme = isGlassTheme,
+                    fontFamily = premiumFontFamily
+                )
+            }
+
+            MorePremiumMetricCard(
+                modifier = Modifier.fillMaxWidth(),
+                label = if (isPremiumActive) "Credits used" else "AI Agent access",
+                value = if (isPremiumActive) creditsUsedLabel else "Included",
+                supporting = if (isPremiumActive) {
+                    "Agent prompts used in the current premium window."
+                } else {
+                    "Premium unlocks the in-app AI Agent for this account."
+                },
+                accentColor = accentColor,
+                dividerColor = dividerColor,
+                contentColor = contentColor,
+                secondaryTextColor = secondaryTextColor,
+                isGlassTheme = isGlassTheme,
+                fontFamily = premiumFontFamily
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                BasicText(
+                    "Included with premium",
+                    style = TextStyle(
+                        color = contentColor,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = premiumFontFamily
+                    )
+                )
+                featureHighlights.chunked(2).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        rowItems.forEach { item ->
+                            MorePremiumFeatureCard(
+                                modifier = Modifier.weight(1f),
+                                item = item,
+                                accentColor = accentColor,
+                                dividerColor = dividerColor,
+                                contentColor = contentColor,
+                                secondaryTextColor = secondaryTextColor,
+                                isGlassTheme = isGlassTheme,
+                                fontFamily = premiumFontFamily
+                            )
+                        }
+                        if (rowItems.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -5405,26 +5399,12 @@ private fun MorePremiumPromoCard(
                     }
                 }
             } else {
-                MorePremiumAnimatedButton(
-                    label = when {
-                        isLoadingPremiumState -> "Checking premium..."
-                        isLaunchingCheckout -> "Starting secure checkout..."
-                        !checkoutEnabled -> "Premium unavailable"
-                        else -> premiumState?.ctaLabel?.ifBlank { "Go Premium" } ?: "Go Premium"
-                    },
-                    supporting = if (checkoutEnabled) {
-                        "Secure checkout for a $durationLabel premium unlock."
-                    } else {
-                        "Checkout is not configured yet on the server."
-                    },
+                MorePremiumAnimationCta(
                     accentColor = accentColor,
-                    contentColor = contentColor,
                     enabled = ctaEnabled,
                     onClick = onStartCheckout,
                     composition = ctaComposition,
-                    progress = ctaProgress,
-                    isGlassTheme = isGlassTheme,
-                    fontFamily = premiumFontFamily
+                    progress = ctaProgress
                 )
             }
         }
@@ -5508,6 +5488,7 @@ private fun premiumBillingLabel(billingCycle: String?, durationDays: Int = 31): 
 
 @Composable
 private fun MorePremiumMetricCard(
+    modifier: Modifier = Modifier,
     label: String,
     value: String,
     supporting: String,
@@ -5519,7 +5500,7 @@ private fun MorePremiumMetricCard(
     fontFamily: FontFamily
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .widthIn(min = 152.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(Color.White.copy(alpha = if (isGlassTheme) 0.14f else 0.48f))
@@ -5558,7 +5539,8 @@ private fun MorePremiumMetricCard(
 }
 
 @Composable
-private fun MorePremiumHighlightRow(
+private fun MorePremiumFeatureCard(
+    modifier: Modifier = Modifier,
     item: PremiumHighlight,
     accentColor: Color,
     dividerColor: Color,
@@ -5567,19 +5549,17 @@ private fun MorePremiumHighlightRow(
     isGlassTheme: Boolean,
     fontFamily: FontFamily
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
+    Column(
+        modifier = modifier
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White.copy(alpha = if (isGlassTheme) 0.11f else 0.34f))
             .border(1.dp, dividerColor.copy(alpha = 0.66f), RoundedCornerShape(18.dp))
-            .padding(horizontal = 14.dp, vertical = 13.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(38.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(accentColor.copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center
@@ -5591,29 +5571,26 @@ private fun MorePremiumHighlightRow(
                 modifier = Modifier.size(20.dp)
             )
         }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            BasicText(
-                item.title,
-                style = TextStyle(
-                    color = contentColor,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = fontFamily
-                )
+        BasicText(
+            item.title,
+            style = TextStyle(
+                color = contentColor,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = fontFamily
             )
-            BasicText(
-                item.detail,
-                style = TextStyle(
-                    color = secondaryTextColor,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp,
-                    fontFamily = fontFamily
-                )
+        )
+        BasicText(
+            item.detail,
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+            style = TextStyle(
+                color = secondaryTextColor,
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                fontFamily = fontFamily
             )
-        }
+        )
     }
 }
 
@@ -5703,6 +5680,57 @@ private fun MorePremiumAnimatedButton(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MorePremiumAnimationCta(
+    accentColor: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    composition: com.airbnb.lottie.LottieComposition?,
+    progress: Float
+) {
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(140.dp)
+                .graphicsLayer { alpha = if (enabled) 1f else 0.46f }
+                .clickable(enabled = enabled, onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                accentColor.copy(alpha = 0.22f),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = CircleShape
+                    )
+            )
+            if (composition != null) {
+                LottieAnimation(
+                    composition = composition,
+                    progress = { progress },
+                    modifier = Modifier.size(136.dp),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                    contentDescription = "Go Premium",
+                    tint = accentColor,
+                    modifier = Modifier.size(26.dp)
+                )
             }
         }
     }

@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kyant.backdrop.catalog.data.VormexPerformancePolicy
 import com.kyant.backdrop.catalog.network.ApiClient
 import com.kyant.backdrop.catalog.network.PostsApiService
 import com.kyant.backdrop.catalog.network.GoogleAuthHelper
@@ -262,8 +263,8 @@ class FeedViewModel(private val context: Context) : ViewModel() {
     private val _uiState = MutableStateFlow(FeedUiState())
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
 
-    private val feedCacheTtlMillis = 2 * 60 * 1000L
-    private val supportingDataTtlMillis = 5 * 60 * 1000L
+    private val feedCacheTtlMillis = VormexPerformancePolicy.FeedCacheTtlMillis
+    private val supportingDataTtlMillis = VormexPerformancePolicy.SupportingDataTtlMillis
 
     private var lastFeedLoadedAt = 0L
     private var lastStoriesLoadedAt = 0L
