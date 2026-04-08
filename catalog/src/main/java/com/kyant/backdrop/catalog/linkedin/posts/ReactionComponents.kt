@@ -23,15 +23,11 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.catalog.linkedin.VormexSurfaceTone
+import com.kyant.backdrop.catalog.linkedin.currentVormexAppearance
+import com.kyant.backdrop.catalog.linkedin.vormexSurface
 import com.kyant.backdrop.catalog.network.models.LikeUser
 import com.kyant.backdrop.catalog.network.models.ReactionType
-import com.kyant.shapes.RoundedRectangle
-
-private val NeumorphicBackground = Color(0xFFecf0f3)
 
 /**
  * Reaction Picker - Quick reaction selector displayed on long-press
@@ -47,20 +43,21 @@ fun ReactionPicker(
     modifier: Modifier = Modifier
 ) {
     if (!isVisible) return
+    val appearance = currentVormexAppearance(
+        fallbackThemeMode = if (contentColor == Color.White) "dark" else "light"
+    )
     
     Box(
         modifier = modifier
-            .drawBackdrop(
+            .vormexSurface(
                 backdrop = backdrop,
-                shape = { RoundedRectangle(24f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(16f.dp.toPx())
-                    lens(8f.dp.toPx(), 16f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(NeumorphicBackground.copy(alpha = 0.95f))
-                }
+                tone = VormexSurfaceTone.Overlay,
+                cornerRadius = 24.dp,
+                blurRadius = 16.dp,
+                lensRadius = 8.dp,
+                lensDepth = 16.dp,
+                surfaceColor = appearance.overlayColor,
+                borderColor = appearance.overlayBorderColor
             )
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
@@ -128,6 +125,9 @@ fun LikesListModal(
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val appearance = currentVormexAppearance(
+        fallbackThemeMode = if (contentColor == Color.White) "dark" else "light"
+    )
     
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -139,17 +139,15 @@ fun LikesListModal(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.7f)
-                .drawBackdrop(
+                .vormexSurface(
                     backdrop = backdrop,
-                    shape = { RoundedRectangle(24f.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(20f.dp.toPx())
-                        lens(12f.dp.toPx(), 24f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(NeumorphicBackground.copy(alpha = 0.95f))
-                    }
+                    tone = VormexSurfaceTone.Sheet,
+                    cornerRadius = 24.dp,
+                    blurRadius = 20.dp,
+                    lensRadius = 12.dp,
+                    lensDepth = 24.dp,
+                    surfaceColor = appearance.sheetColor,
+                    borderColor = appearance.sheetBorderColor
                 )
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -327,6 +325,9 @@ private fun LikeUserItem(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val appearance = currentVormexAppearance(
+        fallbackThemeMode = if (contentColor == Color.White) "dark" else "light"
+    )
     
     Row(
         modifier = Modifier
@@ -371,7 +372,7 @@ private fun LikeUserItem(
                     .align(Alignment.BottomEnd)
                     .size(20.dp)
                     .clip(CircleShape)
-                    .background(NeumorphicBackground),
+                    .background(appearance.sheetColor),
                 contentAlignment = Alignment.Center
             ) {
                 val reactionIcon = ReactionType.entries.find { it.name == user.reactionType }?.icon ?: "👍"

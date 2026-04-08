@@ -107,7 +107,7 @@ fun AddEditProjectScreen(
     val projectId = project?.id // Capture for use in lambdas
 
     // Theme preference: "glass", "light", "dark"
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = DefaultThemeModeKey)
     val isGlassTheme = themeMode == "glass"
     val isDarkTheme = themeMode == "dark"
     val modalBackground = when {
@@ -844,7 +844,7 @@ fun ProjectDetailScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = DefaultThemeModeKey)
     val isGlassTheme = themeMode == "glass"
     val isDarkTheme = themeMode == "dark"
     val heroAccent = if (project.featured) Color(0xFFFFD66B) else accentColor

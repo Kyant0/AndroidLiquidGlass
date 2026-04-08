@@ -37,6 +37,9 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.catalog.R
+import com.kyant.backdrop.catalog.linkedin.VormexSurfaceTone
+import com.kyant.backdrop.catalog.linkedin.currentVormexAppearance
+import com.kyant.backdrop.catalog.linkedin.vormexSurface
 import com.kyant.backdrop.catalog.network.models.MentionUser
 import com.kyant.shapes.RoundedRectangle
 
@@ -63,9 +66,11 @@ fun SharePostModal(
     onSearchConnections: (String) -> Unit,
     onClearError: () -> Unit
 ) {
-    // Theme-aware glass colors
-    val glassBackground = if (isLightTheme) Color(0xFFecf0f3) else Color(0xFF1a1a2e)
-    val glassBubbleBackground = if (isLightTheme) Color.White else Color(0xFF252538)
+    val appearance = currentVormexAppearance(
+        fallbackThemeMode = if (isLightTheme) "light" else "dark"
+    )
+    val glassBackground = appearance.sheetColor
+    val glassBubbleBackground = appearance.inputColor
     
     val clipboardManager = LocalClipboardManager.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -85,18 +90,15 @@ fun SharePostModal(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.75f)
-                .drawBackdrop(
+                .vormexSurface(
                     backdrop = backdrop,
-                    shape = { RoundedRectangle(28f.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(32f.dp.toPx())
-                        lens(16f.dp.toPx(), 32f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        // Glass effect with translucent background
-                        drawRect(glassBackground.copy(alpha = 0.75f))
-                    }
+                    tone = VormexSurfaceTone.Sheet,
+                    cornerRadius = 28.dp,
+                    blurRadius = 32.dp,
+                    lensRadius = 16.dp,
+                    lensDepth = 32.dp,
+                    surfaceColor = glassBackground,
+                    borderColor = appearance.sheetBorderColor
                 )
         ) {
             Column(

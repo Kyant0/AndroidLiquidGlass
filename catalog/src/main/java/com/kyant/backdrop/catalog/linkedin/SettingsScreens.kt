@@ -30,6 +30,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -105,12 +106,17 @@ private fun Modifier.settingsSurface(
     cornerRadius: Dp = 18.dp,
     containerColor: Color? = null,
     outlineColor: Color? = null
-): Modifier {
-    val isDarkSurface = contentColor == Color.White
-    val resolvedOutline = outlineColor ?: if (isDarkSurface) {
-        Color.White.copy(alpha = 0.14f)
+): Modifier = composed {
+    val appearance = currentVormexAppearance()
+    val isDarkSurface = appearance.isDarkTheme
+    val resolvedOutline = outlineColor ?: if (appearance.isGlassTheme) {
+        if (isDarkSurface) {
+            Color.White.copy(alpha = 0.14f)
+        } else {
+            Color.White.copy(alpha = 0.42f)
+        }
     } else {
-        Color.White.copy(alpha = 0.42f)
+        appearance.cardBorderColor
     }
     val shape = RoundedCornerShape(cornerRadius)
 
@@ -118,6 +124,8 @@ private fun Modifier.settingsSurface(
 
     val withBackground = if (containerColor != null) {
         base.background(containerColor)
+    } else if (!appearance.isGlassTheme) {
+        base.background(appearance.cardColor)
     } else {
         base.background(
             brush = Brush.verticalGradient(
@@ -136,7 +144,7 @@ private fun Modifier.settingsSurface(
         )
     }
 
-    return withBackground
+    withBackground
         .border(1.dp, resolvedOutline, shape)
 }
 
@@ -716,7 +724,7 @@ fun AppearanceSettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     
     // Collect appearance preferences
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = DefaultThemeModeKey)
     val glassBackgroundKey by SettingsPreferences.glassBackgroundPreset(context)
         .collectAsState(initial = DefaultGlassBackgroundPresetKey)
     val accentPaletteKey by SettingsPreferences.accentPalette(context)
@@ -785,10 +793,10 @@ fun AppearanceSettingsScreen(
                         }
                     )
                     
-                    // Bright Theme Card
+                    // White Theme Card
                     ThemePreviewCard(
                         modifier = Modifier.weight(1f),
-                        themeName = "Bright",
+                        themeName = "White",
                         themeKey = "light",
                         isSelected = themeMode == "light",
                         contentColor = contentColor,

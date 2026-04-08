@@ -157,7 +157,7 @@ fun ProfileScreen(
     val uiState by screenViewModel.uiState.collectAsState()
     
     // Theme detection
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = DefaultThemeModeKey)
     val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
     val isGlassTheme = themeMode == "glass"
     val isDarkTheme = themeMode == "dark"

@@ -1,14 +1,10 @@
 package com.kyant.backdrop.catalog.linkedin.groups
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import androidx.compose.foundation.shape.RoundedCornerShape
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.backdrop.catalog.linkedin.VormexSurfaceTone
+import com.kyant.backdrop.catalog.linkedin.vormexSurface
 
 /**
  * Simplified drawBackdrop extension for Groups/Circles screens with standard glass effect.
@@ -21,19 +17,13 @@ fun Modifier.glassBackground(
     cornerRadius: Float = 16f,
     surfaceAlpha: Float = 0.1f
 ): Modifier = this
-    .background(
-        brush = Brush.verticalGradient(
-            colors = listOf(
-                Color.White.copy(alpha = maxOf(0.22f, surfaceAlpha + 0.10f)),
-                Color.White.copy(alpha = maxOf(0.12f, surfaceAlpha))
-            )
-        ),
-        shape = RoundedCornerShape(cornerRadius.dp)
-    )
-    .border(
-        width = 1.dp,
-        color = Color.White.copy(alpha = maxOf(0.24f, vibrancyAlpha + 0.14f)),
-        shape = RoundedCornerShape(cornerRadius.dp)
+    .vormexSurface(
+        backdrop = backdrop,
+        tone = VormexSurfaceTone.Card,
+        cornerRadius = cornerRadius.dp,
+        blurRadius = blurRadius.dp,
+        lensRadius = 0.dp,
+        lensDepth = 0.dp
     )
 
 /**
@@ -44,4 +34,11 @@ fun Modifier.glassBackgroundFlat(
     blurRadius: Float = 20f,
     surfaceAlpha: Float = 0.1f
 ): Modifier = this
-    .background(Color.White.copy(alpha = maxOf(0.16f, surfaceAlpha + 0.08f)))
+    .vormexSurface(
+        backdrop = backdrop,
+        tone = VormexSurfaceTone.Subtle,
+        cornerRadius = 0.dp,
+        blurRadius = blurRadius.dp,
+        lensRadius = 0.dp,
+        lensDepth = 0.dp
+    )

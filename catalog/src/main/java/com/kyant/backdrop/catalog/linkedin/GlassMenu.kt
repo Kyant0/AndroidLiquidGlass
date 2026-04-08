@@ -38,11 +38,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
 
 /**
  * Glass-themed dropdown menu that matches the app's glass aesthetic.
@@ -61,6 +56,9 @@ fun GlassDropdownMenu(
 ) {
     val expandedState = remember { MutableTransitionState(false) }
     expandedState.targetState = expanded
+    val appearance = currentVormexAppearance(
+        fallbackThemeMode = if (contentColor == Color.White) "dark" else "light"
+    )
 
     if (expandedState.currentState || expandedState.targetState) {
         Popup(
@@ -106,17 +104,15 @@ fun GlassDropdownMenu(
                             Box(
                                 modifier = modifier
                                     .width(200.dp)
-                                    .drawBackdrop(
+                                    .vormexSurface(
                                         backdrop = backdrop,
-                                        shape = { RoundedRectangle(16f.dp) },
-                                        effects = {
-                                            vibrancy()
-                                            blur(24f.dp.toPx())
-                                            lens(6f.dp.toPx(), 12f.dp.toPx())
-                                        },
-                                        onDrawSurface = {
-                                            drawRect(Color.White.copy(alpha = 0.2f))
-                                        }
+                                        tone = VormexSurfaceTone.Overlay,
+                                        cornerRadius = 16.dp,
+                                        blurRadius = 24.dp,
+                                        lensRadius = 6.dp,
+                                        lensDepth = 12.dp,
+                                        surfaceColor = appearance.overlayColor,
+                                        borderColor = appearance.overlayBorderColor
                                     )
                                     .clip(RoundedCornerShape(16.dp))
                                     .padding(8.dp)
@@ -132,8 +128,8 @@ fun GlassDropdownMenu(
                                 modifier = modifier
                                     .width(200.dp)
                                     .clip(RoundedCornerShape(16.dp))
-                                    .background(Color(0xF0141414))
-                                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+                                    .background(appearance.overlayColor)
+                                    .border(1.dp, appearance.overlayBorderColor, RoundedCornerShape(16.dp))
                                     .padding(8.dp)
                             ) {
                                 Column(
@@ -163,12 +159,16 @@ fun GlassMenuItem(
     textColor: Color = contentColor,
     enabled: Boolean = true
 ) {
+    val appearance = currentVormexAppearance(
+        fallbackThemeMode = if (contentColor == Color.White) "dark" else "light"
+    )
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .background(Color.White.copy(alpha = 0.05f))
+            .background(appearance.subtleColor)
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

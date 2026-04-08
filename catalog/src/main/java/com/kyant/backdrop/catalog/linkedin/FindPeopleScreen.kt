@@ -119,7 +119,7 @@ fun FindPeopleScreenNew(
     val retentionState by retentionViewModel.uiState.collectAsState()
     
     // Theme preference: "glass", "light", "dark"
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = DefaultThemeModeKey)
     val isGlassTheme = themeMode == "glass"
     val isLightTheme = !isSystemInDarkTheme()
     // One shimmer for all Find skeletons (avoids N× infinite transitions).

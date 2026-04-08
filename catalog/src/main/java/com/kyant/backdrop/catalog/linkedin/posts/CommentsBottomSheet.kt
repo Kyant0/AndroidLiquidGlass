@@ -28,6 +28,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.catalog.linkedin.VormexSurfaceTone
+import com.kyant.backdrop.catalog.linkedin.currentVormexAppearance
+import com.kyant.backdrop.catalog.linkedin.vormexSurface
 import com.kyant.backdrop.catalog.network.models.FullComment
 import com.kyant.backdrop.catalog.network.models.MentionUser
 
@@ -62,13 +65,15 @@ fun CommentsBottomSheet(
     onClearError: () -> Unit,
     onProfileClick: (String) -> Unit = {}
 ) {
-    val sheetBackground = if (isLightTheme) Color(0xFFF7F9FC) else Color(0xFF0F1724)
-    val commentCardBackground = if (isLightTheme) Color.White else Color(0xFF172235)
-    val replyCardBackground = if (isLightTheme) Color(0xFFF1F5F9) else Color(0xFF111B2E)
-    val chromeSurface = if (isLightTheme) Color(0xFFEFF3F8) else Color(0xFF1B2638)
-    val inputBackground = if (isLightTheme) Color.White else Color(0xFF101827)
-    val surfaceBorderColor = if (isLightTheme) Color(0xFFDCE5EF) else Color.White.copy(alpha = 0.1f)
-    val dividerColor = if (isLightTheme) Color(0xFFE7EDF5) else Color.White.copy(alpha = 0.06f)
+    val appearance = currentVormexAppearance(
+        fallbackThemeMode = if (isLightTheme) "light" else "dark"
+    )
+    val sheetBackground = appearance.sheetColor
+    val commentCardBackground = appearance.cardColor
+    val chromeSurface = appearance.subtleColor
+    val inputBackground = appearance.inputColor
+    val surfaceBorderColor = appearance.cardBorderColor
+    val dividerColor = appearance.dividerColor
     
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
@@ -87,8 +92,16 @@ fun CommentsBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
-                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                .background(sheetBackground)
+                .vormexSurface(
+                    backdrop = backdrop,
+                    tone = VormexSurfaceTone.Sheet,
+                    cornerRadius = 28.dp,
+                    blurRadius = 32.dp,
+                    lensRadius = 16.dp,
+                    lensDepth = 32.dp,
+                    surfaceColor = sheetBackground,
+                    borderColor = appearance.sheetBorderColor
+                )
         ) {
             Column(
                 modifier = Modifier

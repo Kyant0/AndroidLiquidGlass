@@ -105,7 +105,7 @@ object SettingsPreferences {
     // ==================== APPEARANCE GETTERS ====================
     
     fun themeMode(context: Context): Flow<String> =
-        context.settingsDataStore.data.map { it[THEME_MODE] ?: "light" }
+        context.settingsDataStore.data.map { it[THEME_MODE] ?: com.kyant.backdrop.catalog.linkedin.DefaultThemeModeKey }
 
     fun glassBackgroundPreset(context: Context): Flow<String> =
         context.settingsDataStore.data.map { it[GLASS_BACKGROUND_PRESET] ?: "wallpaper" }

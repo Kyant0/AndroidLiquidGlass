@@ -369,8 +369,8 @@ private fun SectionOverlayContainer(
     reduceAnimations: Boolean,
     content: @Composable () -> Unit
 ) {
-    val isGlassTheme = themeMode == "glass"
-    val isDarkTheme = themeMode == "dark"
+    val appearance = currentVormexAppearance(themeMode)
+    val isGlassTheme = appearance.isGlassTheme
 
     Box(Modifier.fillMaxSize()) {
         if (isGlassTheme) {
@@ -387,7 +387,7 @@ private fun SectionOverlayContainer(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(if (isDarkTheme) Color.Black else Color.White)
+                    .background(appearance.backgroundColor)
             )
         }
 
@@ -425,7 +425,7 @@ fun LinkedInContent(
     val uiState by viewModel.uiState.collectAsState()
     
     // Theme preference: "glass", "light", "dark"
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = DefaultThemeModeKey)
     val glassBackgroundKey by SettingsPreferences.glassBackgroundPreset(context)
         .collectAsState(initial = DefaultGlassBackgroundPresetKey)
     val accentPaletteKey by SettingsPreferences.accentPalette(context)
@@ -433,11 +433,11 @@ fun LinkedInContent(
     val glassMotionStyleKey by SettingsPreferences.glassMotionStyle(context)
         .collectAsState(initial = DefaultGlassMotionStyleKey)
     val reduceAnimations by SettingsPreferences.reduceAnimations(context).collectAsState(initial = false)
-    val isGlassTheme = themeMode == "glass"
-    val isLightTheme = themeMode == "light" || themeMode == "glass"
-    val isDarkTheme = themeMode == "dark"
-    // Glass and Bright themes use black text, Dark theme uses white text
-    val contentColor = if (isDarkTheme) Color.White else Color.Black
+    val appearance = rememberVormexAppearance(themeMode)
+    val isGlassTheme = appearance.isGlassTheme
+    val isLightTheme = appearance.isLightTheme
+    val isDarkTheme = appearance.isDarkTheme
+    val contentColor = appearance.contentColor
     val accentColor = glassAccentPalette(accentPaletteKey).color
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -995,6 +995,7 @@ fun LinkedInContent(
         agentViewModel.consumeUiIntents()
     }
 
+    CompositionLocalProvider(LocalVormexAppearance provides appearance) {
     Box(Modifier.fillMaxSize()) {
         // Background based on theme
         if (isGlassTheme) {
@@ -1008,11 +1009,11 @@ fun LinkedInContent(
                 reduceAnimations = reduceAnimations
             )
         } else {
-            // Solid color background for Bright/Dark themes
+            // Solid color background for White/Dark themes
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(if (isDarkTheme) Color.Black else Color.White)
+                    .background(appearance.backgroundColor)
             )
         }
         
@@ -2698,6 +2699,7 @@ fun LinkedInContent(
                 onDismiss = { showSessionSummary = false }
             )
         }
+    }
     }
 }
 

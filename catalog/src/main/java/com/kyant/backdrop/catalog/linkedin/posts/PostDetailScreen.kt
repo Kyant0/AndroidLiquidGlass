@@ -18,9 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.catalog.linkedin.currentVormexAppearance
 import com.kyant.backdrop.catalog.network.models.*
-
-private val NeumorphicBackground = Color(0xFFecf0f3)
 
 /**
  * Post Detail Screen - Full post view with comments
@@ -65,6 +64,9 @@ fun PostDetailScreen(
     onDeletePost: () -> Unit,
     onReportPost: () -> Unit
 ) {
+    val appearance = currentVormexAppearance(
+        fallbackThemeMode = if (contentColor == Color.White) "dark" else "light"
+    )
     var showCommentsSheet by remember { mutableStateOf(autoOpenComments) }
     
     Box(modifier = Modifier.fillMaxSize()) {
@@ -79,7 +81,13 @@ fun PostDetailScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(NeumorphicBackground.copy(alpha = 0.5f)),
+                    .background(
+                        if (appearance.isGlassTheme) {
+                            appearance.subtleColor.copy(alpha = 0.55f)
+                        } else {
+                            appearance.backgroundColor
+                        }
+                    ),
                 contentPadding = PaddingValues(bottom = 100.dp)
             ) {
                 // Post content
@@ -105,7 +113,7 @@ fun PostDetailScreen(
                             onLikesClick = { _ -> /* TODO */ },
                             onVotePoll = { _, optionId -> onVotePoll(optionId) },
                             onImageClick = { _, _ -> /* TODO */ },
-                            isLightTheme = true
+                            isLightTheme = appearance.isLightTheme
                         )
                     }
                 }
@@ -248,14 +256,14 @@ fun PostDetailScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .background(NeumorphicBackground)
+                .background(appearance.sheetColor)
                 .padding(16.dp)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
-                    .background(contentColor.copy(alpha = 0.08f))
+                    .background(appearance.inputColor)
                     .clickable { showCommentsSheet = true }
                     .padding(horizontal = 20.dp, vertical = 14.dp)
             ) {
@@ -302,6 +310,10 @@ private fun PostDetailTopBar(
     contentColor: Color,
     onBack: () -> Unit
 ) {
+    val appearance = currentVormexAppearance(
+        fallbackThemeMode = if (contentColor == Color.White) "dark" else "light"
+    )
+
     TopAppBar(
         title = {
             BasicText(
@@ -323,7 +335,7 @@ private fun PostDetailTopBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = NeumorphicBackground
+            containerColor = appearance.sheetColor
         )
     )
 }

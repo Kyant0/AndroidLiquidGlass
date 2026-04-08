@@ -45,6 +45,8 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.catalog.linkedin.VormexSurfaceTone
+import com.kyant.backdrop.catalog.linkedin.vormexSurface
 import com.kyant.backdrop.catalog.network.models.*
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.MainScope
@@ -117,17 +119,13 @@ fun PostCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .drawBackdrop(
+            .vormexSurface(
                 backdrop = backdrop,
-                shape = { RoundedRectangle(0f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(20f.dp.toPx())
-                    lens(6f.dp.toPx(), 12f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.10f))
-                }
+                tone = VormexSurfaceTone.Card,
+                cornerRadius = 0.dp,
+                blurRadius = 20.dp,
+                lensRadius = 6.dp,
+                lensDepth = 12.dp
             )
     ) {
         Column {

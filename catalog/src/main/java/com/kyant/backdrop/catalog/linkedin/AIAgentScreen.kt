@@ -20,7 +20,7 @@ fun AIAgentScreen(
 ) {
     val context = LocalContext.current
     val viewModel: AgentViewModel = viewModel(factory = AgentViewModel.Factory(context))
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = DefaultThemeModeKey)
     val glassBackgroundKey by SettingsPreferences.glassBackgroundPreset(context)
         .collectAsState(initial = DefaultGlassBackgroundPresetKey)
     val accentPaletteKey by SettingsPreferences.accentPalette(context)

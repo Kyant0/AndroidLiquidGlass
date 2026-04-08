@@ -98,7 +98,7 @@ fun AddEditExperienceScreen(
     val experienceId = experience?.id
 
     // Theme preference: "glass", "light", "dark"
-    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = "light")
+    val themeMode by SettingsPreferences.themeMode(context).collectAsState(initial = DefaultThemeModeKey)
     val isGlassTheme = themeMode == "glass"
     val isDarkTheme = themeMode == "dark"
     

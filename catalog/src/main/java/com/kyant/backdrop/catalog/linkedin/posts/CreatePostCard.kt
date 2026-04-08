@@ -20,10 +20,9 @@ import coil.request.ImageRequest
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.backdrop.catalog.linkedin.VormexSurfaceTone
+import com.kyant.backdrop.catalog.linkedin.currentVormexAppearance
+import com.kyant.backdrop.catalog.linkedin.vormexSurface
 
 /**
  * Create post card shown at top of feed
@@ -43,20 +42,18 @@ fun CreatePostCard(
     onArticleClick: () -> Unit
 ) {
     val firstName = userName.split(" ").firstOrNull() ?: userName
+    val appearance = currentVormexAppearance()
     
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBackdrop(
+            .vormexSurface(
                 backdrop = backdrop,
-                shape = { RoundedRectangle(24f.dp) },
-                effects = {
-                    vibrancy()
-                    blur(16f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.12f))
-                }
+                tone = VormexSurfaceTone.Card,
+                cornerRadius = 24.dp,
+                blurRadius = 16.dp,
+                lensRadius = 0.dp,
+                lensDepth = 0.dp
             )
             .padding(16.dp)
     ) {
@@ -105,7 +102,7 @@ fun CreatePostCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(24.dp))
-                        .background(contentColor.copy(alpha = 0.08f))
+                        .background(appearance.inputColor)
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     BasicText(
@@ -123,7 +120,7 @@ fun CreatePostCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(contentColor.copy(alpha = 0.1f))
+                    .background(appearance.dividerColor)
             )
             
             // Quick action buttons
