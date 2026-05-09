@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="app">
+    <output-path>$PROJECT_DIR$/app/build/libs</output-path>
+    <root id="archive" name="app.jar">
+      <element id="module-output" name="Glass.app.androidMain" />
+    </root>
+  </artifact>
+</component>

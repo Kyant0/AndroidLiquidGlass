@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="backdrop-desktop">
+    <output-path>$PROJECT_DIR$/backdrop/build/libs</output-path>
+    <root id="archive" name="backdrop-desktop.jar">
+      <element id="module-output" name="Glass.backdrop.desktopMain" />
+    </root>
+  </artifact>
+</component>

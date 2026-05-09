@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="app-js">
+    <output-path>$PROJECT_DIR$/app/build/libs</output-path>
+    <root id="archive" name="app-js.jar">
+      <element id="module-output" name="Glass.app.jsMain" />
+    </root>
+  </artifact>
+</component>

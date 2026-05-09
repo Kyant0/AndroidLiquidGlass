@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="backdrop-wasm-js">
+    <output-path>$PROJECT_DIR$/backdrop/build/libs</output-path>
+    <root id="archive" name="backdrop-wasm-js.jar">
+      <element id="module-output" name="Glass.backdrop.wasmJsMain" />
+    </root>
+  </artifact>
+</component>

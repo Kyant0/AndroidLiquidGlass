@@ -9,8 +9,9 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/androidApp" />
+            <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/backdrop" />
-            <option value="$PROJECT_DIR$/catalog" />
           </set>
         </option>
       </GradleProjectSettings>
