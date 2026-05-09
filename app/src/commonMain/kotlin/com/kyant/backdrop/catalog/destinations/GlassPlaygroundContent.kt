@@ -142,7 +142,7 @@ fun GlassPlaygroundContent() {
                     verticalArrangement = Arrangement.spacedBy(16f.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8f.dp)) {
-                        BasicText("Corner radius")
+                        BasicText("Corner radius, ${cornerRadiusFrac.format(2)}")
                         LiquidSlider(
                             value = { cornerRadiusFrac },
                             onValueChange = { cornerRadiusFrac = it },
@@ -152,7 +152,7 @@ fun GlassPlaygroundContent() {
                         )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(8f.dp)) {
-                        BasicText("Blur radius")
+                        BasicText("Blur radius, ${blurRadiusDp.format(2)}")
                         LiquidSlider(
                             value = { blurRadiusDp },
                             onValueChange = { blurRadiusDp = it },
@@ -162,7 +162,7 @@ fun GlassPlaygroundContent() {
                         )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(8f.dp)) {
-                        BasicText("Refraction height")
+                        BasicText("Refraction height, ${refractionHeightFrac.format(2)}")
                         LiquidSlider(
                             value = { refractionHeightFrac },
                             onValueChange = { refractionHeightFrac = it },
@@ -172,7 +172,7 @@ fun GlassPlaygroundContent() {
                         )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(8f.dp)) {
-                        BasicText("Refraction amount")
+                        BasicText("Refraction amount, ${refractionAmountFrac.format(2)}")
                         LiquidSlider(
                             value = { refractionAmountFrac },
                             onValueChange = { refractionAmountFrac = it },
@@ -182,7 +182,7 @@ fun GlassPlaygroundContent() {
                         )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(8f.dp)) {
-                        BasicText("Chromatic aberration")
+                        BasicText("Chromatic aberration, ${chromaticAberration.format(2)}")
                         LiquidSlider(
                             value = { chromaticAberration },
                             onValueChange = { chromaticAberration = it },
@@ -210,6 +210,37 @@ fun GlassPlaygroundContent() {
                     style = TextStyle(Color.White, 15f.sp)
                 )
             }
+            LiquidButton(
+                {
+                    animationScope.launch {
+                        launch { offsetAnimation.animateTo(Offset.Zero) }
+                        launch { zoomAnimation.animateTo(1f) }
+                        launch { rotationAnimation.animateTo(0f) }
+                    }
+                    cornerRadiusFrac = 0.5f
+                    blurRadiusDp = 0f
+                    refractionHeightFrac = 0.2f
+                    refractionAmountFrac = 0.2f
+                    chromaticAberration = 0f
+                    isSheetExpanded = true
+                },
+                backdrop,
+                Modifier
+                    .padding(20f.dp)
+                    .navigationBarsPadding()
+                    .align(Alignment.BottomEnd),
+                tint = Color(0xFFFF8D28)
+            ) {
+                BasicText(
+                    "Reset",
+                    style = TextStyle(Color.White, 15f.sp)
+                )
+            }
         }
     }
+}
+
+private fun Float.format(digits: Int): String = this.toString().let {
+    val dotIndex = it.indexOf('.')
+    if (dotIndex == -1) it else it.substring(0, (dotIndex + digits + 1).coerceAtMost(it.length))
 }
