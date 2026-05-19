@@ -45,7 +45,7 @@ import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.R
 import com.kyant.backdrop.catalog.utils.ProgressConverter
-import com.kyant.backdrop.catalog.utils.rememberUISensor
+import com.kyant.backdrop.rememberUISensor
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
@@ -98,9 +98,10 @@ fun ControlCenterContent() {
     val glassShape = { itemShape }
     val glassHighlight = {
         Highlight(
-            style = HighlightStyle.Default(
-                angle = uiSensor.gravityAngle,
-                falloff = 2f
+            style = HighlightStyle.Light(
+                color = Color.White.copy(0.5f),
+                offset = uiSensor.tilt,
+                falloff = 5f
             )
         )
     }

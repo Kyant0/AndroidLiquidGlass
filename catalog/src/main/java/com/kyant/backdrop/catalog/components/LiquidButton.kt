@@ -26,6 +26,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.Capsule
+import com.kyant.backdrop.highlight.Highlight
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -38,6 +39,7 @@ fun LiquidButton(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
     isInteractive: Boolean = true,
+    highlight: (() -> Highlight?)? = { Highlight.Default },
     tint: Color = Color.Unspecified,
     surfaceColor: Color = Color.Unspecified,
     content: @Composable RowScope.() -> Unit
@@ -60,6 +62,7 @@ fun LiquidButton(
                     blur(2f.dp.toPx())
                     lens(12f.dp.toPx(), 24f.dp.toPx())
                 },
+                highlight = highlight,
                 layerBlock = if (isInteractive) {
                     {
                         val width = size.width

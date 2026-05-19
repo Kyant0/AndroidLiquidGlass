@@ -11,9 +11,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.components.LiquidButton
+import com.kyant.backdrop.rememberUISensor
+import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.highlight.HighlightStyle
 
 @Composable
 fun ButtonsContent() {
+    val uiSensor = rememberUISensor()
+    val highlight = {
+        Highlight(
+            style = HighlightStyle.Light(
+                offset = uiSensor.tilt,
+                falloff = 5f
+            )
+        )
+    }
     BackdropDemoScaffold { backdrop ->
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -21,7 +33,8 @@ fun ButtonsContent() {
         ) {
             LiquidButton(
                 {},
-                backdrop
+                backdrop,
+                highlight = highlight
             ) {
                 BasicText(
                     "Transparent Liquid Button",

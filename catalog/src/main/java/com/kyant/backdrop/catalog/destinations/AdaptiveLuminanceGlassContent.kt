@@ -58,16 +58,19 @@ fun AdaptiveLuminanceGlassContent() {
     LaunchedEffect(layer) {
         val buffer = IntBuffer.allocate(25)
         while (isActive) {
-            withContext(Dispatchers.IO) {
+            val averageLuminance = withContext(Dispatchers.IO) {
                 val imageBitmap = layer.toImageBitmap()
-                val thumbnail =
-                    imageBitmap.asAndroidBitmap()
-                        .scale(5, 5, false)
-                        .copy(Bitmap.Config.ARGB_8888, false)
+                val androidBitmap = imageBitmap.asAndroidBitmap()
+                val thumbnail = androidBitmap.scale(5, 5, false)
+                val argbThumbnail = thumbnail.copy(Bitmap.Config.ARGB_8888, false)
+                
                 buffer.rewind()
-                thumbnail.copyPixelsToBuffer(buffer)
-            }
-            val averageLuminance =
+                argbThumbnail.copyPixelsToBuffer(buffer)
+                
+                if (thumbnail !== androidBitmap) thumbnail.recycle()
+                androidBitmap.recycle()
+                argbThumbnail.recycle()
+
                 (0 until 25).sumOf { index ->
                     val color = buffer.get(index)
                     val r = (color shr 16 and 0xFF) / 255f
@@ -75,6 +78,8 @@ fun AdaptiveLuminanceGlassContent() {
                     val b = (color and 0xFF) / 255f
                     0.2126 * r + 0.7152 * g + 0.0722 * b
                 } / 25
+            }
+
             launch {
                 contentColorAnimation.animateTo(
                     if (averageLuminance > 0.5f) Color.Black else Color.White,

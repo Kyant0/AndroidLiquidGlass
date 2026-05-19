@@ -58,10 +58,13 @@ internal class InverseLayerScope : GraphicsLayerScope {
 
         layerBlock()
 
-        inverseTransformAtTopLeft(
+        inverseTransform(
+            translationX = translationX,
+            translationY = translationY,
             rotationZ = rotationZ,
             scaleX = scaleX,
-            scaleY = scaleY
+            scaleY = scaleY,
+            transformOrigin = transformOrigin
         )
     }
 
@@ -93,38 +96,54 @@ internal class InverseLayerScope : GraphicsLayerScope {
         matrix = null
     }
 
-    private fun DrawTransform.inverseTransformAtTopLeft(
+    private fun DrawTransform.inverseTransform(
+        translationX: Float = 0f,
+        translationY: Float = 0f,
         rotationZ: Float = 0f,
         scaleX: Float = 1f,
-        scaleY: Float = 1f
+        scaleY: Float = 1f,
+        transformOrigin: TransformOrigin = TransformOrigin.Center
     ) {
+        val pivotX = size.width * transformOrigin.pivotFractionX
+        val pivotY = size.height * transformOrigin.pivotFractionY
+
         if (rotationZ == 0f) {
             if (scaleX != 0f && scaleY != 0f) {
-                scale(1f / scaleX, 1f / scaleY, Offset.Zero)
+                scale(1f / scaleX, 1f / scaleY, Offset(pivotX, pivotY))
             }
-            return
+        } else {
+            val matrix = matrix ?: Matrix().also { matrix = it }
+            if (matrix.values.size >= 16) {
+                val rz = rotationZ * (PI / 180.0)
+                val rsz = sin(rz).toFloat()
+                val rcz = cos(rz).toFloat()
+
+                val a00 = rcz * scaleX
+                val a01 = rsz * scaleY
+                val a10 = -rsz * scaleX
+                val a11 = rcz * scaleY
+
+                val det = a00 * a11 - a01 * a10
+                if (det != 0f) {
+                    val invDet = 1f / det
+                    matrix.reset()
+                    matrix.translate(pivotX, pivotY)
+                    
+                    val m = Matrix()
+                    m[0, 0] = a11 * invDet
+                    m[0, 1] = -a01 * invDet
+                    m[1, 0] = -a10 * invDet
+                    m[1, 1] = a00 * invDet
+                    matrix.timesAssign(m)
+                    
+                    matrix.translate(-pivotX, -pivotY)
+                    transform(matrix)
+                }
+            }
         }
 
-        val matrix = matrix ?: Matrix().also { matrix = it }
-        if (matrix.values.size < 16) return
-
-        val rz = rotationZ * (PI / 180.0)
-        val rsz = sin(rz).toFloat()
-        val rcz = cos(rz).toFloat()
-
-        val a00 = rcz * scaleX
-        val a01 = rsz * scaleY
-        val a10 = -rsz * scaleX
-        val a11 = rcz * scaleY
-
-        val det = a00 * a11 - a01 * a10
-        if (det == 0f) return
-        val invDet = 1f / det
-        matrix[0, 0] = a11 * invDet
-        matrix[0, 1] = -a01 * invDet
-        matrix[1, 0] = -a10 * invDet
-        matrix[1, 1] = a00 * invDet
-
-        transform(matrix)
+        if (translationX != 0f || translationY != 0f) {
+            translate(-translationX, -translationY)
+        }
     }
 }

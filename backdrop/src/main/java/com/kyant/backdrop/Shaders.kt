@@ -204,6 +204,29 @@ half4 main(float2 coord) {
 }"""
 
 @Language("AGSL")
+internal const val LightHighlightShaderString = """
+uniform float2 size;
+uniform float4 cornerRadii;
+layout(color) uniform half4 color;
+uniform float2 lightOffset;
+uniform float falloff;
+
+$RoundedRectSDF
+
+half4 main(float2 coord) {
+    float2 halfSize = size * 0.5;
+    float2 centeredCoord = coord - halfSize;
+    float radius = radiusAt(coord, cornerRadii);
+    
+    float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
+    float2 grad = gradSdRoundedRect(centeredCoord, halfSize, gradRadius);
+    float2 normal = normalize(float2(centeredCoord.x / halfSize.x, centeredCoord.y / halfSize.y));
+    float d = dot(grad, normalize(normal - lightOffset));
+    float intensity = pow(clamp(d, 0.0, 1.0), falloff);
+    return color * intensity;
+}"""
+
+@Language("AGSL")
 internal const val GammaAdjustmentShaderString = """
 uniform shader content;
 

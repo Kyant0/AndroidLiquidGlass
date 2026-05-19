@@ -18,13 +18,12 @@ import com.kyant.backdrop.effects.effect
 import org.intellij.lang.annotations.Language
 
 @Composable
-fun rememberSdfShader(@DrawableRes drawableId: Int): SdfShader {
+fun rememberSdfShader(@DrawableRes drawableId: Int): SdfShader? {
     val context = LocalContext.current
     val resource = LocalResources.current
     return remember(context, resource, drawableId) {
-        SdfShader(
-            (resource.getDrawable(drawableId, context.theme) as BitmapDrawable).bitmap
-        )
+        val bitmap = (resource.getDrawable(drawableId, context.theme) as? BitmapDrawable)?.bitmap
+        bitmap?.let { SdfShader(it) }
     }
 }
 

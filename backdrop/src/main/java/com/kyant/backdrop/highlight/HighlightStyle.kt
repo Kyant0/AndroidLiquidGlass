@@ -119,6 +119,36 @@ interface HighlightStyle {
         }
     }
 
+    @Immutable
+    data class Light(
+        override val color: Color = Color.White.copy(alpha = 0.5f),
+        override val blendMode: BlendMode = BlendMode.Plus,
+        val offset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
+        @param:FloatRange(from = 0.0) val falloff: Float = 1f
+    ) : HighlightStyle {
+
+        @RequiresApi(Build.VERSION_CODES.S)
+        override fun DrawScope.createShader(
+            shape: Shape,
+            runtimeShaderCache: RuntimeShaderCache
+        ): Shader? {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                runtimeShaderCache.obtainRuntimeShader(
+                    "Light",
+                    com.kyant.backdrop.LightHighlightShaderString
+                ).apply {
+                    setFloatUniform("size", size.width, size.height)
+                    setFloatUniform("cornerRadii", getCornerRadii(shape))
+                    setColorUniform("color", color.copy(alpha = 1f).toArgb())
+                    setFloatUniform("lightOffset", offset.x, offset.y)
+                    setFloatUniform("falloff", falloff)
+                }
+            } else {
+                null
+            }
+        }
+    }
+
     companion object {
 
         @Stable

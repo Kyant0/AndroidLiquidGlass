@@ -45,6 +45,9 @@ import com.kyant.backdrop.shadow.Shadow
 import com.kyant.shapes.Capsule
 import kotlinx.coroutines.flow.collectLatest
 
+import com.kyant.backdrop.rememberUISensor
+import com.kyant.backdrop.highlight.HighlightStyle
+
 @Composable
 fun LiquidSlider(
     value: () -> Float,
@@ -52,8 +55,18 @@ fun LiquidSlider(
     valueRange: ClosedFloatingPointRange<Float>,
     visibilityThreshold: Float,
     backdrop: Backdrop,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    highlight: (() -> Highlight?)? = null
 ) {
+    val uiSensor = rememberUISensor()
+    val finalHighlight = highlight ?: {
+        Highlight(
+            style = HighlightStyle.Light(
+                offset = uiSensor.tilt,
+                falloff = 5f
+            )
+        )
+    }
     val isLightTheme = !isSystemInDarkTheme()
     val accentColor =
         if (isLightTheme) Color(0xFF0088FF)
@@ -173,14 +186,7 @@ fun LiquidSlider(
                             chromaticAberration = true
                         )
                     },
-                    highlight = {
-                        val progress = dampedDragAnimation.pressProgress
-                        Highlight.Ambient.copy(
-                            width = Highlight.Ambient.width / 1.5f,
-                            blurRadius = Highlight.Ambient.blurRadius / 1.5f,
-                            alpha = progress
-                        )
-                    },
+                    highlight = finalHighlight,
                     shadow = {
                         Shadow(
                             radius = 4f.dp,

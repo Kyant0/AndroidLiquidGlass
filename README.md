@@ -2,7 +2,9 @@
 
 ![frontPhoto](artworks/banner.jpg)
 
-A customizable Liquid Glass effect library for Jetpack Compose.
+A customizable Liquid Glass effect library for Jetpack Compose. 
+
+See [this MD to see the fixes](./Fixes.md)
 
 ## Docs
 

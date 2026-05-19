@@ -24,5 +24,8 @@ data class Highlight(
 
         @Stable
         val Plain: Highlight = Highlight(style = HighlightStyle.Plain)
+
+        @Stable
+        val Light: Highlight = Highlight(style = HighlightStyle.Light())
     }
 }

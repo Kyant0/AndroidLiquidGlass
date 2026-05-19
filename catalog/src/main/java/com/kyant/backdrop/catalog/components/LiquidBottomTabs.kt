@@ -56,6 +56,9 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sign
 
+import com.kyant.backdrop.rememberUISensor
+import com.kyant.backdrop.highlight.HighlightStyle
+
 @Composable
 fun LiquidBottomTabs(
     selectedTabIndex: () -> Int,
@@ -63,8 +66,18 @@ fun LiquidBottomTabs(
     backdrop: Backdrop,
     tabsCount: Int,
     modifier: Modifier = Modifier,
+    highlight: (() -> Highlight?)? = null,
     content: @Composable RowScope.() -> Unit
 ) {
+    val uiSensor = rememberUISensor()
+    val finalHighlight = highlight ?: {
+        Highlight(
+            style = HighlightStyle.Light(
+                offset = uiSensor.tilt,
+                falloff = 5f
+            )
+        )
+    }
     val isLightTheme = !isSystemInDarkTheme()
     val accentColor =
         if (isLightTheme) Color(0xFF0088FF)
@@ -249,10 +262,7 @@ fun LiquidBottomTabs(
                             chromaticAberration = true
                         )
                     },
-                    highlight = {
-                        val progress = dampedDragAnimation.pressProgress
-                        Highlight.Default.copy(alpha = progress)
-                    },
+                    highlight = finalHighlight,
                     shadow = {
                         val progress = dampedDragAnimation.pressProgress
                         Shadow(alpha = progress)

@@ -60,14 +60,18 @@ fun LockScreenContent() {
                             effects = {
                                 colorControls(brightness = -0.1f, contrast = 0.75f, saturation = 1.5f)
                                 blur(2f.dp.toPx())
-                                with(sdfShader) { apply() }
+                                sdfShader?.run { apply() }
                             },
                             onDrawBackdrop = { drawBackdrop ->
                                 drawBackdrop()
                                 drawRect(Color.White.copy(alpha = 0.25f))
                             }
                         )
-                        .aspectRatio(sdfShader.sdfBitmap.width.toFloat() / sdfShader.sdfBitmap.height.toFloat())
+                        .then(
+                            sdfShader?.let {
+                                Modifier.aspectRatio(it.sdfBitmap.width.toFloat() / it.sdfBitmap.height.toFloat())
+                            } ?: Modifier
+                        )
                         .fillMaxWidth()
                 )
             }
