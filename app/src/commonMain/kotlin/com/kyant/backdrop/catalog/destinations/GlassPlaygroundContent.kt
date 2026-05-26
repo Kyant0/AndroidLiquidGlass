@@ -210,6 +210,32 @@ fun GlassPlaygroundContent() {
                     style = TextStyle(Color.White, 15f.sp)
                 )
             }
+
+            LiquidButton(
+                {
+                    animationScope.launch {
+                        launch { offsetAnimation.animateTo(Offset.Zero) }
+                        launch { zoomAnimation.animateTo(1f) }
+                        launch { rotationAnimation.animateTo(0f) }
+                    }
+                    cornerRadiusFrac = 0.5f
+                    blurRadiusDp = 0f
+                    refractionHeightFrac = 0.2f
+                    refractionAmountFrac = 0.2f
+                    chromaticAberration = 0f
+                },
+                backdrop,
+                Modifier
+                    .padding(20f.dp)
+                    .navigationBarsPadding()
+                    .align(Alignment.BottomEnd),
+                tint = Color(0xFFFF8D28)
+            ) {
+                BasicText(
+                    "Reset",
+                    style = TextStyle(Color.White, 15f.sp)
+                )
+            }
         }
     }
 }
