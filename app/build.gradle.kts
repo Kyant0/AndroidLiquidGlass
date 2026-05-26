@@ -9,9 +9,10 @@ plugins {
 }
 
 kotlin {
-    androidLibrary {
+    android {
         minSdk = 21
-        compileSdk = 36
+        compileSdk = 37
+        buildToolsVersion = "37.0.0"
         namespace = "com.kyant.backdrop.catalog.common"
         androidResources.enable = true
         compilerOptions {

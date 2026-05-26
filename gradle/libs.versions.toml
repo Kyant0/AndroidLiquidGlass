@@ -1,10 +1,10 @@
 [versions]
-agp = "9.0.0"
-kotlin = "2.3.10"
+agp = "9.2.1"
+kotlin = "2.3.21"
 
-activity = "1.12.4"
-core = "1.17.0"
-compose = "1.10.1"
+activity = "1.13.0"
+core = "1.18.0"
+compose = "1.11.0"
 kyantShapes = "1.2.0"
 
 [libraries]

@@ -2,6 +2,7 @@ package com.kyant.backdrop
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shader
+import androidx.compose.ui.graphics.asComposeShader
 import androidx.compose.ui.graphics.colorspace.ColorSpaces
 import org.intellij.lang.annotations.Language
 import org.jetbrains.skia.RuntimeEffect
@@ -13,7 +14,7 @@ actual fun RuntimeShader(@Language("AGSL") shaderString: String): RuntimeShader 
 }
 
 actual fun RuntimeShader.asComposeShader(): Shader {
-    return this.asSkikoRuntimeShader().makeShader()
+    return this.asSkikoRuntimeShader().makeShader().asComposeShader()
 }
 
 fun RuntimeShader.asSkikoRuntimeShader(): RuntimeShaderBuilder {
