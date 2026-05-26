@@ -22,7 +22,10 @@ private class LayerBackdropElement(
     }
 
     override fun update(node: LayerBackdropNode) {
-        node.backdrop = backdrop
+        if (node.backdrop != backdrop) {
+            node.backdrop.layerCoordinates = null
+            node.backdrop = backdrop
+        }
         node.invalidateDraw()
     }
 

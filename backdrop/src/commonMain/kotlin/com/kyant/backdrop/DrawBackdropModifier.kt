@@ -176,7 +176,10 @@ private class DrawBackdropElement(
         node.shapeProvider = shapeProvider
         node.effects = effects
         node.layerBlock = layerBlock
-        node.exportedBackdrop = exportedBackdrop
+        if (node.exportedBackdrop != exportedBackdrop) {
+            node.exportedBackdrop?.layerCoordinates = null
+            node.exportedBackdrop = exportedBackdrop
+        }
         node.onDrawBehind = onDrawBehind
         node.onDrawBackdrop = onDrawBackdrop
         node.onDrawSurface = onDrawSurface
