@@ -39,7 +39,7 @@ kotlin {
                 implementation(libs.compose.ui)
                 implementation(libs.compose.ui.graphics)
                 implementation(libs.kyant.shapes)
-                implementation("org.jetbrains:annotations:26.0.2-1")
+                implementation("org.jetbrains:annotations:26.1.0")
             }
         }
 
@@ -85,7 +85,7 @@ mavenPublishing {
     publishToMavenCentral()
     signAllPublications()
 
-    coordinates("io.github.kyant0", "backdrop", "2.0.0-rc01")
+    coordinates("io.github.kyant0", "backdrop", "2.0.0")
 
     pom {
         name.set("Backdrop")
