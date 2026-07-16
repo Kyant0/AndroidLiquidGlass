@@ -20,9 +20,11 @@ kotlin {
         }
     }
 
+    applyDefaultHierarchyTemplate()
+
     jvm("desktop")
 
-    js(IR) {
+    js {
         browser()
     }
     wasmJs {
@@ -41,7 +43,7 @@ kotlin {
     }
 
     sourceSets {
-        val commonMain by getting {
+        val commonMain = getByName("commonMain") {
             dependencies {
                 implementation(libs.compose.foundation)
                 implementation(libs.compose.ui)
@@ -53,50 +55,43 @@ kotlin {
             }
         }
 
-        val androidMain by getting {
-            dependsOn(commonMain)
+        val androidMain = getByName("androidMain") {
             dependencies {
                 implementation(libs.androidx.activity.compose)
             }
         }
 
-        val skikoMain by creating {
+        val skikoMain = create("skikoMain") {
             dependsOn(commonMain)
         }
 
-        val desktopMain by getting {
+        val desktopMain = getByName("desktopMain") {
             dependsOn(skikoMain)
             dependencies {
                 implementation(compose.desktop.currentOs)
             }
         }
 
-        val macosArm64Main by getting {
+        val macosArm64Main = getByName("macosArm64Main") {
             dependsOn(skikoMain)
         }
 
-        val iosMain by creating {
+        val iosMain = getByName("iosMain") {
             dependsOn(skikoMain)
         }
 
-        val iosArm64Main by getting {
-            dependsOn(iosMain)
+        val iosArm64Main = getByName("iosArm64Main") {
         }
 
-        val iosSimulatorArm64Main by getting {
-            dependsOn(iosMain)
+        val iosSimulatorArm64Main = getByName("iosSimulatorArm64Main") {
         }
 
-        val jsMain by getting {
+        val jsMain = getByName("jsMain") {
             dependsOn(skikoMain)
         }
 
-        val wasmJsMain by getting {
+        val wasmJsMain = getByName("wasmJsMain") {
             dependsOn(skikoMain)
-        }
-
-        all {
-            languageSettings.enableLanguageFeature("ContextParameters")
         }
     }
 
