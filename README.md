@@ -4,6 +4,8 @@
 
 A customizable Liquid Glass effect library for Compose Multiplatform.
 
+> Working with the classic Android View system (XML layouts) rather than Compose? See [Liquid-Glass-Android](https://github.com/QWEA0/Liquid-Glass-Android), a `FrameLayout` implementation with an API 24 floor.
+
 ## Docs
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.kyant0/backdrop)](https://central.sonatype.com/artifact/io.github.kyant0/backdrop)
