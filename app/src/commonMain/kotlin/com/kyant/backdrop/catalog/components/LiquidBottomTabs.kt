@@ -31,7 +31,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -162,18 +161,15 @@ fun LiquidBottomTabs(
             )
         }
 
-        var pressStartX = 0f
-        var dragMoved = false
-        val barGesture = Modifier.pointerInput(tabsCount) {
+        val barGesture = Modifier.pointerInput(tabsCount, tabWidth, isLtr) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
-                pressStartX = down.position.x
-                dragMoved = false
                 dampedDragAnimation.press()
                 val blobHalf = constraints.maxWidth / (tabsCount * 2f)
+                val pressValue = ((down.position.x - 4f.dp.toPx() - blobHalf) / tabWidth)
+                    .fastCoerceIn(0f, (tabsCount - 1).toFloat())
                 dampedDragAnimation.updateValue(
-                    ((pressStartX - 4f.dp.toPx() - blobHalf) / tabWidth)
-                        .fastCoerceIn(0f, (tabsCount - 1).toFloat())
+                    if (isLtr) pressValue else (tabsCount - 1f) - pressValue
                 )
                 while (true) {
                     val event = awaitPointerEvent()
@@ -181,12 +177,15 @@ fun LiquidBottomTabs(
                     if (!c.pressed) break
                     val value = ((c.position.x - 4f.dp.toPx() - blobHalf) / tabWidth)
                         .fastCoerceIn(0f, (tabsCount - 1).toFloat())
-                    dampedDragAnimation.updateValue(value * (if (isLtr) 1f else -1f))
+                    dampedDragAnimation.updateValue(
+                        if (isLtr) value else (tabsCount - 1f) - value
+                    )
                     c.consume()
                 }
                 dampedDragAnimation.release()
-                val endIndex = dampedDragAnimation.value.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
-                if (endIndex != currentIndex) onTabSelected(endIndex)
+                val endIndex = dampedDragAnimation.targetValue.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
+                if (endIndex != currentIndex) currentIndex = endIndex
+                else dampedDragAnimation.animateToValue(endIndex.toFloat())
                 down.consume()
             }
         }
@@ -270,7 +269,6 @@ fun LiquidBottomTabs(
                         else size.width - (dampedDragAnimation.value + 1f) * tabWidth + panelOffset
                 }
                 .then(interactiveHighlight.gestureModifier)
-                .then(dampedDragAnimation.modifier)
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
                     shape = { Capsule() },
