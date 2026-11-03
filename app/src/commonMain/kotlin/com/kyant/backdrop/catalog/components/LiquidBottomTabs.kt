@@ -102,7 +102,7 @@ fun LiquidBottomTabs(
         var currentIndex by remember(selectedTabIndex) {
             mutableIntStateOf(selectedTabIndex())
         }
-        val dampedDragAnimation = remember(animationScope) {
+        val dampedDragAnimation = remember(animationScope, tabWidth, isLtr) {
             DampedDragAnimation(
                 animationScope = animationScope,
                 initialValue = selectedTabIndex().toFloat(),
@@ -211,6 +211,7 @@ fun LiquidBottomTabs(
                     onDrawSurface = { drawRect(containerColor) }
                 )
                 .then(interactiveHighlight.modifier)
+                .then(interactiveHighlight.gestureModifier)
                 .then(barGesture)
                 .height(64f.dp)
                 .fillMaxWidth()
@@ -268,7 +269,6 @@ fun LiquidBottomTabs(
                         if (isLtr) dampedDragAnimation.value * tabWidth + panelOffset
                         else size.width - (dampedDragAnimation.value + 1f) * tabWidth + panelOffset
                 }
-                .then(interactiveHighlight.gestureModifier)
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
                     shape = { Capsule() },
