@@ -11,7 +11,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -22,6 +24,7 @@ internal val LocalLiquidBottomTabScale =
 
 @Composable
 fun RowScope.LiquidBottomTab(
+    onSelect: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -29,7 +32,12 @@ fun RowScope.LiquidBottomTab(
     Column(
         modifier
             .clip(Capsule())
-            .semantics { role = Role.Tab }
+            .semantics {
+                role = Role.Tab
+                // no clickable: the bar owns touch gestures; this action keeps
+                // TalkBack/keyboard users able to activate the tab
+                customActions = listOf(CustomAccessibilityAction("Select tab") { onSelect(); true })
+            }
             .fillMaxHeight()
             .weight(1f)
             .graphicsLayer {

@@ -211,8 +211,8 @@ fun LiquidBottomTabs(
                     onDrawSurface = { drawRect(containerColor) }
                 )
                 .then(interactiveHighlight.modifier)
-                .then(interactiveHighlight.gestureModifier)
                 .then(barGesture)
+                .then(interactiveHighlight.gestureModifier)
                 .height(64f.dp)
                 .fillMaxWidth()
                 .padding(4f.dp),
