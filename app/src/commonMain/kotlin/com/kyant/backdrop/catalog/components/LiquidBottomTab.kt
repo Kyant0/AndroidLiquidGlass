@@ -1,6 +1,5 @@
 package com.kyant.backdrop.catalog.components
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -12,7 +11,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.kyant.shapes.Capsule
 
@@ -21,7 +24,7 @@ internal val LocalLiquidBottomTabScale =
 
 @Composable
 fun RowScope.LiquidBottomTab(
-    onClick: () -> Unit,
+    onSelect: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -29,12 +32,12 @@ fun RowScope.LiquidBottomTab(
     Column(
         modifier
             .clip(Capsule())
-            .clickable(
-                interactionSource = null,
-                indication = null,
-                role = Role.Tab,
-                onClick = onClick
-            )
+            .semantics {
+                role = Role.Tab
+                // no clickable: the bar owns touch gestures; this action keeps
+                // TalkBack/keyboard users able to activate the tab
+                customActions = listOf(CustomAccessibilityAction("Select tab") { onSelect(); true })
+            }
             .fillMaxHeight()
             .weight(1f)
             .graphicsLayer {

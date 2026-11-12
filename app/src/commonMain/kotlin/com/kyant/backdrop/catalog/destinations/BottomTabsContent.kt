@@ -47,7 +47,7 @@ fun BottomTabsContent() {
                     modifier = Modifier.padding(horizontal = 36f.dp)
                 ) {
                     repeat(3) { index ->
-                        LiquidBottomTab({ selectedTabIndex = index }) {
+                        LiquidBottomTab(onSelect = { selectedTabIndex = index }) {
                             Box(
                                 Modifier
                                     .size(28f.dp)
@@ -72,7 +72,7 @@ fun BottomTabsContent() {
                     modifier = Modifier.padding(horizontal = 36f.dp)
                 ) {
                     repeat(4) { index ->
-                        LiquidBottomTab({ selectedTabIndex = index }) {
+                        LiquidBottomTab(onSelect = { selectedTabIndex = index }) {
                             Box(
                                 Modifier
                                     .size(28f.dp)
