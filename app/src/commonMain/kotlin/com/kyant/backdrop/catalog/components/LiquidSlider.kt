@@ -35,15 +35,18 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.catalog.LocalCatalogHdrStrength
+import com.kyant.backdrop.catalog.catalogHdrWhite
 import com.kyant.backdrop.catalog.utils.DampedDragAnimation
-import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.highlight.HighlightStyle
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.shapes.Capsule
 import kotlinx.coroutines.flow.collectLatest
+import com.kyant.backdrop.catalog.catalogDrawBackdrop as drawBackdrop
 
 @Composable
 fun LiquidSlider(
@@ -63,6 +66,9 @@ fun LiquidSlider(
         else Color(0xFF787880).copy(0.36f)
 
     val trackBackdrop = rememberLayerBackdrop()
+
+    // Read at composition time; the highlight lambda runs during draw.
+    val hdrStrength = LocalCatalogHdrStrength.current
 
     BoxWithConstraints(
         modifier.fillMaxWidth(),
@@ -175,10 +181,13 @@ fun LiquidSlider(
                     },
                     highlight = {
                         val progress = dampedDragAnimation.pressProgress
-                        Highlight.Ambient.copy(
+                        Highlight(
                             width = Highlight.Ambient.width / 1.5f,
                             blurRadius = Highlight.Ambient.blurRadius / 1.5f,
-                            alpha = progress
+                            alpha = progress,
+                            style = HighlightStyle.Ambient(
+                                highlightColor = catalogHdrWhite(hdrStrength)
+                            )
                         )
                     },
                     shadow = {

@@ -4,6 +4,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -26,7 +27,7 @@ import com.kyant.backdrop.catalog.destinations.ToggleContent
 import com.kyant.backdrop.catalog.utils.BackHandler
 
 @Composable
-fun MainContent() {
+fun MainContent(onDestinationChanged: (CatalogDestination) -> Unit = {}) {
     val isLightTheme = !isSystemInDarkTheme()
 
     CompositionLocalProvider(
@@ -34,8 +35,10 @@ fun MainContent() {
     ) {
         var destination by rememberSaveable { mutableStateOf(CatalogDestination.Home) }
 
+        SideEffect { onDestinationChanged(destination) }
+
         when (destination) {
-            CatalogDestination.Home -> HomeContent(onNavigate = { destination = it })
+            CatalogDestination.Home -> HomeContent(onNavigate = { destination = it; onDestinationChanged(it) })
 
             CatalogDestination.Buttons -> ButtonsContent()
             CatalogDestination.Toggle -> ToggleContent()
@@ -56,6 +59,7 @@ fun MainContent() {
 
         BackHandler(destination != CatalogDestination.Home) {
             destination = CatalogDestination.Home
+            onDestinationChanged(CatalogDestination.Home)
         }
     }
 }

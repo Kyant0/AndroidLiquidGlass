@@ -23,12 +23,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.utils.rememberSdfShader
-import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.shapes.Rectangle
 import glass.app.generated.resources.Res
 import glass.app.generated.resources.clock_sdf
+import com.kyant.backdrop.catalog.catalogDrawPlainBackdrop as drawPlainBackdrop
 
 @Composable
 fun LockScreenContent() {

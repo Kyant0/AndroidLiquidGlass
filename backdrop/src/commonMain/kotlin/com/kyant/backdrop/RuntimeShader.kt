@@ -22,5 +22,11 @@ interface RuntimeShader {
     fun setIntUniform(name: String, value1: Int, value2: Int, value3: Int, value4: Int)
     fun setIntUniform(name: String, values: IntArray)
 
+    /**
+     * Sets an unpremultiplied color on a `layout(color)` uniform. The backend
+     * converts it to the shader's working color space without reducing it to
+     * 8-bit sRGB. The shader must premultiply RGB by alpha before returning
+     * it.
+     */
     fun setColorUniform(name: String, color: Color)
 }

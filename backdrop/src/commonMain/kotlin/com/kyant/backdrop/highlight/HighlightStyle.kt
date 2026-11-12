@@ -72,10 +72,15 @@ interface HighlightStyle {
 
     @Immutable
     data class Ambient(
-        @param:FloatRange(from = 0.0, to = 1.0) val intensity: Float = 0.38f
+        @param:FloatRange(from = 0.0, to = 1.0) val intensity: Float = 0.38f,
+        /**
+         * Sheen color. An extended-range white (for example a linear extended sRGB
+         * color with components above 1) keeps the sheen HDR.
+         */
+        val highlightColor: Color = Color.White
     ) : HighlightStyle {
 
-        override val color: Color = Color.White.copy(alpha = intensity)
+        override val color: Color = highlightColor.copy(alpha = intensity)
 
         override val blendMode: BlendMode = DrawScope.DefaultBlendMode
 
@@ -90,6 +95,7 @@ interface HighlightStyle {
                 ).apply {
                     setFloatUniform("size", size.width, size.height)
                     setFloatUniform("cornerRadii", getCornerRadii(shape))
+                    setColorUniform("color", highlightColor.copy(alpha = 1f))
                     setFloatUniform("angle", 45f * (PI / 180f).toFloat())
                     setFloatUniform("falloff", 1f)
                 }

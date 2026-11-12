@@ -4,7 +4,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shader
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toColorLong
 import org.intellij.lang.annotations.Language
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -65,6 +65,6 @@ internal class AndroidRuntimeShader(val shader: android.graphics.RuntimeShader) 
     }
 
     override fun setColorUniform(name: String, color: Color) {
-        shader.setColorUniform(name, color.toArgb())
+        shader.setColorUniform(name, color.toColorLong())
     }
 }

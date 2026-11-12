@@ -11,6 +11,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.colorspace.ColorSpaces
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.util.fastCoerceIn
 import com.kyant.backdrop.RuntimeShader
@@ -21,7 +22,8 @@ import kotlinx.coroutines.launch
 
 class InteractiveHighlight(
     val animationScope: CoroutineScope,
-    val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset }
+    val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset },
+    val linearHdrStrength: () -> Float = { 1f }
 ) {
 
     private val pressProgressAnimationSpec =
@@ -50,7 +52,8 @@ uniform float2 position;
 half4 main(float2 coord) {
     float dist = distance(coord, position);
     float intensity = smoothstep(radius, radius * 0.5, dist);
-    return color * intensity;
+    // Uniform colors are straight-alpha on both backends; the shader premultiplies.
+    return half4(color.rgb * float(color.a), color.a) * intensity;
 }"""
             )
         } else {
@@ -60,16 +63,23 @@ half4 main(float2 coord) {
     val modifier: Modifier =
         Modifier.drawWithContent {
             val progress = pressProgressAnimation.value
+            val strength = linearHdrStrength()
+            val white = if (strength > 1f) Color(
+                strength,
+                strength,
+                strength,
+                colorSpace = ColorSpaces.LinearExtendedSrgb
+            ) else Color.White
             if (progress > 0f) {
                 if (shader != null) {
                     drawRect(
-                        Color.White.copy(0.08f * progress),
+                        white.copy(0.08f * progress),
                         blendMode = BlendMode.Plus
                     )
                     shader.apply {
                         val position = position(size, positionAnimation.value)
                         setFloatUniform("size", size.width, size.height)
-                        setColorUniform("color", Color.White.copy(0.15f * progress))
+                        setColorUniform("color", white.copy(0.15f * progress))
                         setFloatUniform("radius", size.minDimension * 1.5f)
                         setFloatUniform(
                             "position",
@@ -83,7 +93,7 @@ half4 main(float2 coord) {
                     )
                 } else {
                     drawRect(
-                        Color.White.copy(0.25f * progress),
+                        white.copy(0.25f * progress),
                         blendMode = BlendMode.Plus
                     )
                 }

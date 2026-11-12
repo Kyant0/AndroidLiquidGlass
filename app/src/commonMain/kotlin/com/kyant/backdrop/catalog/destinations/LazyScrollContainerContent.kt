@@ -16,10 +16,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
-import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
+import com.kyant.backdrop.catalog.catalogDrawBackdrop as drawBackdrop
 
 @Composable
 fun LazyScrollContainerContent() {

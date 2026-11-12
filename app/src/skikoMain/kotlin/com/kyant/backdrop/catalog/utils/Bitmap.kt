@@ -9,8 +9,9 @@ import org.jetbrains.skia.SamplingMode
 
 actual fun ImageBitmap.scale(width: Int, height: Int): ImageBitmap {
     val bitmap = Bitmap()
-    bitmap.allocN32Pixels(width, height)
-    val image = Image.makeFromBitmap(this.asSkiaBitmap())
+    val source = this.asSkiaBitmap()
+    bitmap.allocPixels(source.imageInfo.withWidthHeight(width, height))
+    val image = Image.makeFromBitmap(source)
     image.scalePixels(bitmap.peekPixels()!!, SamplingMode.LINEAR, false)
     return bitmap.asComposeImageBitmap()
 }

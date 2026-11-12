@@ -29,7 +29,6 @@ import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.Block
 import com.kyant.backdrop.catalog.utils.scale
-import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.lens
@@ -41,6 +40,7 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sign
 import kotlin.math.sin
+import com.kyant.backdrop.catalog.catalogDrawBackdrop as drawBackdrop
 
 @Composable
 fun AdaptiveLuminanceGlassContent() {

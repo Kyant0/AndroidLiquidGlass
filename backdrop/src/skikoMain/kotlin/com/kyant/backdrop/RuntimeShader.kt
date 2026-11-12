@@ -3,7 +3,7 @@ package com.kyant.backdrop
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.asComposeShader
-import androidx.compose.ui.graphics.colorspace.ColorSpaces
+import com.kyant.backdrop.internal.colorUniformComponents
 import org.intellij.lang.annotations.Language
 import org.jetbrains.skia.RuntimeEffect
 import org.jetbrains.skia.RuntimeShaderBuilder
@@ -64,8 +64,9 @@ internal class SkikoRuntimeShader(val shader: RuntimeShaderBuilder) : RuntimeSha
     }
 
     override fun setColorUniform(name: String, color: Color) {
-        val srgb = color.convert(ColorSpaces.Srgb)
-        val a = srgb.alpha
-        shader.uniform(name, srgb.red * a, srgb.green * a, srgb.blue * a, a)
+        val components = colorUniformComponents(color)
+        // Skia transforms layout(color) uniforms from unpremultiplied sRGB to the
+        // destination color space. Premultiplication belongs in the shader.
+        shader.uniform(name, components[0], components[1], components[2], color.alpha)
     }
 }

@@ -1,5 +1,7 @@
 package com.kyant.backdrop
 
+import androidx.compose.runtime.ProvidableCompositionLocal
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -13,15 +15,20 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.layer.setOutline
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.ObserverModifierNode
+import androidx.compose.ui.node.currentValueOf
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.invalidateMeasurement
 import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
@@ -37,6 +44,12 @@ import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.InnerShadowElement
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.backdrop.shadow.ShadowElement
+
+/**
+ * Invalidates Backdrop-owned rendering resources without replacing
+ * composition.
+ */
+internal val LocalBackdropRenderEpoch: ProvidableCompositionLocal<Int> = compositionLocalOf { 0 }
 
 private val DefaultHighlight = { Highlight.Default }
 private val DefaultShadow = { Shadow.Default }
@@ -241,7 +254,8 @@ private class DrawBackdropNode(
     var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     var onDrawSurface: (DrawScope.() -> Unit)?,
     var onDrawFront: (DrawScope.() -> Unit)?
-) : LayoutModifierNode, DrawModifierNode, GlobalPositionAwareModifierNode, ObserverModifierNode, Modifier.Node() {
+) : LayoutModifierNode, DrawModifierNode, GlobalPositionAwareModifierNode, ObserverModifierNode,
+    CompositionLocalConsumerModifierNode, Modifier.Node() {
 
     private val effectScope =
         object : BackdropEffectScopeImpl() {
@@ -251,11 +265,8 @@ private class DrawBackdropNode(
 
     private var graphicsLayer: GraphicsLayer? = null
 
-    private val layoutLayerBlock: GraphicsLayerScope.() -> Unit = {
-        clip = true
-        shape = shapeProvider.shape
-        compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
-    }
+    private var contentLayer: GraphicsLayer? = null
+    private var renderEpoch = 0
 
     private var layoutCoordinates: LayoutCoordinates? by mutableStateOf(null, neverEqualPolicy())
 
@@ -309,7 +320,18 @@ private class DrawBackdropNode(
     ): MeasureResult {
         val placeable = measurable.measure(constraints)
         return layout(placeable.width, placeable.height) {
-            placeable.placeWithLayer(IntOffset.Zero, layerBlock = layoutLayerBlock)
+            // The content layer is created in onAttach() and only released on detach, so it is
+            // present here; skip placement rather than fail the host app if it is not.
+            val layer = contentLayer ?: return@layout
+            layer.clip = true
+            layer.compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
+            layer.setOutline(
+                shapeProvider.shape.createOutline(
+                    androidx.compose.ui.geometry.Size(placeable.width.toFloat(), placeable.height.toFloat()),
+                    layoutDirection, this@measure
+                )
+            )
+            placeable.placeWithLayer(IntOffset.Zero, layer = layer)
         }
     }
 
@@ -356,7 +378,14 @@ private class DrawBackdropNode(
     }
 
     private fun observeEffects() {
-        observeReads { updateEffects() }
+        observeReads {
+            val epoch = currentValueOf(LocalBackdropRenderEpoch)
+            if (epoch != renderEpoch) {
+                renderEpoch = epoch
+                replaceRenderingLayers()
+            }
+            updateEffects()
+        }
     }
 
     private fun updateEffects() {
@@ -370,8 +399,25 @@ private class DrawBackdropNode(
     override fun onAttach() {
         val graphicsContext = requireGraphicsContext()
         graphicsLayer = graphicsContext.createGraphicsLayer()
-
+        contentLayer = graphicsContext.createGraphicsLayer()
+        renderEpoch = currentValueOf(LocalBackdropRenderEpoch)
         observeEffects()
+    }
+
+    /**
+     * Replaces the rendering layers Backdrop owns. Must run outside the
+     * measure phase, since it requests a re-measure and a redraw.
+     */
+    private fun replaceRenderingLayers() {
+        val context = requireGraphicsContext()
+        val oldEffect = graphicsLayer
+        val oldContent = contentLayer
+        graphicsLayer = context.createGraphicsLayer()
+        contentLayer = context.createGraphicsLayer()
+        oldEffect?.let(context::releaseGraphicsLayer)
+        oldContent?.let(context::releaseGraphicsLayer)
+        invalidateMeasurement()
+        invalidateDraw()
     }
 
     override fun onDetach() {
@@ -381,6 +427,8 @@ private class DrawBackdropNode(
             graphicsLayer = null
         }
 
+        contentLayer?.let { graphicsContext.releaseGraphicsLayer(it) }
+        contentLayer = null
         effectScope.reset()
         layoutCoordinates = null
         exportedBackdrop?.layerCoordinates = null

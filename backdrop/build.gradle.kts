@@ -35,6 +35,18 @@ kotlin {
     iosSimulatorArm64("iosSimulatorArm64")
 
     sourceSets {
+        getByName("commonTest") {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
+
+        getByName("desktopTest") {
+            dependencies {
+                runtimeOnly(compose.desktop.currentOs)
+            }
+        }
+
         val commonMain = getByName("commonMain") {
             dependencies {
                 implementation(libs.compose.foundation)

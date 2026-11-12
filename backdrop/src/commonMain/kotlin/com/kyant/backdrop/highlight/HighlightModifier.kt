@@ -11,18 +11,22 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.util.fastCoerceAtMost
+import com.kyant.backdrop.LocalBackdropRenderEpoch
 import com.kyant.backdrop.RuntimeShaderCacheImpl
 import com.kyant.backdrop.internal.ShapeProvider
 import com.kyant.backdrop.internal.blur
 import com.kyant.backdrop.internal.clipOutline
+import com.kyant.backdrop.internal.setHdrColor
 import com.kyant.backdrop.internal.setRuntimeShader
 import com.kyant.backdrop.isRuntimeShaderSupported
 import kotlin.math.ceil
@@ -68,11 +72,12 @@ internal class HighlightElement(
 internal class HighlightNode(
     var shapeProvider: ShapeProvider,
     var highlight: () -> Highlight?
-) : DrawModifierNode, Modifier.Node() {
+) : DrawModifierNode, CompositionLocalConsumerModifierNode, Modifier.Node() {
 
     override val shouldAutoInvalidate: Boolean = false
 
     private var highlightLayer: GraphicsLayer? = null
+    private var renderEpoch = 0
 
     private val paint =
         Paint().apply {
@@ -85,6 +90,14 @@ internal class HighlightNode(
     private var prevStyle: HighlightStyle? = null
 
     override fun ContentDrawScope.draw() {
+        val epoch = currentValueOf(LocalBackdropRenderEpoch)
+        if (epoch != renderEpoch) {
+            renderEpoch = epoch
+            val context = requireGraphicsContext()
+            val previous = highlightLayer
+            highlightLayer = context.createGraphicsLayer()
+            previous?.let(context::releaseGraphicsLayer)
+        }
         val highlight = highlight()
         if (highlight == null || highlight.width.value <= 0f) {
             return drawContent()
@@ -133,6 +146,7 @@ internal class HighlightNode(
     }
 
     override fun onAttach() {
+        renderEpoch = currentValueOf(LocalBackdropRenderEpoch)
         val graphicsContext = requireGraphicsContext()
         highlightLayer = graphicsContext.createGraphicsLayer()
     }
@@ -149,7 +163,7 @@ internal class HighlightNode(
     }
 
     private fun DrawScope.configurePaint(highlight: Highlight) {
-        paint.color = highlight.style.color
+        paint.setHdrColor(highlight.style.color)
         paint.strokeWidth = ceil(highlight.width.toPx().fastCoerceAtMost(size.minDimension / 2f)) * 2f
         paint.blur(highlight.blurRadius.toPx())
         if (isRuntimeShaderSupported()) {

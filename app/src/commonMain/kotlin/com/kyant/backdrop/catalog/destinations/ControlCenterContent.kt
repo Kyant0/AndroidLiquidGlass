@@ -46,7 +46,6 @@ import com.kyant.backdrop.catalog.BackdropDemoScaffold
 import com.kyant.backdrop.catalog.FlightIcon
 import com.kyant.backdrop.catalog.utils.ProgressConverter
 import com.kyant.backdrop.catalog.utils.rememberUISensor
-import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
@@ -54,6 +53,7 @@ import com.kyant.backdrop.highlight.HighlightStyle
 import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
+import com.kyant.backdrop.catalog.catalogDrawBackdrop as drawBackdrop
 
 @Composable
 fun ControlCenterContent() {

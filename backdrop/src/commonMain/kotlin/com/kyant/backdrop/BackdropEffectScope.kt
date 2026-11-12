@@ -22,6 +22,12 @@ sealed interface BackdropEffectScope : Density, RuntimeShaderCache {
 
 internal abstract class BackdropEffectScopeImpl : BackdropEffectScope, RuntimeShaderCache {
 
+    private var tintEffectIndex = 0
+    private var lightingEffectIndex = 0
+
+    internal fun nextTintEffectKey(): String = "BackdropTint${tintEffectIndex++}"
+    internal fun nextLightingEffectKey(): String = "BackdropLighting${lightingEffectIndex++}"
+
     override var density: Float = 1f
     override var fontScale: Float = 1f
     override var size: Size = Size.Unspecified
@@ -57,12 +63,16 @@ internal abstract class BackdropEffectScopeImpl : BackdropEffectScope, RuntimeSh
     }
 
     fun apply(effects: BackdropEffectScope.() -> Unit) {
+        tintEffectIndex = 0
+        lightingEffectIndex = 0
         padding = 0f
         renderEffect = null
         effects()
     }
 
     fun reset() {
+        tintEffectIndex = 0
+        lightingEffectIndex = 0
         density = 1f
         fontScale = 1f
         size = Size.Unspecified

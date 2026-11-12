@@ -12,7 +12,9 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
-            MainContent()
+            CatalogHdrDemo { setControlsVisible ->
+                MainContent(onDestinationChanged = { setControlsVisible(it != CatalogDestination.Home) })
+            }
         }
     }
 }

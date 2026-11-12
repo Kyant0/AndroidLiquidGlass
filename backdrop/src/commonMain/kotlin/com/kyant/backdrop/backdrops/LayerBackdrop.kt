@@ -1,8 +1,10 @@
 package com.kyant.backdrop.backdrops
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -17,25 +19,43 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.unit.Density
 import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.LocalBackdropRenderEpoch
 import com.kyant.backdrop.internal.InverseLayerScope
 
 private val DefaultOnDraw: ContentDrawScope.() -> Unit = { drawContent() }
 
+/**
+ * Creates a [LayerBackdrop] that records its content into a
+ * [GraphicsLayer].
+ *
+ * The default layer is owned by Backdrop and is recreated whenever
+ * Backdrop refreshes its rendering resources, which is what
+ * `BackdropHdrScope` triggers. The returned [LayerBackdrop] keeps its
+ * identity across those refreshes. A [graphicsLayer] supplied by the
+ * caller is owned by the caller and is not recreated by Backdrop.
+ */
 @Composable
 fun rememberLayerBackdrop(
-    graphicsLayer: GraphicsLayer = rememberGraphicsLayer(),
+    graphicsLayer: GraphicsLayer = rememberBackdropGraphicsLayer(),
     onDraw: ContentDrawScope.() -> Unit = DefaultOnDraw
 ): LayerBackdrop {
-    return remember(graphicsLayer, onDraw) {
-        LayerBackdrop(graphicsLayer, onDraw)
-    }
+    val backdrop = remember(onDraw) { LayerBackdrop(graphicsLayer, onDraw) }
+    SideEffect { backdrop.graphicsLayer = graphicsLayer }
+    return backdrop
 }
+
+@Composable
+private fun rememberBackdropGraphicsLayer(): GraphicsLayer =
+    key(LocalBackdropRenderEpoch.current) { rememberGraphicsLayer() }
 
 @Stable
 class LayerBackdrop internal constructor(
-    val graphicsLayer: GraphicsLayer,
+    graphicsLayer: GraphicsLayer,
     internal val onDraw: ContentDrawScope.() -> Unit
 ) : Backdrop {
+
+    var graphicsLayer: GraphicsLayer by mutableStateOf(graphicsLayer)
+        internal set
 
     override val isCoordinatesDependent: Boolean = true
 

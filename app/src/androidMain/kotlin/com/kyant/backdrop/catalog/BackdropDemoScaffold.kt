@@ -1,10 +1,13 @@
 package com.kyant.backdrop.catalog
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,16 +16,11 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -45,17 +43,28 @@ actual fun BackdropDemoScaffold(
         Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        var painter: Painter? by remember { mutableStateOf(null) }
+        val pickedWallpaper = LocalCatalogPickedWallpaper.current
+        val setPickedWallpaper = LocalCatalogSetPickedWallpaper.current
         val context = LocalContext.current
+        val wallpaperIndex = LocalCatalogWallpaperIndex.current
+        val wallpapers = LocalCatalogHdrWallpapers.current
+        val wallpaper = wallpapers.getOrNull(wallpaperIndex)
         val pickMedia = rememberLauncherForActivityResult(
             ActivityResultContracts.PickVisualMedia()
         ) { uri ->
             if (uri != null) {
                 try {
                     context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                        val imageBitmap = BitmapFactory.decodeStream(inputStream)?.asImageBitmap()
-                        if (imageBitmap != null) {
-                            painter = BitmapPainter(imageBitmap)
+                        val bitmap = BitmapFactory.decodeStream(inputStream)
+                        if (bitmap != null) {
+                            val sdr = requireNotNull(bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false))
+                            if (Build.VERSION.SDK_INT >= 34) sdr.gainmap = null
+                            setPickedWallpaper(
+                                CatalogHdrWallpaper(
+                                    if (Build.VERSION.SDK_INT >= 34 && bitmap.hasGainmap()) "Photo · Ultra HDR" else "Photo",
+                                    BitmapPainter(bitmap.asImageBitmap()), BitmapPainter(sdr.asImageBitmap())
+                                )
+                            )
                         }
                     }
                 } catch (_: Exception) {
@@ -65,15 +74,17 @@ actual fun BackdropDemoScaffold(
 
         val backdrop = rememberLayerBackdrop()
 
-        Image(
-            painter ?: painterResource(Res.drawable.wallpaper_light),
-            null,
-            Modifier
-                .layerBackdrop(backdrop)
-                .then(modifier)
-                .fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
+        val imageGainmap = LocalCatalogImageGainmap.current
+        val background =
+            (if (imageGainmap) pickedWallpaper?.painter else pickedWallpaper?.sdrPainter) ?: if (wallpaperIndex < 2) {
+                if (imageGainmap) wallpaper?.painter else wallpaper?.sdrPainter
+            } else painterResource(Res.drawable.wallpaper_light)
+        val backgroundModifier = Modifier.layerBackdrop(backdrop).then(modifier).fillMaxSize()
+        if (background != null) {
+            Image(background, null, backgroundModifier, contentScale = ContentScale.Crop)
+        } else {
+            Box(backgroundModifier.background(Color(0xFF17202B)))
+        }
 
         content(backdrop)
 

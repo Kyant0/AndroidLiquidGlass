@@ -184,6 +184,7 @@ half4 main(float2 coord) {
 internal const val AmbientHighlightShaderString = """
 uniform float2 size;
 uniform float4 cornerRadii;
+layout(color) uniform half4 color;
 uniform float angle;
 uniform float falloff;
 
@@ -200,5 +201,6 @@ half4 main(float2 coord) {
     float d = dot(grad, normal);
     float intensity = pow(abs(d), falloff);
     float t = step(0.0, d);
-    return half4(t, t, t, 1.0) * intensity;
+    // Uniform colors are straight-alpha on both backends; the sheen is returned premultiplied.
+    return half4(color.rgb * t * intensity, intensity);
 }"""
