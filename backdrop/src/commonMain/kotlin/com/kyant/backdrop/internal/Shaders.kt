@@ -21,9 +21,6 @@ import org.intellij.lang.annotations.Language
 @Language("AGSL")
 private const val RoundedRectSDF = """
 float radiusAt(float2 centeredCoord, float4 radii) {
-    // Expects coordinates centered on the shape. Passing raw layer coordinates
-    // (always >= 0) would make the first branch unconditional and silently
-    // return the bottom-right radius for the whole shape.
     if (centeredCoord.x >= 0.0) {
         if (centeredCoord.y <= 0.0) return radii.y;
         else return radii.z;
